@@ -1,0 +1,155 @@
+{
+  "upstream_commit": "c563c0a4964a333238ace3a216cd975d28d1dee8",
+  "sources": [
+    {
+      "path": "ui/include/classes/api/services/CDRule.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CDRule.php",
+      "sha256": "79dd6e5531a049427805179acd14972a8897db8b562d95d1f2bb282cd747e61a"
+    },
+    {
+      "path": "ui/include/classes/api/services/CHistory.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CHistory.php",
+      "sha256": "71aa55b940fb2cea98c3c34aa58f4b504102a37937191c7669fe614f81753e64"
+    },
+    {
+      "path": "ui/widgets/hostnavigator/actions/WidgetView.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/widgets/hostnavigator/actions/WidgetView.php",
+      "sha256": "887f3c01cde2d60eee1d970ff7ad06753857e6485ee285827849a9b2dacb08b2"
+    },
+    {
+      "path": "ui/app/controllers/CControllerHostDashboardView.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/app/controllers/CControllerHostDashboardView.php",
+      "sha256": "ffb9cd1cfca1650b636a1df6b8bb0f5e8053d38f91a60a54608eaf5ab88f6043"
+    },
+    {
+      "path": "ui/widgets/hostnavigator/includes/WidgetForm.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/widgets/hostnavigator/includes/WidgetForm.php",
+      "sha256": "d08aa637d87bd3bb6f6d20f0ab2a93d224352d332f01b1a05896ccbeb0040dd2"
+    },
+    {
+      "path": "ui/widgets/hostnavigator/manifest.json",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/widgets/hostnavigator/manifest.json",
+      "sha256": "d687dcf6f735efec9719e4a57febdadd0e987a746607e81572f55976dc6f4526"
+    },
+    {
+      "path": "ui/include/classes/api/services/CTemplateDashboard.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CTemplateDashboard.php",
+      "sha256": "4e1d40a6f63f0149100f31e7b75ec571f43e4ff40282135dcbc5aee722d29777"
+    },
+    {
+      "path": "ui/include/classes/core/CWidget.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/core/CWidget.php",
+      "sha256": "4f3a3a287604a4faaea13e26eaff3268ce5f48a02ca377b3486442485c2438d4"
+    },
+    {
+      "path": "ui/include/classes/api/services/CService.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CService.php",
+      "sha256": "4790155508823a6f0b8e79ce5ea3429aed679613353c4270a394cb8915921ce8"
+    },
+    {
+      "path": "ui/include/classes/core/CModule.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/core/CModule.php",
+      "sha256": "14dd8bbe9ef0e8e64acc14b11932db278d30c5cd4d40e6c13cbe79864024afdd"
+    },
+    {
+      "path": "ui/include/classes/api/services/CDashboard.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CDashboard.php",
+      "sha256": "03e7f9a40c6423b695e97ddfcc59092eb03bf792df37ed1bbeb2c539871bebcd"
+    },
+    {
+      "path": "ui/include/classes/api/services/CHost.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CHost.php",
+      "sha256": "c3bfb129b299f9f6bdf91ec01296bd5c593d22095f2016d0a893f6ee142c0262"
+    },
+    {
+      "path": "ui/include/classes/api/services/CDiscoveryRule.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CDiscoveryRule.php",
+      "sha256": "346830900068b5565a5282f8235849e0dd80261ac13509ab3a1fb292acd2b46e"
+    },
+    {
+      "path": "ui/widgets/hostnavigator/assets/js/class.widget.js",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/widgets/hostnavigator/assets/js/class.widget.js",
+      "sha256": "44c46d092baf423577e744f0819982bb0f751e9137e066157a345f3b2d7432d8"
+    },
+    {
+      "path": "ui/include/classes/widgets/CWidgetField.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/widgets/CWidgetField.php",
+      "sha256": "61159818bd2fc90d3c68801b7d5877b4912e7fec285bb52568dbb1777989e31d"
+    },
+    {
+      "path": "ui/app/controllers/CControllerDashboardView.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/app/controllers/CControllerDashboardView.php",
+      "sha256": "c0079ff5e32afca01159a438ea6ba20a773fbf0fd61d833fa342b30db29c79bb"
+    },
+    {
+      "path": "ui/include/classes/api/services/CItem.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CItem.php",
+      "sha256": "bfe3645e5911d2ede8407ee39dfa1d886cd3065fcf12482a4ef9ba1e15ea8a96"
+    },
+    {
+      "path": "ui/include/classes/api/services/CReport.php",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/ui/include/classes/api/services/CReport.php",
+      "sha256": "9ca3094f627c14c3ebbd66d84633131f55efa23f9652bc68aedf024a76ec23ec"
+    },
+    {
+      "path": "src/libs/zbxpoller/checks_snmp.c",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/src/libs/zbxpoller/checks_snmp.c",
+      "sha256": "aae112738454611daee1d83e5b55941362bdceee77a8516262ea63eebddcb5d0"
+    },
+    {
+      "path": "src/libs/zbxpoller/checks_external.c",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/src/libs/zbxpoller/checks_external.c",
+      "sha256": "8191b0fdf6f56ae389320818ea1644644c99512a506ec0c803d838911165ab06"
+    },
+    {
+      "path": "src/libs/zbxpreproc/preproc_snmp.c",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/src/libs/zbxpreproc/preproc_snmp.c",
+      "sha256": "754f1d47e73edd9c74b85e8076b2d11e8c38996e8c8f955d4fc9b49c441557cd"
+    },
+    {
+      "path": "templates/net/generic_snmp/template_net_generic_snmp.yaml",
+      "url": "https://raw.githubusercontent.com/zabbix/zabbix/c563c0a4964a333238ace3a216cd975d28d1dee8/templates/net/generic_snmp/template_net_generic_snmp.yaml",
+      "sha256": "7153477443c965c7f30f1d532ccd4ab27eadbd55f0d86d5149a2155470e7ee8e"
+    }
+  ],
+  "additional_7_4_sources": {
+    "upstream_commit": "1d3fcef4e84744551153ae1902a83c06c1e08831",
+    "sources": [
+      {
+        "path": "ui/widgets/hostnavigator/assets/js/class.widget.js",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/widgets/hostnavigator/assets/js/class.widget.js",
+        "sha256": "44c46d092baf423577e744f0819982bb0f751e9137e066157a345f3b2d7432d8"
+      },
+      {
+        "path": "ui/widgets/hostnavigator/manifest.json",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/widgets/hostnavigator/manifest.json",
+        "sha256": "d687dcf6f735efec9719e4a57febdadd0e987a746607e81572f55976dc6f4526"
+      },
+      {
+        "path": "ui/include/classes/api/services/CHistory.php",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/include/classes/api/services/CHistory.php",
+        "sha256": "71aa55b940fb2cea98c3c34aa58f4b504102a37937191c7669fe614f81753e64"
+      },
+      {
+        "path": "src/libs/zbxpoller/checks_external.c",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/src/libs/zbxpoller/checks_external.c",
+        "sha256": "8191b0fdf6f56ae389320818ea1644644c99512a506ec0c803d838911165ab06"
+      },
+      {
+        "path": "ui/include/defines.inc.php",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/include/defines.inc.php",
+        "sha256": "bd5348f9965645bf4bd973e4880ed8c316213d5028fb1e7b4a78fcf791a31d31"
+      },
+      {
+        "path": "ui/include/classes/core/CWidget.php",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/include/classes/core/CWidget.php",
+        "sha256": "e6004d34c4598317ae1611e23d3f3d90eab4b4949d856c2513204a11fea2a7ba"
+      },
+      {
+        "path": "ui/app/controllers/CControllerHostDashboardView.php",
+        "url": "https://raw.githubusercontent.com/zabbix/zabbix/1d3fcef4e84744551153ae1902a83c06c1e08831/ui/app/controllers/CControllerHostDashboardView.php",
+        "sha256": "ffb9cd1cfca1650b636a1df6b8bb0f5e8053d38f91a60a54608eaf5ab88f6043"
+      }
+    ]
+  }
+}
