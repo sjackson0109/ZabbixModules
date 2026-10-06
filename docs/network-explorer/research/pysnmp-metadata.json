@@ -1,0 +1,19 @@
+{
+  "package": "pysnmp",
+  "version": "7.1.30",
+  "requires_python": ">=3.10",
+  "python_classifiers": [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14"
+  ],
+  "project_urls": {
+    "Homepage": "https://pysnmp.com",
+    "Repository": "https://github.com/lextudio/pysnmp"
+  }
+}
