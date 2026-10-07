@@ -441,7 +441,7 @@
     if(!b){externalCount++;svg.appendChild(svgEl('circle',{cx:end.x,cy:end.y,r:6,class:'ne-external'}));}
     if(edge.members.length>1)svg.appendChild(svgEl('text',{x:(start.x+end.x)/2,y:(start.y+end.y)/2-5,class:'ne-svg-label'},`LAG ×${edge.members.length}`));
     if(mode.value==='stp'&&a&&b)for(const m of edge.members)for(const side of ['source','target'])if(['blocking','discarding'].includes(m.stp?.[side]?.state)){
-     const near=byId.get(id(m[side])),far=near===a?b:a;if(near)svg.appendChild(svgEl('text',{x:near.x+(far.x-near.x)*.25,y:near.y+(far.y-near.y)*.25,class:'ne-svg-label ne-stp-block-mark'},'⊘'));
+     const near=byId.get(id(m[side])),far=near===a?b:a;if(!near)continue;const dx=far.x-near.x,dy=far.y-near.y,len=Math.hypot(dx,dy)||1,t=Math.min(dx?90/Math.abs(dx):Infinity,dy?25/Math.abs(dy):Infinity,1);svg.appendChild(svgEl('text',{x:near.x+dx*t+dx/len*14,y:near.y+dy*t+dy/len*14+4,class:'ne-svg-label ne-stp-block-mark'},'⊘'));
     }
    }
    for(const host of arranged){
