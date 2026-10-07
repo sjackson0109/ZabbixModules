@@ -7,6 +7,7 @@ NE_PHP_IMAGE=php@sha256:af246ab279bb71c614ab4ceee428a6da72f68b1d47858bccb9ca7cbf
 cd "$NE_ROOT"
 "$NE_PYTHON" -m pytest
 "$NE_PYTHON" templates/generate_lab.py --check
+"$NE_PYTHON" scripts/sync_widget_assets.py --check
 node --test tests/browser/widgets.test.cjs
 if command -v php >/dev/null 2>&1; then
   php tests/php/run.php

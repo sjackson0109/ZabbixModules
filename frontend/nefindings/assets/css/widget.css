@@ -1,76 +1,371 @@
-.ne-widget { padding: 10px; overflow: auto; max-height: 100%; color: inherit; box-sizing: border-box; }
-.ne-widget * { box-sizing: border-box; }
-.ne-widget .ne-notice { padding: 7px 9px; margin: 5px 0; border-left: 3px solid #6b849c; background: rgba(100,125,150,.07); }
-.ne-widget .ne-warning { border-left-color: #ae6810; }
-.ne-widget .ne-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
-.ne-widget .ne-toolbar input { max-width: 260px; }
-.ne-widget .ne-legend { line-height: 1.8; padding: 5px 0; }
-.ne-widget .ne-port-member { margin-bottom: 12px; }
-.ne-widget .ne-port-member h4 { margin: 8px 0; }
-.ne-widget .ne-port-grid { display: grid; grid-template-columns: repeat(12,minmax(48px,1fr)); gap: 5px; max-width: 1200px; }
-.ne-widget .ne-layout-24 { grid-template-columns: repeat(12,minmax(48px,1fr)); }
-.ne-widget .ne-layout-48 { grid-template-columns: repeat(24,minmax(40px,1fr)); }
-.ne-widget .ne-layout-generic { grid-template-columns: repeat(auto-fit,minmax(85px,1fr)); }
-.ne-widget .ne-layout-mixed { grid-template-columns: repeat(auto-fit,minmax(70px,1fr)); }
-.ne-widget button.ne-port { min-width: 40px; height: auto; min-height: 80px; margin: 0; padding: 5px 3px; border: 2px solid #607080; border-radius: 4px; background: rgba(100,125,150,.10); color: inherit; white-space: normal; line-height: 1.3; text-align: center; }
-.ne-widget .ne-port span { display: block; }
-.ne-widget .ne-port-number { font-weight: bold; overflow-wrap: anywhere; }
-.ne-widget .ne-port-status,.ne-widget .ne-port-speed { font-size: 10px; margin-top: 3px; }
-.ne-widget button.ne-state-up { border-color: var(--ne-colour-normal, #287e3f); background: color-mix(in srgb, var(--ne-colour-normal, #287e3f) 10%, transparent); }
-.ne-widget button.ne-state-down { border-color: var(--ne-colour-down, #b04444); background: color-mix(in srgb, var(--ne-colour-down, #b04444) 10%, transparent); }
-.ne-widget button.ne-state-degraded { border-color: var(--ne-colour-degraded, #b37312); background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 13%, transparent); }
-.ne-widget button.ne-state-disabled { border-color: var(--ne-colour-disabled, #607080); border-style: dashed; opacity: .75; }
-.ne-widget button.ne-state-unknown { border-color: var(--ne-colour-unknown, #3a4752); background: color-mix(in srgb, var(--ne-colour-unknown, #3a4752) 8%, transparent); }
-.ne-widget .ne-member-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
-.ne-widget .ne-member-tabs[hidden] { display: none; }
-.ne-widget button.ne-member-tab { border: 1px solid #909ba5; border-bottom-width: 3px; border-radius: 4px 4px 0 0; padding: 4px 12px; background: transparent; color: inherit; }
-.ne-widget button.ne-member-tab[aria-selected=true] { border-bottom-color: #387ac4; font-weight: bold; }
-.ne-widget button.ne-port[aria-pressed=true] { outline: 3px solid #387ac4; outline-offset: 2px; }
-.ne-widget button:focus-visible,.ne-widget a:focus-visible { outline: 3px solid #387ac4; outline-offset: 2px; }
-.ne-widget .ne-drawer { margin: 10px 0; border-top: 1px solid #909ba5; padding-top: 8px; }
-.ne-widget .ne-drawer:empty { display: none; }
-.ne-widget .ne-details { display: grid; grid-template-columns: minmax(110px, 180px) 1fr; gap: 4px 12px; }
-.ne-widget .ne-details dt { font-weight: bold; }
-.ne-widget .ne-details dd { margin: 0; overflow-wrap: anywhere; }
-.ne-widget .ne-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-.ne-widget .ne-table th,.ne-widget .ne-table td { text-align: left; vertical-align: top; border-bottom: 1px solid #a2adb7; padding: 6px; overflow-wrap: anywhere; }
-.ne-widget .ne-table caption { text-align: left; font-weight: bold; padding-bottom: 5px; }
-.ne-widget button.ne-link-button { background: none; border: 0; padding: 0; color: #2676b9; text-align: left; height: auto; white-space: normal; text-decoration: underline; }
-.ne-widget details { margin: 10px 0; }
-.ne-widget summary { cursor: pointer; }
-.ne-widget .ne-graph { overflow: auto; min-height: 180px; }
-.ne-widget .ne-graph svg { display: block; width: 100%; min-width: 480px; min-height: 180px; max-height: 900px; }
-.ne-widget .ne-node { cursor: pointer; }
-.ne-widget .ne-node rect { fill: #edf3f8; stroke: #52718b; stroke-width: 2; }
-.ne-widget .ne-node text { fill: #183142; font-size: 12px; }
-.ne-widget .ne-node-warning rect { stroke: #b37312; stroke-width: 3; }
-.ne-widget .ne-node:focus rect { stroke: #387ac4; stroke-width: 4; }
-.ne-widget .ne-edge { stroke: #536c82; stroke-width: 3; cursor: pointer; }
-.ne-widget .ne-edge-uncertain { stroke-dasharray: 6 4; }
-.ne-widget .ne-edge:focus { stroke: #387ac4; stroke-width: 5; }
-.ne-widget .ne-external { fill: #a2adb7; }
-.ne-widget .ne-svg-label { fill: #607080; font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
-.ne-widget .ne-muted { opacity: .3; }
-@media(max-width:800px) { .ne-widget .ne-port-grid { grid-template-columns: repeat(6,minmax(45px,1fr)); } }
-@media print { .ne-widget { max-height: none; overflow: visible; }.ne-widget .ne-toolbar { display: none; }.ne-widget .ne-graph { overflow: visible; } }
-
-.ne-widget button.ne-state-speed_observation,.ne-widget button.ne-state-duplex_observation { border-color: var(--ne-colour-degraded, #b37312); border-style: dashed; background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 7%, transparent); }
-
-.ne-widget button.ne-vlan-access,.ne-widget button.ne-vlan-native { border-color: #287e3f; background: rgba(40,126,63,.14); }
-.ne-widget button.ne-vlan-tagged { border-color: #2676b9; background: rgba(38,118,185,.12); }
-.ne-widget button.ne-vlan-not_permitted { border-color: #b04444; border-style: dashed; background: rgba(176,68,68,.08); }
-.ne-widget button.ne-vlan-unrelated,.ne-widget button.ne-vlan-unknown,.ne-widget button.ne-lldp-none,.ne-widget button.ne-stp-unknown { opacity: .55; }
-.ne-widget button.ne-stp-forwarding,.ne-widget button.ne-lldp-peer { border-color: #287e3f; background: rgba(40,126,63,.10); }
-.ne-widget button.ne-stp-blocking { border-color: #b04444; background: rgba(176,68,68,.12); }
-.ne-widget button.ne-stp-learning { border-color: #b37312; background: rgba(179,115,18,.10); }
-.ne-widget button.ne-stp-disabled { border-style: dashed; opacity: .75; }
-.ne-widget .ne-edge-vlan-carried { stroke: #287e3f; stroke-width: 4; }
-.ne-widget .ne-edge-vlan-stopped { stroke: #b04444; stroke-dasharray: 3 3; stroke-width: 4; }
-.ne-widget .ne-edge-vlan-unrelated,.ne-widget .ne-edge-vlan-unknown { stroke: #a2adb7; }
-.ne-widget .ne-edge-trace-stop { stroke-width: 7; }
-.ne-widget .ne-edge-stp-blocked { stroke: #b04444; stroke-dasharray: 2 4; }
-.ne-widget .ne-edge-stp-rootpath { stroke: #2676b9; stroke-width: 5; }
-.ne-widget .ne-stp-block-mark { fill: #b04444; font-size: 16px; }
-.ne-widget .ne-node-vlan rect { fill: #e3f2e7; stroke: #287e3f; }
-.ne-widget .ne-node-root rect { stroke: #2676b9; stroke-width: 4; }
-.ne-widget .ne-node-unreachable rect { stroke: #b04444; stroke-dasharray: 5 3; }
+.ne-widget {
+  /* Theme tokens: light by default, overridden for Zabbix's dark and high-contrast dark themes. */
+  --ne-accent: #387ac4;
+  --ne-link: #2676b9;
+  --ne-rule: #909ba5;
+  --ne-line: #a2adb7;
+  --ne-edge: #536c82;
+  --ne-node-fill: #edf3f8;
+  --ne-node-stroke: #52718b;
+  --ne-node-text: #183142;
+  --ne-node-vlan-fill: #e3f2e7;
+  --ne-label: #607080;
+  --ne-halo: #ffffff;
+  padding: 10px;
+  overflow: auto;
+  max-height: 100%;
+  color: inherit;
+  box-sizing: border-box;
+}
+html[color-scheme='dark'] .ne-widget {
+  --ne-accent: #5d9de0;
+  --ne-link: #6fb2ec;
+  --ne-rule: #5d6973;
+  --ne-line: #5d6973;
+  --ne-edge: #8aa4ba;
+  --ne-node-fill: #2b3640;
+  --ne-node-stroke: #8aa4ba;
+  --ne-node-text: #e6edf3;
+  --ne-node-vlan-fill: #1f3a29;
+  --ne-label: #b5c0ca;
+  --ne-halo: #1e252b;
+}
+.ne-widget * {
+  box-sizing: border-box;
+}
+.ne-widget .ne-notice {
+  padding: 7px 9px;
+  margin: 5px 0;
+  border-left: 3px solid #6b849c;
+  background: rgba(100, 125, 150, 0.07);
+}
+.ne-widget .ne-warning {
+  border-left-color: #ae6810;
+}
+.ne-widget .ne-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+.ne-widget .ne-toolbar input {
+  max-width: 260px;
+}
+.ne-widget .ne-legend {
+  line-height: 1.8;
+  padding: 5px 0;
+}
+.ne-widget .ne-port-member {
+  margin-bottom: 12px;
+}
+.ne-widget .ne-port-member h4 {
+  margin: 8px 0;
+}
+.ne-widget .ne-port-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(48px, 1fr));
+  gap: 5px;
+  max-width: 1200px;
+}
+.ne-widget .ne-layout-24 {
+  grid-template-columns: repeat(12, minmax(48px, 1fr));
+}
+.ne-widget .ne-layout-48 {
+  grid-template-columns: repeat(24, minmax(40px, 1fr));
+}
+.ne-widget .ne-layout-generic {
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+}
+.ne-widget .ne-layout-mixed {
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+}
+.ne-widget button.ne-port {
+  min-width: 40px;
+  height: auto;
+  min-height: 80px;
+  margin: 0;
+  padding: 5px 3px;
+  border: 2px solid #607080;
+  border-radius: 4px;
+  background: rgba(100, 125, 150, 0.1);
+  color: inherit;
+  white-space: normal;
+  line-height: 1.3;
+  text-align: center;
+}
+.ne-widget .ne-port span {
+  display: block;
+}
+.ne-widget .ne-port-number {
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+.ne-widget .ne-port-status,
+.ne-widget .ne-port-speed {
+  font-size: 10px;
+  margin-top: 3px;
+}
+.ne-widget button.ne-state-up {
+  border-color: var(--ne-colour-normal, #287e3f);
+  background: color-mix(in srgb, var(--ne-colour-normal, #287e3f) 10%, transparent);
+}
+.ne-widget button.ne-state-down {
+  border-color: var(--ne-colour-down, #b04444);
+  background: color-mix(in srgb, var(--ne-colour-down, #b04444) 10%, transparent);
+}
+.ne-widget button.ne-state-degraded {
+  border-color: var(--ne-colour-degraded, #b37312);
+  background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 13%, transparent);
+}
+.ne-widget button.ne-state-disabled {
+  border-color: var(--ne-colour-disabled, #607080);
+  border-style: dashed;
+  opacity: 0.75;
+}
+.ne-widget button.ne-state-unknown {
+  border-color: var(--ne-colour-unknown, #3a4752);
+  background: color-mix(in srgb, var(--ne-colour-unknown, #3a4752) 8%, transparent);
+}
+.ne-widget .ne-member-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+.ne-widget .ne-member-tabs[hidden] {
+  display: none;
+}
+.ne-widget button.ne-member-tab {
+  border: 1px solid var(--ne-rule);
+  border-bottom-width: 3px;
+  border-radius: 4px 4px 0 0;
+  padding: 4px 12px;
+  background: transparent;
+  color: inherit;
+}
+.ne-widget button.ne-member-tab[aria-selected='true'] {
+  border-bottom-color: var(--ne-accent);
+  font-weight: bold;
+}
+.ne-widget button.ne-port[aria-pressed='true'] {
+  outline: 3px solid var(--ne-accent);
+  outline-offset: 2px;
+}
+.ne-widget button:focus-visible,
+.ne-widget a:focus-visible {
+  outline: 3px solid var(--ne-accent);
+  outline-offset: 2px;
+}
+.ne-widget .ne-drawer {
+  margin: 10px 0;
+  border-top: 1px solid var(--ne-rule);
+  padding-top: 8px;
+}
+.ne-widget .ne-drawer:empty {
+  display: none;
+}
+.ne-widget .ne-details {
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) 1fr;
+  gap: 4px 12px;
+}
+.ne-widget .ne-details dt {
+  font-weight: bold;
+}
+.ne-widget .ne-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ne-widget .ne-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+.ne-widget .ne-table th,
+.ne-widget .ne-table td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--ne-line);
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+.ne-widget .ne-table caption {
+  text-align: left;
+  font-weight: bold;
+  padding-bottom: 5px;
+}
+.ne-widget button.ne-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ne-link);
+  text-align: left;
+  height: auto;
+  white-space: normal;
+  text-decoration: underline;
+}
+.ne-widget details {
+  margin: 10px 0;
+}
+.ne-widget summary {
+  cursor: pointer;
+}
+.ne-widget .ne-graph {
+  overflow: auto;
+  min-height: 180px;
+}
+.ne-widget .ne-graph svg {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+  min-height: 180px;
+  max-height: 900px;
+}
+.ne-widget .ne-node {
+  cursor: pointer;
+}
+.ne-widget .ne-node rect {
+  fill: var(--ne-node-fill);
+  stroke: var(--ne-node-stroke);
+  stroke-width: 2;
+}
+.ne-widget .ne-node text {
+  fill: var(--ne-node-text);
+  font-size: 12px;
+}
+.ne-widget .ne-node-warning rect {
+  stroke: #b37312;
+  stroke-width: 3;
+}
+.ne-widget .ne-node:focus rect {
+  stroke: var(--ne-accent);
+  stroke-width: 4;
+}
+.ne-widget .ne-edge {
+  stroke: var(--ne-edge);
+  stroke-width: 3;
+  cursor: pointer;
+}
+.ne-widget .ne-edge-uncertain {
+  stroke-dasharray: 6 4;
+}
+.ne-widget .ne-edge:focus {
+  stroke: var(--ne-accent);
+  stroke-width: 5;
+}
+.ne-widget .ne-external {
+  fill: var(--ne-line);
+}
+.ne-widget .ne-svg-label {
+  fill: var(--ne-label);
+  font-size: 12px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--ne-halo);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.ne-widget .ne-muted {
+  opacity: 0.3;
+}
+@media (max-width: 800px) {
+  .ne-widget .ne-port-grid {
+    grid-template-columns: repeat(6, minmax(45px, 1fr));
+  }
+}
+@media print {
+  .ne-widget {
+    max-height: none;
+    overflow: visible;
+  }
+  .ne-widget .ne-toolbar {
+    display: none;
+  }
+  .ne-widget .ne-graph {
+    overflow: visible;
+  }
+}
+.ne-widget button.ne-state-speed_observation,
+.ne-widget button.ne-state-duplex_observation {
+  border-color: var(--ne-colour-degraded, #b37312);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 7%, transparent);
+}
+.ne-widget button.ne-vlan-access,
+.ne-widget button.ne-vlan-native {
+  border-color: #287e3f;
+  background: rgba(40, 126, 63, 0.14);
+}
+.ne-widget button.ne-vlan-tagged {
+  border-color: #2676b9;
+  background: rgba(38, 118, 185, 0.12);
+}
+.ne-widget button.ne-vlan-not_permitted {
+  border-color: #b04444;
+  border-style: dashed;
+  background: rgba(176, 68, 68, 0.08);
+}
+.ne-widget button.ne-vlan-unrelated,
+.ne-widget button.ne-vlan-unknown,
+.ne-widget button.ne-lldp-none,
+.ne-widget button.ne-stp-unknown {
+  opacity: 0.55;
+}
+.ne-widget button.ne-stp-forwarding,
+.ne-widget button.ne-lldp-peer {
+  border-color: #287e3f;
+  background: rgba(40, 126, 63, 0.1);
+}
+.ne-widget button.ne-stp-blocking {
+  border-color: #b04444;
+  background: rgba(176, 68, 68, 0.12);
+}
+.ne-widget button.ne-stp-learning {
+  border-color: #b37312;
+  background: rgba(179, 115, 18, 0.1);
+}
+.ne-widget button.ne-stp-disabled {
+  border-style: dashed;
+  opacity: 0.75;
+}
+.ne-widget .ne-edge-vlan-carried {
+  stroke: #287e3f;
+  stroke-width: 4;
+}
+.ne-widget .ne-edge-vlan-stopped {
+  stroke: #b04444;
+  stroke-dasharray: 3 3;
+  stroke-width: 4;
+}
+.ne-widget .ne-edge-vlan-unrelated,
+.ne-widget .ne-edge-vlan-unknown {
+  stroke: var(--ne-line);
+}
+.ne-widget .ne-edge-trace-stop {
+  stroke-width: 7;
+}
+.ne-widget .ne-edge-stp-blocked {
+  stroke: #b04444;
+  stroke-dasharray: 2 4;
+}
+.ne-widget .ne-edge-stp-rootpath {
+  stroke: #2676b9;
+  stroke-width: 5;
+}
+.ne-widget .ne-stp-block-mark {
+  fill: #b04444;
+  font-size: 16px;
+}
+.ne-widget .ne-node-vlan rect {
+  fill: var(--ne-node-vlan-fill);
+  stroke: #287e3f;
+}
+.ne-widget .ne-node-root rect {
+  stroke: #2676b9;
+  stroke-width: 4;
+}
+.ne-widget .ne-node-unreachable rect {
+  stroke: #b04444;
+  stroke-dasharray: 5 3;
+}

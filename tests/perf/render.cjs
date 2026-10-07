@@ -14,8 +14,8 @@ const payload=fs.readFileSync(file,'utf8');
   for(let r=0;r<runs;++r){
    const page=await browser.newPage({viewport:{width:1700,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.setContent('<!doctype html><html><head><title>Network Explorer render budget</title></head><body><div id="widget" class="ne-widget"></div></body></html>');
-   await page.addStyleTag({path:path.join(__dirname,'../../frontend/netopology/assets/css/widget.css')});
-   await page.addScriptTag({path:path.join(__dirname,'../../frontend/netopology/assets/js/runtime.js')});
+   await page.addStyleTag({path:path.join(__dirname,'../../src/widget/widget.css')});
+   await page.addScriptTag({path:path.join(__dirname,'../../src/widget/runtime.js')});
    const result=await page.evaluate(text=>new Promise(resolve=>{const start=performance.now();const data=JSON.parse(text);
     window.NEWidgetRuntime.render(document.querySelector('#widget'),data,'topology',()=>{});
     // Two frames: the first lays out, the second has painted.
