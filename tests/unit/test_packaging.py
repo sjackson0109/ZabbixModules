@@ -62,3 +62,13 @@ def test_external_check_launcher_is_executable_in_delivery(tmp_path, monkeypatch
     PACKAGE.archive(tmp_path / "collector.tar", [source])
     with tarfile.open(tmp_path / "collector.tar") as tar:
         assert tar.getmember("collector/network-explorer-collect").mode == 0o755
+
+
+def test_every_release_package_carries_the_licence(tmp_path, monkeypatch):
+    monkeypatch.setattr("sys.argv", ["package.py", "--output", str(tmp_path)])
+    PACKAGE.main()
+    archives = sorted(tmp_path.glob("*.tar"))
+    assert archives
+    for path in archives:
+        with tarfile.open(path) as tar:
+            assert "LICENSE" in tar.getnames(), path.name

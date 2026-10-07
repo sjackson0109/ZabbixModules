@@ -54,11 +54,11 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     packages = {
-        "frontend": [ROOT / "frontend"],
-        "collector": [ROOT / "collector", ROOT / "schemas"],
-        "templates": [ROOT / "templates/native", ROOT / "schemas", ROOT / "dashboards"],
-        "template-specifications": [ROOT / "templates/specifications", ROOT / "templates/contract.json",
-            ROOT / "templates/profiles", ROOT / "schemas", ROOT / "dashboards"],
+        "frontend": [ROOT / "LICENSE", ROOT / "frontend"],
+        "collector": [ROOT / "LICENSE", ROOT / "collector", ROOT / "schemas"],
+        "templates": [ROOT / "LICENSE", ROOT / "templates/native", ROOT / "schemas", ROOT / "dashboards"],
+        "template-specifications": [ROOT / "LICENSE", ROOT / "templates/specifications",
+            ROOT / "templates/contract.json", ROOT / "templates/profiles", ROOT / "schemas", ROOT / "dashboards"],
     }
     records = [archive(args.output / f"network-explorer-{name}-{VERSION}.tar", paths) for name, paths in packages.items()]
     manifest = {"version": VERSION, "stage": "pre-release" if "-" in VERSION else "release", "packages": records,

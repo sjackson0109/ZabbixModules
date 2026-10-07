@@ -47,3 +47,7 @@ For the implemented state, verified checks and next steps, read [the offline con
 Production enrolment, template replacement, customer network scans and scheduled report delivery are separate deployment actions. The build uses no customer credentials or live switch access.
 
 Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. Candidate discovery is bounded to the first 301 permitted monitored hosts before domain filtering; narrow-scope peer coverage can therefore be incomplete in larger mixed estates. Truncation is reported. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
