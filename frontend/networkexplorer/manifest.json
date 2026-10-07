@@ -1,0 +1,16 @@
+{
+  "manifest_version": 2.0,
+  "id": "networkexplorer",
+  "name": "Network Explorer",
+  "namespace": "NetworkExplorer",
+  "version": "0.1.0",
+  "type": "module",
+  "author": "Network Explorer contributors",
+  "description": "Permission-aware network investigation, dataset services and current-state exports.",
+  "actions": {
+    "networkexplorer.view": {"class": "Explorer", "view": "networkexplorer.view"},
+    "networkexplorer.data": {"class": "Data", "layout": "layout.json"},
+    "networkexplorer.export": {"class": "Export", "layout": "layout.networkexplorer.export"}
+  },
+  "assets": {"css": ["explorer.css"]}
+}

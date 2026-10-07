@@ -1,0 +1,388 @@
+{
+  "format_version": "1.0",
+  "artifact_type": "portable provisioning recipes, not direct API payloads",
+  "required_modules": [
+    "networkexplorer",
+    "neportpanel",
+    "netopology",
+    "neinterfacedetail",
+    "nedataquality",
+    "nefindings"
+  ],
+  "resolver_contract": [
+    "Resolve symbolic field types to pinned API schemas",
+    "Resolve permitted names/tags to instance-local IDs",
+    "Verify widget registration and typed field support",
+    "Reauthorise data and sharing separately",
+    "Prepare diff and rollback export before writes"
+  ],
+  "recipes": [
+    {
+      "id": "network-operations",
+      "name": "Network Operations",
+      "description": "Fleet investigation with explicit authorised domain/site scope.",
+      "owner_marker": "network-explorer:recipe:network-operations:1",
+      "scope_requirements": [
+        "explicit network_domain",
+        "site optional",
+        "current-user permitted host groups",
+        "unique host names"
+      ],
+      "pages": [
+        {
+          "name": "Investigation",
+          "widgets": [
+            {
+              "type": "hostnavigator",
+              "name": "hostnavigator",
+              "x": 0,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "reference",
+                  "type": "STRING",
+                  "value": "NEHOST"
+                },
+                {
+                  "name": "groupids",
+                  "type": "HOST_GROUP_ARRAY",
+                  "resolve": "scope.permitted_host_groups"
+                }
+              ]
+            },
+            {
+              "type": "netopology",
+              "name": "netopology",
+              "x": 36,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "problems",
+              "name": "problems",
+              "x": 0,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "groupids",
+                  "type": "HOST_GROUP_ARRAY",
+                  "resolve": "scope.permitted_host_groups"
+                }
+              ]
+            },
+            {
+              "type": "nedataquality",
+              "name": "nedataquality",
+              "x": 36,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "nefindings",
+              "name": "nefindings",
+              "x": 0,
+              "y": 14,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            }
+          ]
+        }
+      ],
+      "mutation_policy": "proposal/diff only until administrator deployment; preserve user authored objects",
+      "pdf_status": "not qualified; optional native scheduled reports after browser/webservice tests"
+    },
+    {
+      "id": "site-network",
+      "name": "Site Network",
+      "description": "Single site/domain, selected-host port panel, topology and findings.",
+      "owner_marker": "network-explorer:recipe:site-network:1",
+      "scope_requirements": [
+        "explicit network_domain",
+        "site optional",
+        "current-user permitted host groups",
+        "unique host names"
+      ],
+      "pages": [
+        {
+          "name": "Investigation",
+          "widgets": [
+            {
+              "type": "hostnavigator",
+              "name": "hostnavigator",
+              "x": 0,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "reference",
+                  "type": "STRING",
+                  "value": "NEHOST"
+                },
+                {
+                  "name": "groupids",
+                  "type": "HOST_GROUP_ARRAY",
+                  "resolve": "scope.permitted_host_groups"
+                }
+              ]
+            },
+            {
+              "type": "netopology",
+              "name": "netopology",
+              "x": 36,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "neportpanel",
+              "name": "neportpanel",
+              "x": 0,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "neinterfacedetail",
+              "name": "neinterfacedetail",
+              "x": 36,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "nefindings",
+              "name": "nefindings",
+              "x": 0,
+              "y": 14,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            }
+          ]
+        }
+      ],
+      "mutation_policy": "proposal/diff only until administrator deployment; preserve user authored objects",
+      "pdf_status": "not qualified; optional native scheduled reports after browser/webservice tests"
+    },
+    {
+      "id": "discovery-coverage",
+      "name": "Discovery and Coverage",
+      "description": "Candidate observations and capability/quality; no auto-enrolment.",
+      "owner_marker": "network-explorer:recipe:discovery-coverage:1",
+      "scope_requirements": [
+        "explicit network_domain",
+        "site optional",
+        "current-user permitted host groups",
+        "unique host names"
+      ],
+      "pages": [
+        {
+          "name": "Investigation",
+          "widgets": [
+            {
+              "type": "hostnavigator",
+              "name": "hostnavigator",
+              "x": 0,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "reference",
+                  "type": "STRING",
+                  "value": "NEHOST"
+                },
+                {
+                  "name": "groupids",
+                  "type": "HOST_GROUP_ARRAY",
+                  "resolve": "scope.permitted_host_groups"
+                }
+              ]
+            },
+            {
+              "type": "nefindings",
+              "name": "nefindings",
+              "x": 36,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "nedataquality",
+              "name": "nedataquality",
+              "x": 0,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "netopology",
+              "name": "netopology",
+              "x": 36,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid._reference",
+                  "type": "STRING",
+                  "value": "NEHOST._hostid"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            }
+          ]
+        }
+      ],
+      "mutation_policy": "proposal/diff only until administrator deployment; preserve user authored objects",
+      "pdf_status": "not qualified; optional native scheduled reports after browser/webservice tests"
+    },
+    {
+      "id": "network-reporting",
+      "name": "Network Reporting",
+      "description": "Current-state inventory/finding/quality widgets for on-demand exports; PDF later qualification.",
+      "owner_marker": "network-explorer:recipe:network-reporting:1",
+      "scope_requirements": [
+        "explicit network_domain",
+        "site optional",
+        "current-user permitted host groups",
+        "unique host names"
+      ],
+      "pages": [
+        {
+          "name": "Investigation",
+          "widgets": [
+            {
+              "type": "nedataquality",
+              "name": "nedataquality",
+              "x": 0,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid",
+                  "type": "HOST_ARRAY",
+                  "resolve": "scope.explicit_visible_report_host"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "nefindings",
+              "name": "nefindings",
+              "x": 36,
+              "y": 0,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid",
+                  "type": "HOST_ARRAY",
+                  "resolve": "scope.explicit_visible_report_host"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            },
+            {
+              "type": "netopology",
+              "name": "netopology",
+              "x": 0,
+              "y": 7,
+              "width": 36,
+              "height": 7,
+              "fields": [
+                {
+                  "name": "override_hostid",
+                  "type": "HOST_ARRAY",
+                  "resolve": "scope.explicit_visible_report_host"
+                }
+              ],
+              "scope_note": "Selected visible host, bounded authorised neighbours; no privileged fleet token."
+            }
+          ]
+        }
+      ],
+      "mutation_policy": "proposal/diff only until administrator deployment; preserve user authored objects",
+      "pdf_status": "not qualified; optional native scheduled reports after browser/webservice tests"
+    }
+  ]
+}

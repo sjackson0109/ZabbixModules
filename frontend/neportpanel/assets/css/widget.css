@@ -1,0 +1,52 @@
+.ne-widget { padding: 10px; overflow: auto; max-height: 100%; color: inherit; box-sizing: border-box; }
+.ne-widget * { box-sizing: border-box; }
+.ne-widget .ne-notice { padding: 7px 9px; margin: 5px 0; border-left: 3px solid #6b849c; background: rgba(100,125,150,.07); }
+.ne-widget .ne-warning { border-left-color: #ae6810; }
+.ne-widget .ne-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.ne-widget .ne-toolbar input { max-width: 260px; }
+.ne-widget .ne-legend { line-height: 1.8; padding: 5px 0; }
+.ne-widget .ne-port-member { margin-bottom: 12px; }
+.ne-widget .ne-port-member h4 { margin: 8px 0; }
+.ne-widget .ne-port-grid { display: grid; grid-template-columns: repeat(12,minmax(48px,1fr)); gap: 5px; max-width: 1200px; }
+.ne-widget .ne-layout-24 { grid-template-columns: repeat(12,minmax(48px,1fr)); }
+.ne-widget .ne-layout-48 { grid-template-columns: repeat(24,minmax(40px,1fr)); }
+.ne-widget .ne-layout-generic { grid-template-columns: repeat(auto-fit,minmax(85px,1fr)); }
+.ne-widget .ne-layout-mixed { grid-template-columns: repeat(auto-fit,minmax(70px,1fr)); }
+.ne-widget button.ne-port { min-width: 40px; height: auto; min-height: 80px; margin: 0; padding: 5px 3px; border: 2px solid #607080; border-radius: 4px; background: rgba(100,125,150,.10); color: inherit; white-space: normal; line-height: 1.3; text-align: center; }
+.ne-widget .ne-port span { display: block; }
+.ne-widget .ne-port-number { font-weight: bold; overflow-wrap: anywhere; }
+.ne-widget .ne-port-status,.ne-widget .ne-port-speed { font-size: 10px; margin-top: 3px; }
+.ne-widget button.ne-state-up { border-color: #287e3f; background: rgba(40,126,63,.10); }
+.ne-widget button.ne-state-down { border-color: #b04444; background: rgba(176,68,68,.10); }
+.ne-widget button.ne-state-degraded { border-color: #b37312; background: rgba(179,115,18,.13); }
+.ne-widget button.ne-state-disabled { border-style: dashed; opacity: .75; }
+.ne-widget button.ne-port[aria-pressed=true] { outline: 3px solid #387ac4; outline-offset: 2px; }
+.ne-widget button:focus-visible,.ne-widget a:focus-visible { outline: 3px solid #387ac4; outline-offset: 2px; }
+.ne-widget .ne-drawer { margin: 10px 0; border-top: 1px solid #909ba5; padding-top: 8px; }
+.ne-widget .ne-drawer:empty { display: none; }
+.ne-widget .ne-details { display: grid; grid-template-columns: minmax(110px, 180px) 1fr; gap: 4px 12px; }
+.ne-widget .ne-details dt { font-weight: bold; }
+.ne-widget .ne-details dd { margin: 0; overflow-wrap: anywhere; }
+.ne-widget .ne-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+.ne-widget .ne-table th,.ne-widget .ne-table td { text-align: left; vertical-align: top; border-bottom: 1px solid #a2adb7; padding: 6px; overflow-wrap: anywhere; }
+.ne-widget .ne-table caption { text-align: left; font-weight: bold; padding-bottom: 5px; }
+.ne-widget button.ne-link-button { background: none; border: 0; padding: 0; color: #2676b9; text-align: left; height: auto; white-space: normal; text-decoration: underline; }
+.ne-widget details { margin: 10px 0; }
+.ne-widget summary { cursor: pointer; }
+.ne-widget .ne-graph { overflow: auto; min-height: 180px; }
+.ne-widget .ne-graph svg { display: block; width: 100%; min-width: 480px; min-height: 180px; max-height: 900px; }
+.ne-widget .ne-node { cursor: pointer; }
+.ne-widget .ne-node rect { fill: #edf3f8; stroke: #52718b; stroke-width: 2; }
+.ne-widget .ne-node text { fill: #183142; font-size: 12px; }
+.ne-widget .ne-node-warning rect { stroke: #b37312; stroke-width: 3; }
+.ne-widget .ne-node:focus rect { stroke: #387ac4; stroke-width: 4; }
+.ne-widget .ne-edge { stroke: #536c82; stroke-width: 3; cursor: pointer; }
+.ne-widget .ne-edge-uncertain { stroke-dasharray: 6 4; }
+.ne-widget .ne-edge:focus { stroke: #387ac4; stroke-width: 5; }
+.ne-widget .ne-external { fill: #a2adb7; }
+.ne-widget .ne-svg-label { fill: #607080; font-size: 12px; }
+.ne-widget .ne-muted { opacity: .3; }
+@media(max-width:800px) { .ne-widget .ne-port-grid { grid-template-columns: repeat(6,minmax(45px,1fr)); } }
+@media print { .ne-widget { max-height: none; overflow: visible; }.ne-widget .ne-toolbar { display: none; }.ne-widget .ne-graph { overflow: visible; } }
+
+.ne-widget button.ne-state-speed_observation,.ne-widget button.ne-state-duplex_observation { border-color: #b37312; border-style: dashed; background: rgba(179,115,18,.07); }

@@ -1,0 +1,48 @@
+{
+  "manifest_version": 2.0,
+  "id": "neinterfacedetail",
+  "type": "widget",
+  "name": "Network Explorer: Interface detail",
+  "namespace": "NeInterfaceDetail",
+  "version": "1.0.0",
+  "author": "Network Explorer contributors",
+  "description": "Permission-filtered network observations. Requires the Network Explorer base module. Zabbix 7.0 through 7.4.",
+  "widget": {
+    "size": {
+      "width": 24,
+      "height": 7
+    },
+    "refresh_rate": 60,
+    "js_class": "CWidgetNeInterfaceDetail",
+    "in": {
+      "override_hostid": {
+        "type": "_hostid"
+      },
+      "itemid": {
+        "type": "_itemid"
+      }
+    },
+    "out": [
+      {
+        "type": "_hostid"
+      },
+      {
+        "type": "_itemid"
+      }
+    ]
+  },
+  "actions": {
+    "widget.neinterfacedetail.view": {
+      "class": "WidgetView"
+    }
+  },
+  "assets": {
+    "js": [
+      "runtime.js",
+      "class.widget.js"
+    ],
+    "css": [
+      "widget.css"
+    ]
+  }
+}

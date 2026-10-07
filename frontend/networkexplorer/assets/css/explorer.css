@@ -1,0 +1,4 @@
+.ne-explorer form { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.ne-explorer .ne-export { display: inline-block; margin: 0 1rem 1rem 0; }
+.ne-explorer h2 { margin-top: 1.5rem; }
+.ne-explorer .ne-selected-interface { outline: 2px solid #1c73bb; outline-offset: -2px; }

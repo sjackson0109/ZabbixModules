@@ -1,0 +1,516 @@
+{
+  "format_version": "1.0",
+  "status": "production implementation specification; no field-qualified vendor profiles",
+  "supported_target_versions": [
+    "7.0",
+    "7.2",
+    "7.4"
+  ],
+  "schema_version": "1.0",
+  "uid": {
+    "algorithm": "sha256",
+    "input_precedence": [
+      "name:<trimmed ifName>",
+      "description:<trimmed ifDescr>"
+    ],
+    "encoding": "UTF-8",
+    "prefix": "if-",
+    "hex_characters": 24,
+    "ifindex_role": "current locator only",
+    "ambiguity": "partial inventory; generation-scoped uncertainty ID never drives LLD"
+  },
+  "items": [
+    {
+      "key": "ne.device.snapshot",
+      "owner": "Base",
+      "kind": "canonical_success_snapshot",
+      "value_type": "TEXT",
+      "dataset": "device",
+      "advance_when": {
+        "schema_version": "1.0",
+        "status": "ok",
+        "complete": true
+      },
+      "retention": "7d initially; administrator policy",
+      "production_implementation": "pending family qualification",
+      "lab_implementation": "dependent from ne.device.attempt"
+    },
+    {
+      "key": "ne.device.attempt",
+      "owner": "Base",
+      "kind": "latest_attempt_envelope",
+      "value_type": "TEXT",
+      "dataset": "device",
+      "native_failure_note": "A native poll with no returned value cannot emit an attempt through preprocessing; source item state/error and age remain required.",
+      "lab_implementation": "TRAP"
+    },
+    {
+      "key": "ne.collection.status[device]",
+      "owner": "Base",
+      "kind": "last_emitted_attempt_status",
+      "value_type": "UNSIGNED",
+      "mapping": {
+        "0": "ok",
+        "1": "partial",
+        "2": "failed",
+        "3": "unsupported"
+      }
+    },
+    {
+      "key": "ne.collection.success[device]",
+      "owner": "Base",
+      "kind": "last_complete_observed_epoch",
+      "value_type": "UNSIGNED",
+      "units": "unixtime",
+      "advance_when": {
+        "status": "ok",
+        "complete": true
+      }
+    },
+    {
+      "key": "ne.interfaces.inventory",
+      "owner": "Interfaces",
+      "kind": "canonical_success_snapshot",
+      "value_type": "TEXT",
+      "dataset": "interfaces",
+      "advance_when": {
+        "schema_version": "1.0",
+        "status": "ok",
+        "complete": true
+      },
+      "retention": "7d initially; administrator policy",
+      "production_implementation": "pending family qualification",
+      "lab_implementation": "dependent from ne.interfaces.attempt"
+    },
+    {
+      "key": "ne.interfaces.state",
+      "owner": "Interfaces",
+      "kind": "canonical_success_snapshot",
+      "value_type": "TEXT",
+      "dataset": "interfaces",
+      "advance_when": {
+        "schema_version": "1.0",
+        "status": "ok",
+        "complete": true
+      },
+      "retention": "7d initially; administrator policy",
+      "production_implementation": "pending family qualification",
+      "lab_implementation": "dependent from ne.interfaces.attempt"
+    },
+    {
+      "key": "ne.interfaces.attempt",
+      "owner": "Interfaces",
+      "kind": "latest_attempt_envelope",
+      "value_type": "TEXT",
+      "dataset": "interfaces",
+      "native_failure_note": "A native poll with no returned value cannot emit an attempt through preprocessing; source item state/error and age remain required.",
+      "lab_implementation": "TRAP"
+    },
+    {
+      "key": "ne.collection.status[interfaces]",
+      "owner": "Interfaces",
+      "kind": "last_emitted_attempt_status",
+      "value_type": "UNSIGNED",
+      "mapping": {
+        "0": "ok",
+        "1": "partial",
+        "2": "failed",
+        "3": "unsupported"
+      }
+    },
+    {
+      "key": "ne.collection.success[interfaces]",
+      "owner": "Interfaces",
+      "kind": "last_complete_observed_epoch",
+      "value_type": "UNSIGNED",
+      "units": "unixtime",
+      "advance_when": {
+        "status": "ok",
+        "complete": true
+      }
+    },
+    {
+      "key": "ne.lldp.snapshot",
+      "owner": "LLDP",
+      "kind": "canonical_success_snapshot",
+      "value_type": "TEXT",
+      "dataset": "lldp",
+      "advance_when": {
+        "schema_version": "1.0",
+        "status": "ok",
+        "complete": true
+      },
+      "retention": "7d initially; administrator policy",
+      "production_implementation": "pending family qualification",
+      "lab_implementation": "dependent from ne.lldp.attempt"
+    },
+    {
+      "key": "ne.lldp.attempt",
+      "owner": "LLDP",
+      "kind": "latest_attempt_envelope",
+      "value_type": "TEXT",
+      "dataset": "lldp",
+      "native_failure_note": "A native poll with no returned value cannot emit an attempt through preprocessing; source item state/error and age remain required.",
+      "lab_implementation": "TRAP"
+    },
+    {
+      "key": "ne.collection.status[lldp]",
+      "owner": "LLDP",
+      "kind": "last_emitted_attempt_status",
+      "value_type": "UNSIGNED",
+      "mapping": {
+        "0": "ok",
+        "1": "partial",
+        "2": "failed",
+        "3": "unsupported"
+      }
+    },
+    {
+      "key": "ne.collection.success[lldp]",
+      "owner": "LLDP",
+      "kind": "last_complete_observed_epoch",
+      "value_type": "UNSIGNED",
+      "units": "unixtime",
+      "advance_when": {
+        "status": "ok",
+        "complete": true
+      }
+    },
+    {
+      "key": "ne.lag.snapshot",
+      "owner": "LAG",
+      "kind": "canonical_success_snapshot",
+      "value_type": "TEXT",
+      "dataset": "lag",
+      "advance_when": {
+        "schema_version": "1.0",
+        "status": "ok",
+        "complete": true
+      },
+      "retention": "7d initially; administrator policy",
+      "production_implementation": "pending family qualification",
+      "lab_implementation": "dependent from ne.lag.attempt"
+    },
+    {
+      "key": "ne.lag.attempt",
+      "owner": "LAG",
+      "kind": "latest_attempt_envelope",
+      "value_type": "TEXT",
+      "dataset": "lag",
+      "native_failure_note": "A native poll with no returned value cannot emit an attempt through preprocessing; source item state/error and age remain required.",
+      "lab_implementation": "TRAP"
+    },
+    {
+      "key": "ne.collection.status[lag]",
+      "owner": "LAG",
+      "kind": "last_emitted_attempt_status",
+      "value_type": "UNSIGNED",
+      "mapping": {
+        "0": "ok",
+        "1": "partial",
+        "2": "failed",
+        "3": "unsupported"
+      }
+    },
+    {
+      "key": "ne.collection.success[lag]",
+      "owner": "LAG",
+      "kind": "last_complete_observed_epoch",
+      "value_type": "UNSIGNED",
+      "units": "unixtime",
+      "advance_when": {
+        "status": "ok",
+        "complete": true
+      }
+    },
+    {
+      "key": "ne.if.oper[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "oper_status",
+      "unknown_scalar_sentinel": null,
+      "lab_implemented": true,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    },
+    {
+      "key": "ne.if.admin[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "admin_status",
+      "unknown_scalar_sentinel": null,
+      "lab_implemented": true,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    },
+    {
+      "key": "ne.if.speed[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "speed_bps",
+      "unknown_scalar_sentinel": null,
+      "lab_implemented": true,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    },
+    {
+      "key": "ne.if.duplex[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "duplex",
+      "unknown_scalar_sentinel": null,
+      "lab_implemented": true,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    },
+    {
+      "key": "ne.if.expected.speed[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "expected_speed_bps",
+      "unknown_scalar_sentinel": 0,
+      "lab_implemented": true,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    },
+    {
+      "key": "ne.if.degraded[uid]",
+      "owner": "Interfaces",
+      "kind": "dependent_scalar_prototype",
+      "canonical_field": "policy-derived",
+      "unknown_scalar_sentinel": null,
+      "lab_implemented": false,
+      "policy_note": "Expected target must be explicitly supplied; unknown does not trigger degradation."
+    }
+  ],
+  "discovery": {
+    "key": "ne.interfaces.discovery",
+    "owner": "Interfaces",
+    "source": "ne.interfaces.inventory",
+    "required_success": true,
+    "macros": {
+      "{#IFUID}": "$.uid",
+      "{#IFNAME}": "$.name",
+      "{#IFINDEX}": "$.if_index"
+    },
+    "disable_absent_after": "1d confirmed complete collections",
+    "delete_absent_after": "7d",
+    "partial_payload": "discard; retain prior successful inventory"
+  },
+  "macros": [
+    {
+      "name": "{$NE.IF.MONITOR}",
+      "default": "0",
+      "meaning": "Unexpected-down alert disabled unless explicit context policy"
+    },
+    {
+      "name": "{$NE.IF.EXPECTED_SPEED}",
+      "default": "0",
+      "meaning": "Unknown intended speed; not maximum capacity"
+    },
+    {
+      "name": "{$NE.IF.EXPECTED_DUPLEX}",
+      "default": "unknown",
+      "meaning": "No duplex degradation inference without explicit expectation"
+    },
+    {
+      "name": "{$NE.IF.STATE.INTERVAL}",
+      "default": "60s"
+    },
+    {
+      "name": "{$NE.IF.INVENTORY.INTERVAL}",
+      "default": "1h"
+    },
+    {
+      "name": "{$NE.LLDP.INTERVAL}",
+      "default": "5m"
+    },
+    {
+      "name": "{$NE.LAG.INTERVAL}",
+      "default": "5m"
+    }
+  ],
+  "candidate_objects": [
+    {
+      "mib": "SNMPv2-MIB",
+      "object": "sysObjectID",
+      "numeric_oid": "1.3.6.1.2.1.1.2.0",
+      "index": "scalar",
+      "dataset": "device",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "SNMPv2-MIB",
+      "object": "sysName",
+      "numeric_oid": "1.3.6.1.2.1.1.5.0",
+      "index": "scalar",
+      "dataset": "device",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "SNMPv2-MIB",
+      "object": "sysUpTime",
+      "numeric_oid": "1.3.6.1.2.1.1.3.0",
+      "index": "scalar",
+      "dataset": "device",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifNumber",
+      "numeric_oid": "1.3.6.1.2.1.2.1.0",
+      "index": "scalar",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifIndex",
+      "numeric_oid": "1.3.6.1.2.1.2.2.1.1",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifName",
+      "numeric_oid": "1.3.6.1.2.1.31.1.1.1.1",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifHighSpeed",
+      "numeric_oid": "1.3.6.1.2.1.31.1.1.1.15",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifConnectorPresent",
+      "numeric_oid": "1.3.6.1.2.1.31.1.1.1.17",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifAlias",
+      "numeric_oid": "1.3.6.1.2.1.31.1.1.1.18",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IF-MIB",
+      "object": "ifCounterDiscontinuityTime",
+      "numeric_oid": "1.3.6.1.2.1.31.1.1.1.19",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "EtherLike-MIB",
+      "object": "dot3StatsDuplexStatus",
+      "numeric_oid": "1.3.6.1.2.1.10.7.2.1.19",
+      "index": "ifIndex",
+      "dataset": "interfaces",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "object": "lldpLocChassisId",
+      "numeric_oid": "1.0.8802.1.1.2.1.3.2.0",
+      "index": "scalar",
+      "dataset": "device",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "object": "lldpLocPortId",
+      "numeric_oid": "1.0.8802.1.1.2.1.3.7.1.3",
+      "index": "localPortNum",
+      "dataset": "lldp",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "object": "lldpRemChassisId",
+      "numeric_oid": "1.0.8802.1.1.2.1.4.1.1.5",
+      "index": "timeMark.localPortNum.remoteIndex",
+      "dataset": "lldp",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "object": "lldpRemPortId",
+      "numeric_oid": "1.0.8802.1.1.2.1.4.1.1.7",
+      "index": "timeMark.localPortNum.remoteIndex",
+      "dataset": "lldp",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "object": "lldpRemManAddrIfSubtype",
+      "numeric_oid": "1.0.8802.1.1.2.1.4.2.1.3",
+      "index": "timeMark.localPortNum.remoteIndex.addressFamily.addressLength.addressOctets",
+      "dataset": "lldp",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IEEE8023-LAG-MIB",
+      "object": "dot3adAggActorSystemID",
+      "numeric_oid": "1.2.840.10006.300.43.1.1.1.1.4",
+      "index": "aggregatorIfIndex",
+      "dataset": "lag",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IEEE8023-LAG-MIB",
+      "object": "dot3adAggAggregateOrIndividual",
+      "numeric_oid": "1.2.840.10006.300.43.1.1.1.1.5",
+      "index": "aggregatorIfIndex",
+      "dataset": "lag",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IEEE8023-LAG-MIB",
+      "object": "dot3adAggPartnerSystemID",
+      "numeric_oid": "1.2.840.10006.300.43.1.1.1.1.8",
+      "index": "aggregatorIfIndex",
+      "dataset": "lag",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    },
+    {
+      "mib": "IEEE8023-LAG-MIB",
+      "object": "dot3adAggPortAttachedAggID",
+      "numeric_oid": "1.2.840.10006.300.43.1.2.1.1.13",
+      "index": "memberIfIndex",
+      "dataset": "lag",
+      "qualification": "candidate standard object; actual device exposure unqualified"
+    }
+  ],
+  "forbidden_assumptions": [
+    "lldpLocPortNum equals ifIndex",
+    "dot3adAggIndex is readable (MAX-ACCESS not-accessible)",
+    "Actor Port bitmap bit equals ifIndex without mapping",
+    "maximum speed establishes intended speed",
+    "proxy assignment grants frontend permissions",
+    "empty table proves supported capability",
+    "partial inventory may remove discovered interfaces"
+  ],
+  "widgets": [
+    "neportpanel",
+    "netopology",
+    "neinterfacedetail",
+    "nedataquality",
+    "nefindings"
+  ],
+  "host_dashboard_pages": [
+    "Overview",
+    "Connectivity",
+    "Diagnostics"
+  ],
+  "future_datasets": [
+    "vlan",
+    "stp"
+  ],
+  "vendor_profile_manifest": "profiles/unqualified.json"
+}

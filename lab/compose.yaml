@@ -1,0 +1,62 @@
+services:
+  database:
+    image: ${DATABASE_IMAGE:?Use lab.py to supply the image lock}
+    environment:
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Missing generated local password}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U zabbix -d zabbix]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  server:
+    image: ${SERVER_IMAGE:?}
+    environment:
+      DB_SERVER_HOST: database
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      ZBX_CACHESIZE: 32M
+      ZBX_STARTPOLLERS: 1
+      ZBX_STARTPINGERS: 0
+      ZBX_STARTDISCOVERERS: 0
+      ZBX_STARTHTTPPOLLERS: 0
+      ZBX_STARTVMWARECOLLECTORS: 0
+      ZBX_DEBUGLEVEL: 3
+    ports:
+      - 127.0.0.1:${SENDER_PORT:?}:10051
+    depends_on:
+      database:
+        condition: service_healthy
+  web:
+    image: ${WEB_IMAGE:?}
+    environment:
+      DB_SERVER_HOST: database
+      POSTGRES_DB: zabbix
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      ZBX_SERVER_HOST: server
+      PHP_TZ: Europe/London
+    ports:
+      - 127.0.0.1:${HTTP_PORT:?}:8080
+    depends_on:
+      database:
+        condition: service_healthy
+  proxy:
+    image: ${PROXY_IMAGE:?}
+    environment:
+      ZBX_HOSTNAME: ne-lab-proxy
+      ZBX_SERVER_HOST: server
+      ZBX_PROXYMODE: 0
+      ZBX_STARTPOLLERS: 1
+      ZBX_STARTPINGERS: 0
+      ZBX_STARTDISCOVERERS: 0
+      ZBX_STARTHTTPPOLLERS: 0
+      ZBX_STARTVMWARECOLLECTORS: 0
+    depends_on:
+      - server
+volumes:
+  database:

@@ -1,0 +1,57 @@
+{
+  "database": {
+    "tag": "postgres:16.10-alpine",
+    "image": "postgres@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297"
+  },
+  "versions": {
+    "7.0": {
+      "patch": "7.0.20",
+      "server": {
+        "tag": "zabbix/zabbix-server-pgsql:alpine-7.0.20",
+        "image": "zabbix/zabbix-server-pgsql@sha256:397457e4b7090484fd805da4f1c950777da25e0094c0f1c6ce7218fde21b6a21"
+      },
+      "web": {
+        "tag": "zabbix/zabbix-web-nginx-pgsql:alpine-7.0.20",
+        "image": "zabbix/zabbix-web-nginx-pgsql@sha256:bf4805b462e8ca92d3c931583fc2ed4f177d920564419bab6fbe7e9bd59a13cb"
+      },
+      "proxy": {
+        "tag": "zabbix/zabbix-proxy-sqlite3:alpine-7.0.20",
+        "image": "zabbix/zabbix-proxy-sqlite3@sha256:2e07fbbd7734221e06740a153c2050f08d1bd3ac26e8e0a342ebf7700cd7bfe3"
+      }
+    },
+    "7.2": {
+      "patch": "7.2.7",
+      "server": {
+        "tag": "zabbix/zabbix-server-pgsql:alpine-7.2.7",
+        "image": "zabbix/zabbix-server-pgsql@sha256:6512317f2569b98e9cc51e6306549f6b82cc19d03facf5accb90dec53f92ebf5"
+      },
+      "web": {
+        "tag": "zabbix/zabbix-web-nginx-pgsql:alpine-7.2.7",
+        "image": "zabbix/zabbix-web-nginx-pgsql@sha256:782f2997890cda38c971f35f4626f1d6121125b1ae178bd9f797ceb8f3db8675"
+      },
+      "proxy": {
+        "tag": "zabbix/zabbix-proxy-sqlite3:alpine-7.2.7",
+        "image": "zabbix/zabbix-proxy-sqlite3@sha256:734935144ecf5fee31959dd9bee7c101abb9ff44bf10ef6456f734f1446bcd0d"
+      }
+    },
+    "7.4": {
+      "patch": "7.4.3",
+      "server": {
+        "tag": "zabbix/zabbix-server-pgsql:alpine-7.4.3",
+        "image": "zabbix/zabbix-server-pgsql@sha256:8cd5a5aa244269b58f9e732fde3c919a85e94745bff5760f9426da94646329f6"
+      },
+      "web": {
+        "tag": "zabbix/zabbix-web-nginx-pgsql:alpine-7.4.3",
+        "image": "zabbix/zabbix-web-nginx-pgsql@sha256:ff8fee0c2c7e0391865208fe107e605ee8cb62d1890a94fddb898c8ec9162a90"
+      },
+      "proxy": {
+        "tag": "zabbix/zabbix-proxy-sqlite3:alpine-7.4.3",
+        "image": "zabbix/zabbix-proxy-sqlite3@sha256:a5c8131ea225bf43311b953313db43532abfd3e2eb0816841f604ea0afa9ec20"
+      }
+    }
+  },
+  "php_cli": {
+    "tag": "php:8.4.13-cli-alpine",
+    "image": "php@sha256:af246ab279bb71c614ab4ceee428a6da72f68b1d47858bccb9ca7cbf6b27363d"
+  }
+}

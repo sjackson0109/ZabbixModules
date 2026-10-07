@@ -1,0 +1,42 @@
+{
+  "manifest_version": 2.0,
+  "id": "nedataquality",
+  "type": "widget",
+  "name": "Network Explorer: Data quality",
+  "namespace": "NeDataQuality",
+  "version": "1.0.0",
+  "author": "Network Explorer contributors",
+  "description": "Permission-filtered network observations. Requires the Network Explorer base module. Zabbix 7.0 through 7.4.",
+  "widget": {
+    "size": {
+      "width": 24,
+      "height": 7
+    },
+    "refresh_rate": 60,
+    "js_class": "CWidgetNeDataQuality",
+    "in": {
+      "override_hostid": {
+        "type": "_hostid"
+      }
+    },
+    "out": [
+      {
+        "type": "_hostid"
+      }
+    ]
+  },
+  "actions": {
+    "widget.nedataquality.view": {
+      "class": "WidgetView"
+    }
+  },
+  "assets": {
+    "js": [
+      "runtime.js",
+      "class.widget.js"
+    ],
+    "css": [
+      "widget.css"
+    ]
+  }
+}

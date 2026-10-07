@@ -1,0 +1,749 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "dataset": {
+      "enum": [
+        "interfaces",
+        "device",
+        "lldp",
+        "lag"
+      ]
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "attempted_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "partial",
+        "failed",
+        "unsupported"
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "native_snmp",
+            "python_snmp",
+            "fixture",
+            "agent"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "source_instance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "collection_mode": {
+          "enum": [
+            "once",
+            "periodic"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "adapter",
+        "version"
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "supported",
+            "partial",
+            "unsupported",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ]
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      }
+    },
+    "data": {
+      "type": "array",
+      "maxItems": 20000
+    }
+  },
+  "required": [
+    "schema_version",
+    "dataset",
+    "generation_id",
+    "attempted_at",
+    "observed_at",
+    "status",
+    "complete",
+    "source",
+    "capability",
+    "errors",
+    "data"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://network-explorer.invalid/schema/envelope-1.0.json",
+  "title": "Network Explorer canonical dataset envelope 1.0",
+  "$defs": {
+    "interfaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+        },
+        "if_index": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "type": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "physical": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "admin_status": {
+          "enum": [
+            "up",
+            "down",
+            "testing",
+            null
+          ]
+        },
+        "oper_status": {
+          "enum": [
+            "up",
+            "down",
+            "testing",
+            "unknown",
+            "dormant",
+            "not_present",
+            "lower_layer_down",
+            null
+          ]
+        },
+        "speed_bps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "duplex": {
+          "enum": [
+            "half",
+            "full",
+            null
+          ]
+        },
+        "mtu": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "mac_address": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "member": {
+          "type": [
+            "string",
+            "integer",
+            "null"
+          ]
+        },
+        "slot": {
+          "type": [
+            "string",
+            "integer",
+            "null"
+          ]
+        },
+        "port": {
+          "type": [
+            "string",
+            "integer",
+            "null"
+          ]
+        },
+        "expected_speed_bps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "alias": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "uid",
+        "if_index",
+        "name",
+        "description",
+        "type",
+        "physical",
+        "admin_status",
+        "oper_status",
+        "speed_bps",
+        "duplex",
+        "mtu",
+        "mac_address"
+      ]
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostname": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "vendor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "firmware": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "chassis_ids": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "subtype",
+              "value"
+            ],
+            "properties": {
+              "subtype": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 7
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 4096
+              }
+            }
+          }
+        },
+        "management_addresses": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "hostname",
+        "vendor",
+        "model",
+        "firmware",
+        "chassis_ids",
+        "management_addresses"
+      ]
+    },
+    "lldp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local_interface_uid": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_port_id": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "subtype",
+            "value"
+          ],
+          "properties": {
+            "subtype": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 7
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        },
+        "remote_chassis_id": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "subtype",
+            "value"
+          ],
+          "properties": {
+            "subtype": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 7
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        },
+        "remote_port_id": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "subtype",
+            "value"
+          ],
+          "properties": {
+            "subtype": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 7
+            },
+            "value": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        },
+        "remote_system_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "remote_port_description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "remote_management_addresses": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "uniqueItems": true
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "local_interface_uid",
+        "local_port_id",
+        "remote_chassis_id",
+        "remote_port_id",
+        "remote_system_name",
+        "remote_port_description",
+        "remote_management_addresses",
+        "observed_at"
+      ]
+    },
+    "lag": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "if_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "member_interface_uids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+          },
+          "maxItems": 4096
+        },
+        "oper_status": {
+          "enum": [
+            "up",
+            "down",
+            "testing",
+            "unknown",
+            "dormant",
+            "not_present",
+            "lower_layer_down",
+            null
+          ]
+        },
+        "actor_system_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        },
+        "partner_system_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "if_index",
+        "member_interface_uids",
+        "oper_status",
+        "actor_system_id",
+        "partner_system_id"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "interfaces"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/interfaces"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "device"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/device"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "lldp"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/lldp"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "lag"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/lag"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "complete": {
+            "const": true
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "errors": {
+            "maxItems": 0
+          },
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "supported"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "partial",
+              "failed",
+              "unsupported"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "complete": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "unsupported"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "observed_at": {
+            "type": "null"
+          },
+          "data": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "partial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "observed_at": {
+            "type": "string"
+          },
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "partial"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "unsupported"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "unsupported"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

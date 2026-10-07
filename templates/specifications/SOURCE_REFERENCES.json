@@ -1,0 +1,28 @@
+{
+  "format_version": "1.0",
+  "purpose": "MIB candidate/index research; no field qualification",
+  "sources": [
+    {
+      "mib": "IF-MIB",
+      "url": "https://www.rfc-editor.org/rfc/rfc2863",
+      "status": "authoritative object semantics reference; exact device exposure must be captured"
+    },
+    {
+      "mib": "LLDP-MIB",
+      "url": "https://raw.githubusercontent.com/librenms/librenms/master/mibs/LLDP-MIB",
+      "download_sha256": "f0dac7bac08b6d632d2f2363aba8acf106ee7cf83c15f14823489390c31d6769",
+      "status": "inspected public MIB mirror for object assignments and indices; not bundled, no vendor support claim"
+    },
+    {
+      "mib": "IEEE8023-LAG-MIB",
+      "url": "https://raw.githubusercontent.com/librenms/librenms/master/mibs/IEEE8023-LAG-MIB",
+      "download_sha256": "17c1c8cea764a5e507c775ac59f0dc07b5c8388f298a1abbd517b04fdd306cd2",
+      "status": "inspected public MIB mirror for OID root, not-accessible index and attached-member semantics; not bundled, no vendor support claim"
+    },
+    {
+      "source": "Zabbix official generic SNMP template export conventions",
+      "url": "https://github.com/zabbix/zabbix/blob/release/7.0/templates/net/generic_snmp/template_net_generic_snmp.yaml",
+      "status": "template graph-prototype/export conventions inspected; runtime import compatibility is a separate lab test"
+    }
+  ]
+}
