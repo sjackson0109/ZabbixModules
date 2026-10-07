@@ -75,7 +75,7 @@ The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two
 7. The viewer sees three switches. sw-dist-01's name and address appear nowhere in the page, in the inventory, peers, findings and STP exports (JSON and CSV), or in `host.get`. Bridge IDs of switches the viewer cannot read are replaced with opaque per-request placeholders.
 8. After `native_snmp.py break`, sw-access-17 is drawn as SNMP unreachable and the Findings widget lists `snmp_unreachable`.
 
-All eight steps passed on 7.0.20 and 7.2.7 with no browser errors, and all 4 switches polled with no unsupported items.
+All eight steps passed on 7.0.20, 7.2.7 and 7.4.3 with no browser errors, and all 4 switches polled with no unsupported items.
 
 The walkthrough found three defects, fixed in the same change: LAG member links carried no VLAN or STP state, the browser grouped parallel links without regard to their LAG, and a restricted viewer could read a hidden switch's MAC address through the STP designated bridge of a visible port.
 
