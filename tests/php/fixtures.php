@@ -54,14 +54,22 @@ use Modules\NetworkExplorer\Services\NetworkService;
 
     $assert($hosts['sw-dist-01']['out_of_subnet'] && !$hosts['sw-core-01']['out_of_subnet'],
         'The management subnet flags the connected switch outside it, and keeps it visible.');
-    $assert(count($network['edges']) === 6 && !array_filter($network['edges'], static fn($e) => $e['status'] !== 'bidirectional'),
-        'All six physical links are confirmed from both ends.');
+    $assert(count($network['edges']) === 7 && !array_filter($network['edges'], static fn($e) => $e['status'] !== 'bidirectional'),
+        'All seven physical links are confirmed from both ends.');
     $assert($hosts['sw-dist-02']['stp'][0]['is_root'] && !$hosts['sw-core-01']['stp'][0]['is_root'], 'The RSTP root is marked.');
 
-    $lags = array_column($network['lags'], null, 'name');
-    $assert(isset($lags['Po1'], $lags['Po10']) && $lags['Po1']['peer_hostids'] === ['13'] && $lags['Po10']['peer_hostids'] === ['11']
-        && count($lags['Po1']['edge_ids']) === 2 && $lags['Po1']['edge_ids'] === $lags['Po10']['edge_ids'],
-        'Po1 and Po10 are one logical link over both member links, despite different local numbers.');
+    $lags = [];
+    foreach ($network['lags'] as $lag) {
+        $lags[$lag['hostid'].' '.$lag['name']] = $lag;
+    }
+    $assert(isset($lags['11 Po1'], $lags['13 Po10']) && $lags['11 Po1']['peer_hostids'] === ['13'] && $lags['13 Po10']['peer_hostids'] === ['11']
+        && count($lags['11 Po1']['edge_ids']) === 2 && $lags['11 Po1']['edge_ids'] === $lags['13 Po10']['edge_ids']
+        && $lags['11 Po1']['mode'] === 'lacp' && $lags['13 Po10']['mode'] === 'lacp',
+        'Po1 and Po10 are one LACP link over both member links, despite different local numbers.');
+    $assert(isset($lags['13 Po20'], $lags['15 Po1']) && $lags['13 Po20']['mode'] === 'static' && $lags['15 Po1']['mode'] === 'static'
+        && count($lags['15 Po1']['members']) === 2 && $lags['15 Po1']['edge_ids'] === $lags['13 Po20']['edge_ids']
+        && count($lags['15 Po1']['edge_ids']) === 2,
+        'The stack uplink is one static LAG from ifStackTable, one member port on each stack member.');
     foreach (['11/13 Te0/1 - Te1/0/1', '11/13 Te0/2 - Te1/0/2'] as $key) {
         $assert(isset($edges[$key]) && $edges[$key]['vlan']['common'] === '1,49-50' && !$edges[$key]['stp']['blocked'],
             "LAG member link $key carries the aggregator's VLANs and STP state.");
@@ -70,8 +78,10 @@ use Modules\NetworkExplorer\Services\NetworkService;
         'The core/distribution triangle blocks at sw-core-01 Gi1/0/24.');
     $assert($edges['13/14 Te0/2 - Te0/3']['vlan']['common'] === '1,49-50', 'The distribution link carries VLANs 1, 49 and 50.');
 
-    $assert($edges['13/15 Te0/4 - Te1/1/1']['vlan']['common'] === '1,49-50' && !$edges['13/15 Te0/4 - Te1/1/1']['stp']['blocked'],
-        'The stack uplink carries VLANs 1, 49 and 50 and forwards.');
+    foreach (['13/15 Te0/4 - Te1/1/1', '13/15 Te0/5 - Te2/1/1'] as $key) {
+        $assert(isset($edges[$key]) && $edges[$key]['vlan']['common'] === '1,49-50' && !$edges[$key]['stp']['blocked'],
+            "Static LAG member link $key carries VLANs 1, 49 and 50 and forwards.");
+    }
 
     // ENTITY-MIB placement and MAU media.
     $ports = [];

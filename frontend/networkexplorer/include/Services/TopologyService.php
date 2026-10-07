@@ -163,6 +163,7 @@ final class TopologyService {
                     'if_index' => $row['if_index'] ?? null,
                     'name' => (string) ($row['name'] ?? $uid ?: $aggregator),
                     'oper_status' => $row['oper_status'] ?? null,
+                    'mode' => in_array($row['mode'] ?? null, ['lacp', 'static', 'pagp'], true) ? $row['mode'] : 'unknown',
                     'freshness' => $this->freshness($datasets[$hostid]['lag']['freshness'] ?? 'unknown'),
                     'members' => [],
                     'edge_ids' => [],
