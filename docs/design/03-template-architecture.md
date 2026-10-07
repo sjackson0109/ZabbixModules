@@ -27,12 +27,12 @@ Naming follows spec §21 with the project name in place of "Network Device".
 
 ```text
 ne.raw.<dataset>                SNMP agent item, walk[oid,...], history 0d
-   │  preprocessing: "Check for not supported value" → custom value {"error": ...}
+   │  preprocessing: "Check for not supported value" → custom value __NE_COLLECTION_FAILED__
    ▼
 ne.<dataset>.attempt            dependent, TEXT, history 7d
    │  JavaScript: SNMP walk → canonical envelope (ok | partial | failed | unsupported)
    ├──▶ ne.<dataset>.snapshot      dependent, TEXT, 7d — JS throws unless status=ok,
-   │                               custom on fail = discard value, so only complete data lands
+   │                               then "does not match __NE_DISCARD__" discards it, so only complete data lands
    ├──▶ ne.collection.status[<dataset>]    dependent, 0..3
    ├──▶ ne.collection.success[<dataset>]   dependent, unixtime, discarded unless ok
    └──▶ LLD rule (interfaces only), fed from the snapshot so partial data never deletes ports
@@ -40,7 +40,8 @@ ne.<dataset>.attempt            dependent, TEXT, history 7d
 
 Key points:
 
-- **Failures are visible without a collector.** "Check for not supported value" on the raw master turns a timeout or authentication error into a value. The attempt item then records `failed` with the error code, and the last good snapshot stays untouched. This needs proving on 7.0, 7.2 and 7.4 in the lab (spike 1). If it does not hold on a version, the reader falls back to the raw item's state and error fields, which it already reads.
+- **Failures are visible without a collector, in two ways.** Spike 1, partly answered in the lab on 7.0.20: "Check for not supported value" is meant to turn an SNMP error the agent returns into the value `__NE_COLLECTION_FAILED__`, so the attempt item records `failed`. That path imports on all three versions and is unit-tested, but the lab has not yet forced such an error. A timeout or wrong community is different: Zabbix treats it as a network error, marks the host's SNMP interface unavailable and processes no value at all, so no attempt is recorded. In both cases the last good snapshot stays untouched and the stale trigger fires once `{$NE.<DATASET>.STALE}` passes. The frontend therefore reads the SNMP interface availability alongside the attempt items and reports `agent_unreachable` from it.
+- **JavaScript steps cannot discard on failure.** Zabbix offers no custom on-fail for JavaScript steps and an import silently drops one. Each gate returns the sentinel `__NE_DISCARD__` and a following "Does not match regular expression" step discards it. Per-port scalars return an explicit unknown (speed 0, status 4, duplex `unknown`) rather than discarding, because a discarded value never clears an item that is already unsupported.
 - **Canonical JavaScript is shared.** The JS normaliser for each standard dataset is one source file in `templates/source/js/`, unit-tested in Node against the captured `.snmprec` fixtures, and embedded into the generated YAML. The same code therefore runs in tests and in Zabbix.
 - **Self-contained walks.** Each raw walk includes its own join columns (see [04](04-snmp-acquisition-matrix.md)).
 
@@ -86,4 +87,4 @@ No template is linked, unlinked or replaced automatically.
 
 ## Build and export
 
-Templates are written as source definitions (YAML fragments plus the shared JS files). A generator, extending the existing `templates/generate_lab.py`, emits deterministic import files for 7.0, 7.2 and 7.4 with stable UUIDs. CI checks that the generated files are current. The existing LAB replay template stays as a test fixture.
+Built: `templates/source/datasets.json` lists each producer (walk roots, keys, intervals) and `templates/source/js/` holds the shared normalisers. `python templates/generate_snmp.py` writes `templates/native/<version>/network_explorer_snmp.yaml` for 7.0, 7.2 and 7.4 with stable UUIDs, and `--check` fails if they are stale. `tests/unit/test_native_templates.py` runs the generated preprocessing chains in Node against the synthetic switch walks. `lab/native_snmp.py` imports them into the Docker lab and polls simulated switches; see `lab/VERIFICATION.md`. The existing LAB replay template stays as a test fixture.
