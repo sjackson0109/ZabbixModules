@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.1",
+  "dataset": "stp",
+  "generation_id": "example-stp-1",
+  "attempted_at": "2026-10-07T09:00:00Z",
+  "observed_at": "2026-10-07T09:00:02Z",
+  "status": "ok",
+  "complete": true,
+  "source": {
+    "method": "native_snmp",
+    "adapter": "standard-bridge-rstp",
+    "version": "1.1"
+  },
+  "capability": {
+    "state": "supported",
+    "reason": null
+  },
+  "errors": [],
+  "data": [
+    {
+      "kind": "bridge",
+      "instance": 0,
+      "protocol": "rstp",
+      "bridge_id": "8000001122334455",
+      "root_bridge_id": "1000aabbccddeeff",
+      "root_cost": 20000,
+      "root_port_uid": "if-port47",
+      "priority": 32768,
+      "vlans": "1-4094",
+      "topology_changes": 12,
+      "time_since_topology_change_s": 86400
+    },
+    {
+      "kind": "port",
+      "instance": 0,
+      "interface_uid": "if-port47",
+      "bridge_port": 47,
+      "role": "root",
+      "role_source": "derived",
+      "state": "forwarding",
+      "cost": 20000,
+      "priority": 128,
+      "designated_bridge": "1000aabbccddeeff",
+      "designated_port": "8018",
+      "edge": false,
+      "point_to_point": true
+    },
+    {
+      "kind": "port",
+      "instance": 0,
+      "interface_uid": "if-port48",
+      "bridge_port": 48,
+      "role": "alternate",
+      "role_source": "derived",
+      "state": "blocking",
+      "cost": 20000,
+      "priority": 128,
+      "designated_bridge": "9000667788990011",
+      "designated_port": "8030",
+      "edge": false,
+      "point_to_point": true
+    },
+    {
+      "kind": "port",
+      "instance": 0,
+      "interface_uid": "if-port01",
+      "bridge_port": 1,
+      "role": "designated",
+      "role_source": "derived",
+      "state": "forwarding",
+      "cost": 200000,
+      "priority": 128,
+      "designated_bridge": "8000001122334455",
+      "designated_port": "8001",
+      "edge": true,
+      "point_to_point": true
+    }
+  ]
+}

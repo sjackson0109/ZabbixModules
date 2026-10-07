@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.1",
+  "dataset": "vlan",
+  "generation_id": "example-vlan-1",
+  "attempted_at": "2026-10-07T09:00:00Z",
+  "observed_at": "2026-10-07T09:00:02Z",
+  "status": "ok",
+  "complete": true,
+  "source": {
+    "method": "native_snmp",
+    "adapter": "standard-q-bridge",
+    "version": "1.1"
+  },
+  "capability": {
+    "state": "supported",
+    "reason": null
+  },
+  "errors": [],
+  "data": [
+    {
+      "kind": "vlan",
+      "vlan_id": 1,
+      "name": "default",
+      "state": "permanent"
+    },
+    {
+      "kind": "vlan",
+      "vlan_id": 49,
+      "name": "Wireless APs",
+      "state": "permanent"
+    },
+    {
+      "kind": "vlan",
+      "vlan_id": 50,
+      "name": "Voice",
+      "state": "permanent"
+    },
+    {
+      "kind": "port",
+      "interface_uid": "if-port01",
+      "bridge_port": 1,
+      "mode": "access",
+      "pvid": 49,
+      "tagged": "",
+      "untagged": "49",
+      "forbidden": "",
+      "current_egress": "49",
+      "current_untagged": "49",
+      "source": "q-bridge-static"
+    },
+    {
+      "kind": "port",
+      "interface_uid": "if-port03",
+      "bridge_port": 3,
+      "mode": "trunk",
+      "pvid": 1,
+      "tagged": "49-50",
+      "untagged": "1",
+      "forbidden": "",
+      "current_egress": "1,49-50",
+      "current_untagged": "1",
+      "source": "q-bridge-static"
+    },
+    {
+      "kind": "port",
+      "interface_uid": "if-port04",
+      "bridge_port": 4,
+      "mode": "trunk",
+      "pvid": 1,
+      "tagged": "50",
+      "untagged": "1",
+      "forbidden": "49",
+      "current_egress": "1,50",
+      "current_untagged": "1",
+      "source": "q-bridge-static"
+    },
+    {
+      "kind": "port",
+      "interface_uid": null,
+      "bridge_port": 60,
+      "mode": "unknown",
+      "pvid": null,
+      "tagged": null,
+      "untagged": null,
+      "forbidden": null,
+      "source": "q-bridge-static"
+    }
+  ]
+}
