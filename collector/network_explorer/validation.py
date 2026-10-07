@@ -8,8 +8,34 @@ from importlib.resources import files
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-RFC3339 = re.compile(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})")
+RFC3339 = re.compile(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))")
 FORMATS = FormatChecker()
+
+
+def parse_date_time(value) -> datetime | None:
+    """Parse an RFC 3339 date-time into an aware datetime, or return None.
+
+    datetime.fromisoformat on Python 3.10 rejects fractions other than 3 or 6
+    digits, and its errors echo the input, so parse the regex groups instead.
+    """
+    if not isinstance(value, str):
+        return None
+    match = RFC3339.fullmatch(value)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second, fraction, zone, sign, off_hour, off_minute = match.groups()
+    microsecond = int((fraction or "0")[:6].ljust(6, "0"))
+    try:
+        if zone == "Z":
+            tz = timezone.utc
+        else:
+            if int(off_hour) > 23 or int(off_minute) > 59:
+                return None
+            offset = timedelta(hours=int(off_hour), minutes=int(off_minute))
+            tz = timezone(-offset if sign == "-" else offset)
+        return datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), microsecond, tz)
+    except ValueError:
+        return None
 
 
 @FORMATS.checks("date-time")
@@ -17,14 +43,7 @@ def is_date_time(value) -> bool:
     """jsonschema skips date-time unless an optional package is installed; check it without one."""
     if not isinstance(value, str):
         return True
-    match = RFC3339.fullmatch(value)
-    if match is None:
-        return False
-    try:
-        datetime(*(int(part) for part in match.groups()))
-    except ValueError:
-        return False
-    return True
+    return parse_date_time(value) is not None
 
 
 @lru_cache(maxsize=1)
@@ -56,7 +75,10 @@ def validate_agent_snapshot(value: dict, expected_source_instance: str,
         raise ValueError("Agent snapshot was already accepted.")
     for field in ("attempted_at", "observed_at"):
         if value.get(field):
-            time = datetime.fromisoformat(value[field].replace("Z", "+00:00"))
+            time = parse_date_time(value[field])
+            if time is None:
+                # Fixed text: never echo source data.
+                raise ValueError("Agent timestamp is not a valid RFC 3339 date-time.")
             if time > datetime.now(timezone.utc) + timedelta(minutes=5):
                 raise ValueError("Agent timestamp exceeds permitted clock skew.")
     return value
