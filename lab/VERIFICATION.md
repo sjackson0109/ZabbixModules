@@ -46,7 +46,7 @@ On 7.0.20 only:
 
 Two import behaviours found here are now designed around (see [03](../docs/design/03-template-architecture.md)):
 
-- Zabbix drops `error_handler` on JavaScript steps at import. The native gates return a sentinel that a regular-expression step discards. The LAB replay template still relies on the dropped handler: its failed or partial gates make the snapshot item *not supported* rather than discarding the value, so the last value is retained but the item state flips.
+- Zabbix drops `error_handler` on JavaScript steps at import. The native and LAB replay gates both return a sentinel that a regular-expression step discards, so a failed or partial collection keeps the last good snapshot and the item stays supported.
 - A discarded value does not clear an item that is already not supported, so per-port scalars return explicit unknown values.
 
 Not covered yet: forcing an agent-side SNMP error to prove the `__NE_COLLECTION_FAILED__` path end to end, real switch walks, SNMPv3, and load.
