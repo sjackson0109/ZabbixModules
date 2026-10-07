@@ -246,7 +246,7 @@ def run(version: str, require_frontend: bool = True) -> dict:
     if not viewer_file.exists():
         descriptor = os.open(viewer_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "w") as stream:
-            json.dump({"password": secrets.token_urlsafe(30)}, stream)
+            json.dump({"username": "ne-lab-viewer", "password": secrets.token_urlsafe(30)}, stream)
     password = json.loads(viewer_file.read_text())["password"]
     viewers = api("user.get", {"output": ["userid"], "filter": {"username": "ne-lab-viewer"}})
     if not viewers:
