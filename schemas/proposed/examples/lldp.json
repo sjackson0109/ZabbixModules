@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.1",
+  "dataset": "lldp",
+  "generation_id": "example-lldp-1",
+  "attempted_at": "2026-10-07T09:00:00Z",
+  "observed_at": "2026-10-07T09:00:02Z",
+  "status": "ok",
+  "complete": true,
+  "source": {
+    "method": "native_snmp",
+    "adapter": "standard-lldp",
+    "version": "1.1"
+  },
+  "capability": {
+    "state": "supported",
+    "reason": null
+  },
+  "errors": [],
+  "data": [
+    {
+      "local_interface_uid": "if-port23",
+      "local_if_index": 23,
+      "source_index": "0.23.1",
+      "local_port_id": {
+        "subtype": 5,
+        "value": "Gi1/0/23"
+      },
+      "remote_chassis_id": {
+        "subtype": 4,
+        "value": "aa:bb:cc:00:11:22"
+      },
+      "remote_port_id": {
+        "subtype": 5,
+        "value": "Gi1/0/48"
+      },
+      "remote_system_name": "sw-access-17",
+      "remote_system_description": "Example switch OS 1.2",
+      "remote_port_description": "Uplink to core",
+      "remote_management_addresses": [
+        "192.0.2.17"
+      ],
+      "capabilities": {
+        "supported": [
+          "bridge",
+          "router"
+        ],
+        "enabled": [
+          "bridge"
+        ]
+      },
+      "remote_advertised_speeds_bps": [
+        10000000,
+        100000000,
+        1000000000
+      ],
+      "remote_oper_speed_bps": 100000000,
+      "remote_duplex": "full",
+      "remote_lag": {
+        "aggregated": false,
+        "port_id": 0
+      },
+      "remote_pvid": 1,
+      "observed_at": "2026-10-07T09:00:02Z"
+    }
+  ]
+}
