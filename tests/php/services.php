@@ -138,6 +138,11 @@ final class FixtureGateway implements DataGateway {
     $gateway->add('1','ne.interfaces.attempt',[$envelope('interfaces',[],'2026-10-06T11:58:00Z','failed')]);
     $network = (new NetworkService($gateway,$now))->build(['1']);
     $byUid = array_column($network['interfaces'],null,'uid');
+    $assert($network['findings'] !== [] && array_filter($network['findings'], static fn($f) =>
+            array_keys($f) !== ['id','hostid','interface_uid','edge_id','severity','rule','title','reason']
+            || !preg_match('/^[0-9a-f]{64}$/D', $f['id'])) === []
+        && count(array_unique(array_column($network['findings'], 'id'))) === count($network['findings']),
+        'Every finding has one shape and a unique stable ID.');
     $assert($byUid['a']['if_index'] === 11 && $byUid['a']['state'] === 'normal', 'Stable UID carries current renumbered locator.');
     $assert($byUid['a']['alias'] === 'Uplink', 'Permitted interface alias is retained in widget and report payloads.');
     $assert($byUid['retired']['state'] === 'unknown' && $byUid['retired']['freshness'] === 'unknown',

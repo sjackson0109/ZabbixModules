@@ -248,18 +248,17 @@ final class TopologyService {
         return $a === 'unknown' || $b === 'unknown' ? 'unknown' : 'current';
     }
 
-    private function finding(array &$findings, string $type, string $edgeid, string $hostid, string $message): void {
-        $id = $type . ':' . $edgeid . ':' . $hostid;
-        $findings[$id] = [
-            'id' => $id,
-            'type' => $type,
-            'rule' => $type,
-            'title' => ucfirst(str_replace('_', ' ', $type)),
-            'reason' => $message,
-            'severity' => 'info',
-            'hostid' => $hostid,
-            'edge_id' => $edgeid,
-            'message' => $message
-        ];
+    private const FINDING_TITLES = [
+        'self_link'=>'LLDP neighbour is the same host.',
+        'ambiguous_lldp'=>'LLDP neighbour is ambiguous.',
+        'unresolved_lldp'=>'LLDP neighbour is unresolved.',
+        'unmapped_remote_port'=>'Neighbour interface is unknown.',
+        'unmapped_local_port'=>'Local LLDP port is unmapped.'
+    ];
+
+    /** Keyed by rule, edge and host so an observation seen from both ends raises one finding, in a stable order. */
+    private function finding(array &$findings, string $rule, string $edgeid, string $hostid, string $reason): void {
+        $findings[$rule.':'.$edgeid.':'.$hostid] = Finding::create($rule, 'info', $hostid,
+            self::FINDING_TITLES[$rule] ?? 'LLDP observation needs attention.', $reason, null, $edgeid);
     }
 }

@@ -68,7 +68,7 @@ final class StpService {
             uasort($byRoot, static fn($a, $b) => count($b) <=> count($a));
             foreach (array_slice($byRoot, 1, null, true) as $root => $hostids) {
                 foreach ($hostids as $hostid) {
-                    $findings[] = self::finding($hostid, null, 'stp_root_disagreement', 'warning',
+                    $findings[] = Finding::create('stp_root_disagreement', 'warning', $hostid,
                         'Spanning-tree root differs from its neighbours.',
                         'This switch sees root '.$root.' while most switches in domain '.$domain.' see '
                         .array_key_first($byRoot).'. The network may be split or a bridge priority is wrong.');
@@ -79,7 +79,7 @@ final class StpService {
             foreach ($rows as $row) {
                 $since = $row['time_since_topology_change_s'] ?? null;
                 if (is_int($since) && $since < self::RECENT_CHANGE_S && ($row['topology_changes'] ?? 0) > 0) {
-                    $findings[] = self::finding((string) $hostid, null, 'stp_topology_change', 'info',
+                    $findings[] = Finding::create('stp_topology_change', 'info', (string) $hostid,
                         'Recent spanning-tree topology change.',
                         'Instance '.($row['instance'] ?? 0).' changed '.intdiv($since, 60).' minutes ago ('
                         .$row['topology_changes'].' changes since the counter reset).');
@@ -90,19 +90,13 @@ final class StpService {
             foreach ($byUid as $uid => $rows) {
                 foreach ($rows as $row) {
                     if (($row['state'] ?? null) === 'broken') {
-                        $findings[] = self::finding((string) $hostid, (string) $uid, 'stp_port_broken', 'warning',
+                        $findings[] = Finding::create('stp_port_broken', 'warning', (string) $hostid,
                             'Spanning-tree port is broken.', 'Instance '.($row['instance'] ?? 0)
-                            .' reports the port as broken; it forwards nothing.');
+                            .' reports the port as broken; it forwards nothing.', (string) $uid);
                     }
                 }
             }
         }
         return $findings;
-    }
-
-    private static function finding(string $hostid, ?string $uid, string $rule, string $severity,
-            string $title, string $reason): array {
-        return ['id'=>hash('sha256', $hostid.'|'.($uid ?? '').'|'.$rule), 'hostid'=>$hostid, 'interface_uid'=>$uid,
-            'severity'=>$severity, 'rule'=>$rule, 'title'=>$title, 'reason'=>$reason];
     }
 }

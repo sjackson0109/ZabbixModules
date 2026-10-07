@@ -107,10 +107,9 @@ final class VlanService {
                 $local = $ports[$hostid][$uid]['pvid'] ?? null;
                 $remote = $row['remote_pvid'] ?? null;
                 if (!isset($covered[$hostid][$uid]) && is_int($local) && is_int($remote) && $local !== $remote) {
-                    $findings[] = ['id'=>hash('sha256', $hostid.'|'.$uid.'|native_vlan_mismatch'), 'hostid'=>(string) $hostid,
-                        'interface_uid'=>(string) $uid, 'severity'=>'warning', 'rule'=>'native_vlan_mismatch',
-                        'title'=>'Native VLAN differs across a link.',
-                        'reason'=>'Native VLAN '.$local.' here; the LLDP neighbour reports '.$remote.'.'];
+                    $findings[] = Finding::create('native_vlan_mismatch', 'warning', (string) $hostid,
+                        'Native VLAN differs across a link.',
+                        'Native VLAN '.$local.' here; the LLDP neighbour reports '.$remote.'.', (string) $uid);
                 }
             }
         }
@@ -122,7 +121,7 @@ final class VlanService {
     }
 
     private static function finding(string $rule, string $severity, array $edge, string $title, string $reason): array {
-        return ['id'=>$rule.':'.$edge['id'], 'hostid'=>(string) $edge['source'], 'interface_uid'=>$edge['source_uid'],
-            'edge_id'=>$edge['id'], 'severity'=>$severity, 'rule'=>$rule, 'title'=>$title, 'reason'=>$reason];
+        return Finding::create($rule, $severity, (string) $edge['source'], $title, $reason, $edge['source_uid'],
+            $edge['id']);
     }
 }
