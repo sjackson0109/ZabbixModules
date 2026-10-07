@@ -43,7 +43,8 @@ def poll(callback, timeout: int = 60):
         time.sleep(1)
 
 
-def send(config: dict, host: str, key: str, envelope: dict) -> dict:
+def deliver(config: dict, host: str, key: str, envelope: dict) -> bool:
+    """Send one trapper value; True when Zabbix accepted it (host and item are in the config cache)."""
     data = json.dumps({"request": "sender data", "data": [{
         "host": host, "key": key, "value": json.dumps(envelope, separators=(",", ":")),
     }]}).encode()
@@ -52,9 +53,11 @@ def send(config: dict, host: str, key: str, envelope: dict) -> dict:
         prefix = receive(stream, 13)
         assert_that(prefix[:5] == b"ZBXD\x01", "Invalid sender protocol response.")
         response = json.loads(receive(stream, struct.unpack("<Q", prefix[5:])[0]))
-    assert_that(response.get("response") == "success" and "processed: 1; failed: 0" in response.get("info", ""),
-                "Zabbix sender did not accept the lab fixture.")
-    return response
+    return response.get("response") == "success" and "processed: 1; failed: 0" in response.get("info", "")
+
+
+def send(config: dict, host: str, key: str, envelope: dict) -> None:
+    assert_that(deliver(config, host, key, envelope), "Zabbix sender did not accept the lab fixture.")
 
 
 def receive(stream: socket.socket, length: int) -> bytes:
@@ -157,7 +160,6 @@ def run(version: str, require_frontend: bool = True) -> dict:
         hostids[name] = hostid
         host_addresses[name] = address
     compose(config, "exec", "-T", "server", "zabbix_server", "-R", "config_cache_reload", capture=True)
-    time.sleep(2)
     saved = {}
     for number, name in enumerate(hostids, start=1):
         chassis = f"02:00:00:00:00:{number:02x}"
@@ -189,7 +191,8 @@ def run(version: str, require_frontend: bool = True) -> dict:
                                   "remote_system_name": "ne-lab-a", "remote_management_addresses": ["192.0.2.1"]}]
         for dataset, payload in datasets.items():
             value = canonical(dataset, payload)
-            send(config, name, f"ne.{dataset}.attempt", value)
+            # A rejected value is not stored, so retry until the reloaded config cache knows the host and item.
+            poll(lambda: deliver(config, name, f"ne.{dataset}.attempt", value))
             saved[(name, dataset)] = value
     result["checks"].append("sender-four-datasets-four-hosts")
 
@@ -202,9 +205,15 @@ def run(version: str, require_frontend: bool = True) -> dict:
     poll(lambda: len(api("graph.get", {"hostids": [hostids["ne-lab-a"]], "output": ["graphid", "name"]})) == 2)
     # The first inventory creates scalar items asynchronously; resend state to populate those new items.
     compose(config, "exec", "-T", "server", "zabbix_server", "-R", "config_cache_reload", capture=True)
-    time.sleep(2)
-    send(config, "ne-lab-a", "ne.interfaces.attempt", saved[("ne-lab-a", "interfaces")])
-    poll(lambda: items(hostids["ne-lab-a"]).get("ne.if.speed[port1]", {}).get("lastvalue") == "1000000000")
+
+    def speed_populated() -> bool:
+        if items(hostids["ne-lab-a"]).get("ne.if.speed[port1]", {}).get("lastvalue") == "1000000000":
+            return True
+        # Resend until the reloaded cache includes the new scalar items and the value lands in them.
+        send(config, "ne-lab-a", "ne.interfaces.attempt", saved[("ne-lab-a", "interfaces")])
+        return False
+
+    poll(speed_populated)
     assert_that(items(hostids["ne-lab-a"])["ne.if.oper[port1]"]["lastvalue"] == "1", "Canonical operational state not converted to scalar.")
     result["checks"].extend(["complete-inventory-lld", "per-interface-dependent-scalars", "native-speed-graph-prototype-discovery"])
 
