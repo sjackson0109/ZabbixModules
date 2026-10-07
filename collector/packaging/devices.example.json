@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "devices": {
+    "switch-example": {
+      "address": "192.0.2.10",
+      "port": 161,
+      "timeout": 2,
+      "retries": 0,
+      "deadline": 25,
+      "max_varbinds": 20000,
+      "max_output_bytes": 61440,
+      "redact_remote": true,
+      "snmp": {
+        "version": "3",
+        "username": "SET_LOCALLY",
+        "security_level": "authPriv",
+        "auth_protocol": "sha256",
+        "auth_key": "SET_LOCALLY",
+        "priv_protocol": "aes128",
+        "priv_key": "SET_LOCALLY",
+        "context": ""
+      }
+    }
+  }
+}

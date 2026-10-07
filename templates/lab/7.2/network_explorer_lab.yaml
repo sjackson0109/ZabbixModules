@@ -1,0 +1,753 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+  - uuid: 2390577d30154ef7a7bd9a70b81c51f8
+    name: Templates/Network Explorer/Lab
+  templates:
+  - uuid: 5c7af0902e784cddac868a2737ec1d69
+    template: Network Explorer LAB replay
+    name: Network Explorer LAB replay
+    description: LAB ONLY. Zabbix sender/trapper fixture replay for Network Explorer contract testing. No SNMP polling;
+      never link to production network hosts. Registered custom widgets are required for dashboards.
+    vendor:
+      name: Network Explorer
+      version: 0.1.0-lab
+    groups:
+    - name: Templates/Network Explorer/Lab
+    items:
+    - uuid: d4b90ac92e8946508869b51d3eb3ca94
+      name: 'LAB device: replay attempt'
+      type: TRAP
+      key: ne.device.attempt
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: lab-replay
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||!Array.isArray(e.data)||typeof
+          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
+          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
+          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
+          value;
+    - uuid: 1c8b5139316647ae9c538cf933db7c85
+      name: 'LAB device: last complete successful snapshot'
+      type: DEPENDENT
+      key: ne.device.snapshot
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.device.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; return value;
+        error_handler: DISCARD_VALUE
+    - uuid: a34d38d9326240b489adcff2aaa9df17
+      name: 'LAB device: last attempt status'
+      type: DEPENDENT
+      key: ne.collection.status[device]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.device.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+      valuemap:
+        name: Network Explorer collection status
+    - uuid: 32e6ad433e7e482c903b93ae78c11931
+      name: 'LAB device: last complete observation epoch'
+      type: DEPENDENT
+      key: ne.collection.success[device]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.device.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
+          observed_at'; return Math.floor(t/1000);
+        error_handler: DISCARD_VALUE
+      units: unixtime
+      triggers:
+      - uuid: 3e96aa0955ca472aa96439c4ae250c77
+        name: 'LAB device: no complete observation within stale threshold'
+        expression: nodata(/Network Explorer LAB replay/ne.collection.success[device],{$NE.DEVICE.STALE})=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: device
+        - tag: data_source
+          value: lab-replay
+        description: Replay lab diagnostic only. Partial or failed attempts do not refresh success age.
+    - uuid: 9cc6d3c7917543dfa4c5ed0e2d5691af
+      name: 'LAB interfaces: replay attempt'
+      type: TRAP
+      key: ne.interfaces.attempt
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: lab-replay
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||!Array.isArray(e.data)||typeof
+          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
+          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
+          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
+          value;
+    - uuid: fb83bca2f0294f4194682b15fe2b702b
+      name: 'LAB interfaces: last complete successful snapshot'
+      type: DEPENDENT
+      key: ne.interfaces.inventory
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.interfaces.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
+          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
+          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
+          identity';seen[r.uid]=true;}return value;
+        error_handler: DISCARD_VALUE
+    - uuid: 2ba213f9d429462188e5d762f5d540a0
+      name: 'LAB interfaces: last complete successful snapshot'
+      type: DEPENDENT
+      key: ne.interfaces.state
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.interfaces.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
+          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
+          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
+          identity';seen[r.uid]=true;}return value;
+        error_handler: DISCARD_VALUE
+    - uuid: 0ccada189c7044d38afd4a754e125a24
+      name: 'LAB interfaces: last attempt status'
+      type: DEPENDENT
+      key: ne.collection.status[interfaces]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.interfaces.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+      valuemap:
+        name: Network Explorer collection status
+    - uuid: 5276b4e5db2a484d8c34fda5553bef34
+      name: 'LAB interfaces: last complete observation epoch'
+      type: DEPENDENT
+      key: ne.collection.success[interfaces]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.interfaces.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
+          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
+          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
+          identity';seen[r.uid]=true;}var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid observed_at';
+          return Math.floor(t/1000);
+        error_handler: DISCARD_VALUE
+      units: unixtime
+      triggers:
+      - uuid: 8cf93ada72dd44628c04be2771657668
+        name: 'LAB interfaces: no complete observation within stale threshold'
+        expression: nodata(/Network Explorer LAB replay/ne.collection.success[interfaces],{$NE.INTERFACES.STALE})=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        description: Replay lab diagnostic only. Partial or failed attempts do not refresh success age.
+    - uuid: 01439ed846b348549e4ef3dc2c35c851
+      name: 'LAB lldp: replay attempt'
+      type: TRAP
+      key: ne.lldp.attempt
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: lab-replay
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||!Array.isArray(e.data)||typeof
+          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
+          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
+          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
+          value;
+    - uuid: 32f4af195ddf4828859c3c42beee6cf4
+      name: 'LAB lldp: last complete successful snapshot'
+      type: DEPENDENT
+      key: ne.lldp.snapshot
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lldp.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; return value;
+        error_handler: DISCARD_VALUE
+    - uuid: c660eb40cccb450f8febd25cd6442607
+      name: 'LAB lldp: last attempt status'
+      type: DEPENDENT
+      key: ne.collection.status[lldp]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lldp.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+      valuemap:
+        name: Network Explorer collection status
+    - uuid: 05f8e15ac32149f3b8f1e07412895e03
+      name: 'LAB lldp: last complete observation epoch'
+      type: DEPENDENT
+      key: ne.collection.success[lldp]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lldp.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
+          observed_at'; return Math.floor(t/1000);
+        error_handler: DISCARD_VALUE
+      units: unixtime
+      triggers:
+      - uuid: 7f9b77f6d18a418ebc324f5f11b1d2c3
+        name: 'LAB lldp: no complete observation within stale threshold'
+        expression: nodata(/Network Explorer LAB replay/ne.collection.success[lldp],{$NE.LLDP.STALE})=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: lldp
+        - tag: data_source
+          value: lab-replay
+        description: Replay lab diagnostic only. Partial or failed attempts do not refresh success age.
+    - uuid: 97b3bad261d94f5c97a35e6cfb509b9a
+      name: 'LAB lag: replay attempt'
+      type: TRAP
+      key: ne.lag.attempt
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lag
+      - tag: data_source
+        value: lab-replay
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||!Array.isArray(e.data)||typeof
+          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
+          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
+          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
+          value;
+    - uuid: 301cc436292640f997f83affbac2219f
+      name: 'LAB lag: last complete successful snapshot'
+      type: DEPENDENT
+      key: ne.lag.snapshot
+      delay: '0'
+      history: 7d
+      value_type: TEXT
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lag
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lag.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; return value;
+        error_handler: DISCARD_VALUE
+    - uuid: 9dd88378ca894e49a06218559b73fd0d
+      name: 'LAB lag: last attempt status'
+      type: DEPENDENT
+      key: ne.collection.status[lag]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lag
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lag.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+      valuemap:
+        name: Network Explorer collection status
+    - uuid: 13522a4e72ec4fb4b5b8792fb96225b5
+      name: 'LAB lag: last complete observation epoch'
+      type: DEPENDENT
+      key: ne.collection.success[lag]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lag
+      - tag: data_source
+        value: lab-replay
+      master_item:
+        key: ne.lag.attempt
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
+          observed_at'; return Math.floor(t/1000);
+        error_handler: DISCARD_VALUE
+      units: unixtime
+      triggers:
+      - uuid: df52a5d23af3493faf305160cdae653c
+        name: 'LAB lag: no complete observation within stale threshold'
+        expression: nodata(/Network Explorer LAB replay/ne.collection.success[lag],{$NE.LAG.STALE})=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: lag
+        - tag: data_source
+          value: lab-replay
+        description: Replay lab diagnostic only. Partial or failed attempts do not refresh success age.
+    discovery_rules:
+    - uuid: 5cfea4248312476a8767a774525d5b3d
+      name: LAB complete interface inventory discovery
+      type: DEPENDENT
+      key: ne.interfaces.discovery
+      delay: '0'
+      lifetime: 7d
+      enabled_lifetime_type: DISABLE_AFTER
+      enabled_lifetime: 1d
+      master_item:
+        key: ne.interfaces.inventory
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
+          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
+          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
+          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
+          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
+          identity';seen[r.uid]=true;}var rows=e.data.map(function(r){var x=JSON.parse(JSON.stringify(r));x.name=x.name||x.description||x.uid;return
+          x;});return JSON.stringify(rows);
+        error_handler: DISCARD_VALUE
+      lld_macro_paths:
+      - lld_macro: '{#IFUID}'
+        path: $.uid
+      - lld_macro: '{#IFNAME}'
+        path: $.name
+      - lld_macro: '{#IFINDEX}'
+        path: $.if_index
+      item_prototypes:
+      - uuid: 47b64181d1f3460f9e3c663532dea0b1
+        name: 'LAB {#IFNAME}: operational status'
+        type: DEPENDENT
+        key: ne.if.oper[{#IFUID}]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        trends: '0'
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        - tag: interface_uid
+          value: '{#IFUID}'
+        master_item:
+          key: ne.interfaces.state
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid===''{#IFUID}''){var v=a[i][''oper_status''];if(v===null||v===undefined){throw
+            ''Unknown scalar'';}if(typeof v===''string''){var m={"up": 1, "down": 2, "testing": 3, "unknown": 4,
+            "dormant": 5, "not_present": 6, "lower_layer_down": 7};if(m[v]===undefined) throw ''Unknown status enum'';v=m[v];}return
+            v;}} throw ''Interface absent; retain last observed value'';'
+          error_handler: DISCARD_VALUE
+      - uuid: 4ffd33b5e51f4b51923ec0eb853cb16d
+        name: 'LAB {#IFNAME}: administrative status'
+        type: DEPENDENT
+        key: ne.if.admin[{#IFUID}]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        trends: '0'
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        - tag: interface_uid
+          value: '{#IFUID}'
+        master_item:
+          key: ne.interfaces.state
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - 'var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid===''{#IFUID}''){var v=a[i][''admin_status''];if(v===null||v===undefined){throw
+            ''Unknown scalar'';}if(typeof v===''string''){var m={"up": 1, "down": 2, "testing": 3, "unknown": 4,
+            "dormant": 5, "not_present": 6, "lower_layer_down": 7};if(m[v]===undefined) throw ''Unknown status enum'';v=m[v];}return
+            v;}} throw ''Interface absent; retain last observed value'';'
+          error_handler: DISCARD_VALUE
+      - uuid: c07f6517cd504fe6bf1213e47ae15da2
+        name: 'LAB {#IFNAME}: negotiated speed'
+        type: DEPENDENT
+        key: ne.if.speed[{#IFUID}]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        trends: '0'
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        - tag: interface_uid
+          value: '{#IFUID}'
+        master_item:
+          key: ne.interfaces.state
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['speed_bps'];if(v===null||v===undefined){throw
+            'Unknown scalar';}return v;}} throw 'Interface absent; retain last observed value';
+          error_handler: DISCARD_VALUE
+        units: bps
+      - uuid: de31d7fb494d45688f449181b9a87c2a
+        name: 'LAB {#IFNAME}: explicit expected speed (0 means unknown)'
+        type: DEPENDENT
+        key: ne.if.expected.speed[{#IFUID}]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        trends: '0'
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        - tag: interface_uid
+          value: '{#IFUID}'
+        master_item:
+          key: ne.interfaces.state
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['expected_speed_bps'];if(v===null||v===undefined){return
+            0;}return v;}} throw 'Interface absent; retain last observed value';
+          error_handler: DISCARD_VALUE
+        units: bps
+      - uuid: decfc39d960c4cbda776972abd810118
+        name: 'LAB {#IFNAME}: observed duplex'
+        type: DEPENDENT
+        key: ne.if.duplex[{#IFUID}]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        trends: '0'
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: lab-replay
+        master_item:
+          key: ne.interfaces.state
+        preprocessing:
+        - type: JAVASCRIPT
+          parameters:
+          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['duplex'];if(v===null||v===undefined){throw
+            'Unknown scalar';}return v;}} throw 'Interface absent; retain last observed value';
+          error_handler: DISCARD_VALUE
+      graph_prototypes:
+      - uuid: 4e239483671d47ce9c4972d0909b7170
+        name: 'LAB {#IFNAME}: negotiated speed'
+        graph_items:
+        - color: 199C0D
+          item:
+            host: Network Explorer LAB replay
+            key: ne.if.speed[{#IFUID}]
+    macros:
+    - macro: '{$NE.DEVICE.STALE}'
+      value: 2d
+      description: Maximum complete observation age; laboratory replay only.
+    - macro: '{$NE.INTERFACES.STALE}'
+      value: 5m
+      description: Maximum complete observation age; laboratory replay only.
+    - macro: '{$NE.LLDP.STALE}'
+      value: 15m
+      description: Maximum complete observation age; laboratory replay only.
+    - macro: '{$NE.LAG.STALE}'
+      value: 15m
+      description: Maximum complete observation age; laboratory replay only.
+    dashboards:
+    - uuid: 57d882615fe14304a3367d23e65a52fd
+      name: Network Explorer LAB
+      pages:
+      - name: Overview
+        widgets:
+        - type: nedataquality
+          name: Collection quality
+          x: '0'
+          y: '0'
+          width: '72'
+          height: '4'
+        - type: neportpanel
+          name: Port panel
+          x: '0'
+          y: '4'
+          width: '48'
+          height: '9'
+          fields:
+          - type: STRING
+            name: reference
+            value: NEPRT
+        - type: neinterfacedetail
+          name: Interface detail
+          x: '48'
+          y: '4'
+          width: '24'
+          height: '9'
+          fields:
+          - type: STRING
+            name: itemid._reference
+            value: NEPRT._itemid
+      - name: Connectivity
+        widgets:
+        - type: netopology
+          name: Physical topology and LAG
+          x: '0'
+          y: '0'
+          width: '48'
+          height: '12'
+        - type: neinterfacedetail
+          name: Interface detail
+          x: '48'
+          y: '0'
+          width: '24'
+          height: '12'
+        - type: graphprototype
+          name: Negotiated speed history (replayed lab values)
+          x: '0'
+          y: '12'
+          width: '72'
+          height: '5'
+          fields:
+          - type: INTEGER
+            name: columns
+            value: '1'
+          - type: GRAPH_PROTOTYPE
+            name: graphid.0
+            value:
+              host: Network Explorer LAB replay
+              name: 'LAB {#IFNAME}: negotiated speed'
+      - name: Diagnostics
+        widgets:
+        - type: nedataquality
+          name: Dataset quality
+          x: '0'
+          y: '0'
+          width: '72'
+          height: '7'
+        - type: nefindings
+          name: Evidence and findings
+          x: '0'
+          y: '7'
+          width: '72'
+          height: '10'
+    valuemaps:
+    - uuid: 7058f4da46ce4b23813493ff5646e954
+      name: Network Explorer collection status
+      mappings:
+      - value: '0'
+        newvalue: ok
+      - value: '1'
+        newvalue: partial
+      - value: '2'
+        newvalue: failed
+      - value: '3'
+        newvalue: unsupported

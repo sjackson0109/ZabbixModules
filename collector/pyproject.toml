@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools==80.10.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zabbix-network-explorer-collector"
+version = "0.1.0"
+description = "Read-only proxy-local standard SNMP dataset collector for Zabbix Network Explorer"
+requires-python = ">=3.10"
+dependencies = ["pysnmp==7.1.30", "jsonschema==4.26.0", "cryptography==50.0.1", "rpds-py==0.30.0"]
+
+[project.scripts]
+network-explorer-collect = "network_explorer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["network_explorer*"]
+
+[tool.setuptools.package-data]
+network_explorer = ["envelope.schema.json"]

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Administrator adjusts only these two fixed installation paths.
+# Arguments are allowlisted device ID and dataset; never credential values.
+if [ "$#" -ne 2 ]; then
+    exit 1
+fi
+exec /opt/network-explorer/venv/bin/network-explorer-collect collect \
+    --config /etc/network-explorer/devices.json --device "$1" --dataset "$2"

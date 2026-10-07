@@ -1,0 +1,212 @@
+{
+  "format_version": "1.0",
+  "profiles": [
+    {
+      "id": "cisco-small-business",
+      "display_name": "Cisco small-business",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/cisco-small-business.md"
+    },
+    {
+      "id": "cisco-catalyst",
+      "display_name": "Cisco Catalyst",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/cisco-catalyst.md"
+    },
+    {
+      "id": "dell-powerconnect",
+      "display_name": "Dell PowerConnect legacy",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/dell-powerconnect.md"
+    },
+    {
+      "id": "dell-n-series",
+      "display_name": "Dell N-Series",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/dell-n-series.md"
+    },
+    {
+      "id": "dell-s-series",
+      "display_name": "Dell S-Series",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/dell-s-series.md"
+    },
+    {
+      "id": "zyxel",
+      "display_name": "Zyxel",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/zyxel.md"
+    },
+    {
+      "id": "netgear",
+      "display_name": "Netgear",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/netgear.md"
+    },
+    {
+      "id": "ubiquiti",
+      "display_name": "Ubiquiti",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/ubiquiti.md"
+    },
+    {
+      "id": "other-vendors",
+      "display_name": "Other vendors",
+      "qualification": "unqualified",
+      "selector": {
+        "sysobjectid_prefixes": [],
+        "models": [],
+        "firmware_ranges": []
+      },
+      "capabilities": {
+        "device": "unknown",
+        "interfaces": "unknown",
+        "lldp": "unknown",
+        "lag": "unknown",
+        "vlan": "unknown",
+        "stp": "unknown",
+        "hardware_health": "unknown"
+      },
+      "fixture_ids": [],
+      "tested_zabbix_versions": [],
+      "reason": "Exact inventory, typed SNMP fixtures and model/firmware qualification required.",
+      "handoff": "specifications/families/other-vendors.md"
+    }
+  ]
+}
