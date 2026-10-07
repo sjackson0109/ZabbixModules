@@ -19,7 +19,7 @@ application directory; adapt paths to the deployment.
 
 ```sh
 python3 -m venv /opt/network-explorer/venv
-/opt/network-explorer/venv/bin/python -m pip install -r collector/requirements.lock
+/opt/network-explorer/venv/bin/python -m pip install --require-hashes -r collector/requirements.lock
 /opt/network-explorer/venv/bin/python -m pip install --no-deps ./collector
 ```
 
