@@ -80,3 +80,11 @@ All eight steps passed on 7.0.20, 7.2.7 and 7.4.3 with no browser errors, and al
 The walkthrough found three defects, fixed in the same change: LAG member links carried no VLAN or STP state, the browser grouped parallel links without regard to their LAG, and a restricted viewer could read a hidden switch's MAC address through the STP designated bridge of a visible port.
 
 Build cost at scale (`php -d memory_limit=2G tests/perf/scale.php 3`): 300 switches with 50 ports each (15,000 interfaces) and 1,000 links, all with VLAN, STP, capability and LLDP data, built in a median of 1.86 s (slowest 2.98 s) with a 25.5 MB payload and 382 MB peak memory, on this lab container. `tests/perf/render.cjs` then draws that payload in the Topology widget in headless Chromium: 300 nodes and 1,000 links reached first paint in a median of 0.37 s (slowest 0.42 s over five runs), inside the spec's 5 s budget. Neither figure includes Zabbix API or history latency, which a real estate adds.
+
+## Port placement, media and state colours (7 October 2026)
+
+The lab adds sw-stack-01, a two-member stack (24 copper and 2 SFP+ ports per member) uplinked to sw-dist-02. sw-core-01, sw-access-17 and the stack publish ENTITY-MIB port entities; the two distribution switches do not. On 7.0.20, 7.2.7 and 7.4.3, all five switches polled with no unsupported items, and the acceptance walkthrough (`lab/acceptance.cjs`) passed its eight steps plus the stopped-agent step, with no browser errors. The new step opens sw-stack-01: the Port panel shows Member 1 and Member 2 tabs, groups each member's ports by slot, and the mixed layout separates the empty SFP+ cages (media from their supported MAU types) from copper. The distribution switches' ports stay unplaced rather than being guessed from names.
+
+A Port panel configured with custom normal and down colours drew its ports in those colours, and its edit form showed working colour pickers on all three versions (7.0 and 7.2 use the jQuery picker; 7.4 its own).
+
+The first 7.0 run found that stack positions never reached Zabbix: the generator folded a long script line inside a regex, and Zabbix's YAML import adds a space at each escaped fold. Scripts are now written as literal blocks, and a unit test rejects folded or quoted multi-line scalars.

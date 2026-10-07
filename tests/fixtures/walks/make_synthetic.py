@@ -16,6 +16,11 @@ tools/inventory/capture_walk.py produces for real devices:
                Gi0/1 is the far end of sw-core-01 port 24, Te0/2 links to
                sw-dist-02. Its lower bridge priority makes sw-core-01 port 24
                the blocking alternate port of the core/dist triangle.
+  sw-stack-01  Two-member stack, each with 24 copper and 2 SFP+ ports; Te1/1/1
+               links to sw-dist-02 Te0/4. ENTITY-MIB places every port by member,
+               slot and position, as it does on sw-core-01 and sw-access-17. The
+               distribution switches publish no port entities, so their ports stay
+               unplaced.
 
 Run with --check to verify the committed files are current.
 """
@@ -84,16 +89,37 @@ MAU_COPPER_SUPPORTED = [10, 11, 15, 16, 29, 30]
 MAU_TYPE = "1.3.6.1.2.1.26.4."
 
 
-def system(a: Agent, name: str, descr: str, chassis: str, address: str, model: str, serial: str) -> None:
+ENT_CHASSIS, ENT_MODULE, ENT_PORT, ENT_STACK = 3, 9, 10, 11
+
+
+def entity(a: Agent, ent: int, parent: int, cls: int, relpos: int, name: str) -> None:
+    a.int(f"1.3.6.1.2.1.47.1.1.1.1.4.{ent}", parent)
+    a.int(f"1.3.6.1.2.1.47.1.1.1.1.5.{ent}", cls)
+    a.int(f"1.3.6.1.2.1.47.1.1.1.1.6.{ent}", relpos)
+    a.str(f"1.3.6.1.2.1.47.1.1.1.1.7.{ent}", name)
+
+
+def port_entity(a: Agent, ent: int, module: int, relpos: int, if_index: int, name: str) -> None:
+    """A port entity, mapped to its interface through entAliasMappingTable."""
+    entity(a, ent, module, ENT_PORT, relpos, name)
+    a.oid(f"1.3.6.1.2.1.47.1.3.2.1.2.{ent}.0", f"1.3.6.1.2.1.2.2.1.1.{if_index}")
+
+
+def system(a: Agent, name: str, descr: str, chassis: str, address: str, model: str, serial: str,
+           units: int = 0) -> None:
+    """units=0: one chassis entity (1). units>1: a stack entity (1) holding chassis entities 2..units+1."""
     a.str("1.3.6.1.2.1.1.1.0", descr)
     a.oid("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.99999.1.1")
     a.ticks("1.3.6.1.2.1.1.3.0", UPTIME)
     a.str("1.3.6.1.2.1.1.5.0", name)
-    a.int("1.3.6.1.2.1.47.1.1.1.1.5.1", 3)
-    a.str("1.3.6.1.2.1.47.1.1.1.1.7.1", "Unit 1")
-    a.str("1.3.6.1.2.1.47.1.1.1.1.10.1", "1.2.3")
-    a.str("1.3.6.1.2.1.47.1.1.1.1.11.1", serial)
-    a.str("1.3.6.1.2.1.47.1.1.1.1.13.1", model)
+    if units:
+        entity(a, 1, 0, ENT_STACK, -1, "Stack")
+    for unit in range(1, max(units, 1) + 1):
+        ent = unit + 1 if units else 1
+        entity(a, ent, 1 if units else 0, ENT_CHASSIS, unit if units else -1, f"Unit {unit}")
+        a.str(f"1.3.6.1.2.1.47.1.1.1.1.10.{ent}", "1.2.3")
+        a.str(f"1.3.6.1.2.1.47.1.1.1.1.11.{ent}", f"{serial}-{unit}" if units else serial)
+        a.str(f"1.3.6.1.2.1.47.1.1.1.1.13.{ent}", model)
     a.int("1.0.8802.1.1.2.1.3.1.0", 4)
     a.hex("1.0.8802.1.1.2.1.3.2.0", mac(chassis))
     a.str("1.0.8802.1.1.2.1.3.3.0", name)
@@ -120,9 +146,10 @@ def interface(a: Agent, ix: int, name: str, descr: str, *, if_type: int = 6, adm
         a.int(f"1.3.6.1.2.1.10.7.2.1.19.{ix}", duplex)
 
 
-def mau(a: Agent, ix: int, oper_type: int, supported: list[int], advertised: list[int] | None,
+def mau(a: Agent, ix: int, oper_type: int | None, supported: list[int], advertised: list[int] | None,
         received: list[int] | None) -> None:
-    a.oid(f"1.3.6.1.2.1.26.2.1.1.3.{ix}.1", MAU_TYPE + str(oper_type))
+    if oper_type is not None:
+        a.oid(f"1.3.6.1.2.1.26.2.1.1.3.{ix}.1", MAU_TYPE + str(oper_type))
     a.hex(f"1.3.6.1.2.1.26.2.1.1.13.{ix}.1", bits(supported, 8))
     if advertised is not None:
         a.int(f"1.3.6.1.2.1.26.5.1.1.1.{ix}.1", 1)
@@ -198,6 +225,7 @@ def stp_port(a: Agent, port: int, state: int, cost: int, designated_bridge: byte
 CORE_MAC = "00:11:22:33:44:01"
 ACCESS_MAC = "00:11:22:33:44:17"
 DIST1_MAC = "00:11:22:33:44:a1"
+STACK_MAC = "00:11:22:33:44:51"
 DIST2_MAC = "00:11:22:33:44:a2"
 ROOT_BRIDGE = (4096).to_bytes(2, "big") + mac(DIST2_MAC)
 
@@ -224,6 +252,12 @@ def core() -> Agent:
     for ix, n in ((25, 1), (26, 2)):
         interface(a, ix, f"Te1/0/{n}", f"TenGigabitEthernet1/0/{n}", high_speed=SPEED_10G, alias="Po1 member")
         mau(a, ix, 33, [33], None, None)
+    entity(a, 2, 1, ENT_MODULE, 0, "Copper ports")
+    entity(a, 3, 1, ENT_MODULE, 1, "Uplink module")
+    for ix in range(1, 25):
+        port_entity(a, 1000 + ix, 2, ix, ix, f"Gi1/0/{ix}")
+    for ix, n in ((25, 1), (26, 2)):
+        port_entity(a, 1100 + n, 3, n, ix, f"Te1/0/{n}")
     interface(a, 1001, "Po1", "Port-channel1", if_type=161, high_speed=20000, duplex=None, connector=2,
               mac_addr="00:11:22:33:44:01", alias="To dist-02")
     for member in (25, 26):
@@ -290,6 +324,9 @@ def access() -> Agent:
             AUTONEG_10_100_1000 if oper == 1 else [])
         a.int(f"1.3.6.1.2.1.17.1.4.1.2.{ix}", ix)
         lldp_local(a, ix, f"Gi1/0/{ix}", f"GigabitEthernet1/0/{ix}")
+    entity(a, 2, 1, ENT_MODULE, 0, "Copper ports")
+    for ix in range(1, 49):
+        port_entity(a, 1000 + ix, 2, ix, ix, f"Gi1/0/{ix}")
     a.hex("1.3.6.1.2.1.17.1.1.0", mac(ACCESS_MAC))
     lldp_remote(a, 48, 1, chassis=CORE_MAC, port="Gi1/0/23", port_desc="Uplink to access-17",
                 sys_name="sw-core-01", address="10.101.1.10", oper_mau=15, advertised=AUTONEG_10_100_1000, pvid=1)
@@ -317,10 +354,11 @@ def access() -> Agent:
 def dist02() -> Agent:
     a = Agent()
     system(a, "sw-dist-02", "Synthetic switch OS 1.2.3, distribution", DIST2_MAC, "10.101.0.2", "SYN-8X", "SYNDIST0002")
-    a.int("1.3.6.1.2.1.2.1.0", 4)
-    for ix in (1, 2, 3):
+    a.int("1.3.6.1.2.1.2.1.0", 5)
+    for ix in (1, 2, 3, 4):
         interface(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}", high_speed=SPEED_10G,
-                  mac_addr=f"00:11:22:a2:00:{ix:02x}", alias="Po10 member" if ix < 3 else "To dist-01")
+                  mac_addr=f"00:11:22:a2:00:{ix:02x}",
+                  alias={1: "Po10 member", 2: "Po10 member", 3: "To dist-01", 4: "To stack-01"}[ix])
         mau(a, ix, 33, [33], None, None)
         lldp_local(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}")
     interface(a, 1010, "Po10", "Port-channel10", if_type=161, high_speed=20000, duplex=None, connector=2,
@@ -329,18 +367,21 @@ def dist02() -> Agent:
         a.int(f"1.3.6.1.2.1.31.1.2.1.3.1010.{member}", 1)
     a.hex("1.3.6.1.2.1.17.1.1.0", mac(DIST2_MAC))
     a.int("1.3.6.1.2.1.17.1.4.1.2.3", 3)
+    a.int("1.3.6.1.2.1.17.1.4.1.2.4", 4)
     a.int("1.3.6.1.2.1.17.1.4.1.2.10", 1010)
     for port_num, peer in ((1, "Te1/0/1"), (2, "Te1/0/2")):
         lldp_remote(a, port_num, 1, chassis=CORE_MAC, port=peer, port_desc="Po1 member", sys_name="sw-core-01",
                     address="10.101.1.10", oper_mau=33, aggregated_port=1001, pvid=1)
     lldp_remote(a, 3, 1, chassis=DIST1_MAC, port="Te0/2", port_desc="To dist-02", sys_name="sw-dist-01",
                 address="10.102.5.10", oper_mau=33, pvid=1)
-    # Bridge ports: 3 is Te0/3, 10 is Po10. Both are trunks with native VLAN 1.
+    lldp_remote(a, 4, 1, chassis=STACK_MAC, port="Te1/1/1", port_desc="To dist-02", sys_name="sw-stack-01",
+                address="10.101.3.1", oper_mau=33, pvid=1)
+    # Bridge ports: 3 is Te0/3, 4 is Te0/4, 10 is Po10. All are trunks with native VLAN 1.
     vlans(a, {
-        1: ("default", [3, 10], [3, 10], []),
-        49: ("Wireless APs", [3, 10], [], []),
-        50: ("Voice", [3, 10], [], []),
-    }, {3: 1, 10: 1}, size=2)
+        1: ("default", [3, 4, 10], [3, 4, 10], []),
+        49: ("Wireless APs", [3, 4, 10], [], []),
+        50: ("Voice", [3, 4, 10], [], []),
+    }, {3: 1, 4: 1, 10: 1}, size=2)
     # RSTP root: every port is designated and forwarding.
     a.int("1.3.6.1.2.1.17.2.1.0", 3)
     a.int("1.3.6.1.2.1.17.2.2.0", 4096)
@@ -350,7 +391,7 @@ def dist02() -> Agent:
     a.int("1.3.6.1.2.1.17.2.6.0", 0)
     a.int("1.3.6.1.2.1.17.2.7.0", 0)
     a.int("1.3.6.1.2.1.17.2.16.0", 2)
-    for port, cost in ((3, 2000), (10, 1000)):
+    for port, cost in ((3, 2000), (4, 2000), (10, 1000)):
         stp_port(a, port, 5, cost, ROOT_BRIDGE, port)
     # LACP Po10 to sw-core-01 Po1.
     a.hex("1.2.840.10006.300.43.1.1.1.1.4.1010", mac(DIST2_MAC))
@@ -404,12 +445,71 @@ def dist01() -> Agent:
     return a
 
 
+def stack() -> Agent:
+    a = Agent()
+    system(a, "sw-stack-01", "Synthetic switch OS 1.2.3, 2-member stack", STACK_MAC, "10.101.3.1", "SYN-24T-2X",
+           "SYNSTK0001", units=2)
+    a.int("1.3.6.1.2.1.2.1.0", 52)
+    a.hex("1.3.6.1.2.1.17.1.1.0", mac(STACK_MAC))
+    up = {1: (1, 2, 3, 4, 5, 6), 2: (1, 2, 3, 4)}
+    access49 = {1: (1, 2, 3), 2: (1, 2)}
+    bridge = {}
+    for unit in (1, 2):
+        chassis = unit + 1
+        entity(a, 10 * unit, chassis, ENT_MODULE, 0, f"Unit {unit} copper ports")
+        entity(a, 10 * unit + 1, chassis, ENT_MODULE, 1, f"Unit {unit} uplink module")
+        for p in range(1, 25):
+            ix, bp, name = 1000 * unit + p, 26 * (unit - 1) + p, f"Gi{unit}/0/{p}"
+            oper = 1 if p in up[unit] else 2
+            interface(a, ix, name, f"GigabitEthernet{unit}/0/{p}", oper=oper, mac_addr=f"00:11:22:5{unit}:00:{p:02x}")
+            mau(a, ix, 30, MAU_COPPER_SUPPORTED, AUTONEG_10_100_1000, AUTONEG_10_100_1000 if oper == 1 else [])
+            port_entity(a, 10000 * unit + p, 10 * unit, p, ix, name)
+            bridge[bp] = (ix, name, oper, p in access49[unit])
+        for n in (1, 2):
+            ix, bp, name = 1000 * unit + 50 + n, 26 * (unit - 1) + 24 + n, f"Te{unit}/1/{n}"
+            oper = 1 if (unit, n) == (1, 1) else 2
+            interface(a, ix, name, f"TenGigabitEthernet{unit}/1/{n}", oper=oper, high_speed=SPEED_10G,
+                      mac_addr=f"00:11:22:5{unit}:01:{n:02x}", alias="To dist-02" if oper == 1 else "")
+            # An empty SFP+ cage reports no operating MAU; its supported types still say SFP+.
+            mau(a, ix, 33 if oper == 1 else None, [33], None, None)
+            port_entity(a, 10000 * unit + 100 + n, 10 * unit + 1, n, ix, name)
+            bridge[bp] = (ix, name, oper, False)
+    for bp, (ix, name, _, _) in bridge.items():
+        a.int(f"1.3.6.1.2.1.17.1.4.1.2.{bp}", ix)
+        lldp_local(a, bp, name, name.replace("Gi", "GigabitEthernet").replace("Te", "TenGigabitEthernet"))
+    lldp_remote(a, 25, 1, chassis=DIST2_MAC, port="Te0/4", port_desc="To stack-01", sys_name="sw-dist-02",
+                address="10.101.0.2", oper_mau=33, pvid=1)
+    # Bridge port 25 (Te1/1/1) trunks 49 and 50 with native VLAN 1; access ports are in 49 or 1.
+    ap = [bp for bp, row in bridge.items() if row[3]]
+    rest = [bp for bp, row in bridge.items() if not row[3] and bp != 25]
+    vlans(a, {
+        1: ("default", rest + [25], rest + [25], []),
+        49: ("Wireless APs", ap + [25], ap, []),
+        50: ("Voice", [25], [], []),
+    }, {**{bp: 1 for bp in rest + [25]}, **{bp: 49 for bp in ap}}, size=8)
+    # RSTP: root (dist-02) through Te1/1/1; up copper ports are designated edge ports.
+    own = (32768).to_bytes(2, "big") + mac(STACK_MAC)
+    a.int("1.3.6.1.2.1.17.2.1.0", 3)
+    a.int("1.3.6.1.2.1.17.2.2.0", 32768)
+    a.ticks("1.3.6.1.2.1.17.2.3.0", 720_000)
+    a.int("1.3.6.1.2.1.17.2.4.0", 2)
+    a.hex("1.3.6.1.2.1.17.2.5.0", ROOT_BRIDGE)
+    a.int("1.3.6.1.2.1.17.2.6.0", 2000)
+    a.int("1.3.6.1.2.1.17.2.7.0", 25)
+    a.int("1.3.6.1.2.1.17.2.16.0", 2)
+    for bp, (_, _, oper, _) in bridge.items():
+        if oper == 1 and bp != 25:
+            stp_port(a, bp, 5, 20000, own, bp, edge=True)
+    stp_port(a, 25, 5, 2000, ROOT_BRIDGE, 4)
+    return a
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     for name, agent in (("sw-core-01", core()), ("sw-access-17", access()), ("sw-dist-02", dist02()),
-                        ("sw-dist-01", dist01())):
+                        ("sw-dist-01", dist01()), ("sw-stack-01", stack())):
         target = HERE / f"{name}.snmprec"
         text = agent.render()
         if args.check:

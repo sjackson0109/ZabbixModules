@@ -102,16 +102,25 @@
   const marks = {forwarding: '● ', blocking: '⊘ ', learning: '◐ ', disabled: '○ ', unknown: '? '};
   return `${marks[stpClass(row)]}${text(row.state)} · ${text(row.role)}${row.role_source === 'derived' ? '*' : ''}`;
  }
+ const MEDIA_LABELS = {copper: 'Copper', sfp: 'SFP', sfp_plus: 'SFP+'};
+ /** Groups ports by stack member and slot (ENTITY-MIB placement); unplaced ports form one group. */
  function groupPorts(ports, layout = 'auto') {
   const groups = new Map();
-  for (const port of ports.slice().sort((a, b) => natural(a.member, b.member) || natural(a.slot, b.slot) || natural(a.port ?? a.name, b.port ?? b.name))) {
-   const member = port.member ?? 'Unassigned';
-   const slot = port.slot ?? 'Unassigned';
-   const key = layout === 'mixed' ? `${member} / ${slot} / ${port.media ?? 'Media unclassified'}` : `${member} / ${slot}`;
-   if (!groups.has(key)) groups.set(key, []);
-   groups.get(key).push(port);
+  for (const port of ports.slice().sort((a, b) => natural(a.member ?? Infinity, b.member ?? Infinity) || natural(a.slot, b.slot) || natural(a.port ?? a.name, b.port ?? b.name))) {
+   const member = port.member ?? null, slot = port.slot ?? null;
+   const place = member === null ? 'Unplaced ports' : `Member ${member}${slot === null ? '' : ` · slot ${slot}`}`;
+   const key = layout === 'mixed' ? `${place} · ${MEDIA_LABELS[port.media] ?? 'Media unknown'}` : place;
+   if (!groups.has(key)) groups.set(key, {key, member, ports: []});
+   groups.get(key).ports.push(port);
   }
-  return [...groups.entries()].map(([key, ports]) => ({key, ports}));
+  return [...groups.values()];
+ }
+ /** Applies configured state colours (six-digit hex from the widget form) as CSS custom properties. */
+ function applyColours(root, colours) {
+  for (const state of ['normal', 'down', 'degraded', 'disabled', 'unknown']) {
+   const value = String(colours?.[state] ?? '');
+   if (/^[0-9A-Fa-f]{6}$/.test(value)) root.style.setProperty(`--ne-colour-${state}`, `#${value}`);
+  }
  }
  function graphLayout(hosts, edges, positions = new Map()) {
   const ordered = hosts.slice(0, 300).sort((a, b) => natural(a.name, b.name) || natural(a.hostid, b.hostid));
@@ -344,6 +353,8 @@
   layer.value=state.layer??payload.scope?.layer??'physical';if(state.vlan)vlanPick.value=state.vlan;if(state.instance)instancePick.value=state.instance;
   toolbar.append(layer,vlanPick,instancePick);root.appendChild(toolbar);
   const layerNote=el('p',undefined,'ne-legend');root.appendChild(layerNote);
+  applyColours(root,payload.scope?.colours);
+  const tabs=el('div',undefined,'ne-member-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Stack members');root.appendChild(tabs);
   const panel=el('div',undefined,'ne-port-panel'), drawer=el('section',undefined,'ne-drawer');drawer.setAttribute('aria-label','Selected interface details');drawer.setAttribute('aria-live','polite');
   const selection=fragmentContext(global.location?.hash);
   let selected=selection?.hostid===hostid?ports.find(p=>id(p.uid)===selection.uid):ports.find(p=>id(p.uid)===state.selected_uid&&id(p.hostid)===state.selected_hostid);
@@ -354,19 +365,33 @@
    if(layer.value==='lldp'){const peer=peersFor(payload,port)[0]?.peer;const name=peer?(peer.hostid?hostName(payload,peer.hostid):'External or undisclosed'):'';return {className:peer?'ne-lldp-peer':'ne-lldp-none',status:peer?'⇄ Neighbour':'· No neighbour',extra:name};}
    return {className:`ne-state-${portState(port)}`,status:stateLabel(port),extra:speed(port.speed_bps)};
   }
+  let firstDraw=true;
   function draw(){
    panel.replaceChildren();state.layer=layer.value;state.vlan=vlanPick.value;state.instance=instancePick.value;
    vlanPick.hidden=layer.value!=='vlan';instancePick.hidden=layer.value!=='stp';legend.textContent=legends[layer.value];
    layerNote.textContent=layer.value==='vlan'&&!vlanIds.size?'No VLAN membership has been collected for this host.':layer.value==='stp'&&!instances.size?'No spanning-tree data has been collected for this host.':'';
    if(!physical.length)notice(panel,'No interfaces have confirmed physical-port classification. Use the interface table below; no chassis geometry has been inferred.');
-   for(const group of groupPorts(physical,layout.value)){
-    const section=el('section',undefined,'ne-port-member');section.appendChild(el('h4',`Member / slot ${group.key}`));
+   // Stack members become tabs when the layout is Stack, or Automatic with more than one placed member.
+   const groups=groupPorts(physical,layout.value),members=[...new Set(groups.map(g=>g.member))];
+   const tabbed=['auto','stack'].includes(layout.value)&&members.filter(m=>m!==null).length>1;
+   tabs.replaceChildren();tabs.hidden=!tabbed;
+   if(tabbed&&firstDraw&&selected&&members.some(m=>id(m)===id(selected.member??null)))state.member=id(selected.member??null);
+   if(tabbed&&!members.some(m=>id(m)===state.member))state.member=id(members[0]);
+   firstDraw=false;
+   if(tabbed)for(const member of members){
+    const tab=button(member===null?'Unplaced ports':`Member ${member}`,()=>{state.member=id(member);draw();tabs.querySelector('[aria-selected="true"]')?.focus();},'ne-member-tab');
+    tab.setAttribute('role','tab');tab.setAttribute('aria-selected',id(member)===state.member?'true':'false');tab.tabIndex=id(member)===state.member?0:-1;
+    tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const next=members[(members.indexOf(member)+(event.key==='ArrowRight'?1:members.length-1))%members.length];state.member=id(next);draw();tabs.querySelector('[aria-selected="true"]')?.focus();});
+    tabs.appendChild(tab);
+   }
+   for(const group of groups.filter(g=>!tabbed||id(g.member)===state.member)){
+    const section=el('section',undefined,'ne-port-member');section.appendChild(el('h4',group.key));
     const grid=el('div',undefined,`ne-port-grid ne-layout-${layout.value}`);grid.setAttribute('role','group');grid.setAttribute('aria-label',`Ports ${group.key}`);
     for(const port of group.ports){
      const view=tileView(port);
      const tile=button('',()=>select(port,tile),`ne-port ${view.className}`);tile.dataset.uid=id(port.uid);tile.setAttribute('aria-pressed',selected?.uid===port.uid?'true':'false');
      tile.setAttribute('aria-label',`${text(port.name)}: ${view.status}; ${view.extra}; ${text(port.description)}`);
-     tile.append(el('span',text(port.port??port.name),'ne-port-number'),el('span',view.status,'ne-port-status'),el('span',view.extra,'ne-port-speed'));
+     tile.append(el('span',text(port.name??port.port),'ne-port-number'),el('span',view.status,'ne-port-status'),el('span',view.extra,'ne-port-speed'));
      tile.addEventListener('keydown',event=>{
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
       event.preventDefault();const buttons=[...grid.querySelectorAll('button')],index=buttons.indexOf(tile),step=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:event.key==='ArrowUp'?-12:12;

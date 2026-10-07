@@ -15,8 +15,13 @@ class WidgetView extends CControllerDashboardWidgetView {
   $layout = [0=>'auto',1=>'24',2=>'48',3=>'mixed',4=>'stack',5=>'generic'][(int) ($this->fields_values['layout'] ?? 0)] ?? 'auto';
   $layer = [0=>'physical',1=>'vlan',2=>'stp',3=>'lldp'][(int) ($this->fields_values['layer'] ?? 0)] ?? 'physical';
   $mode = [0=>'physical',1=>'vlan',2=>'stp'][(int) ($this->fields_values['mode'] ?? 0)] ?? 'physical';
+  $colours = [];
+  foreach (['normal','degraded','down','disabled','unknown'] as $state) {
+   $value = (string) ($this->fields_values['colour_'.$state] ?? '');
+   if (preg_match('/^[0-9A-F]{6}$/iD', $value)) $colours[$state] = strtoupper($value);
+  }
   $payload['scope'] = array_replace($payload['scope'] ?? [], ['hostid'=>$hostid, 'interface_uid'=>$uid, 'itemid'=>$itemid,
-   'management_cidr'=>$cidr, 'layout'=>$layout, 'layer'=>$layer, 'mode'=>$mode]);
+   'management_cidr'=>$cidr, 'layout'=>$layout, 'layer'=>$layer, 'mode'=>$mode, 'colours'=>$colours]);
   try {
    $autoload = dirname(__DIR__, 2).'/networkexplorer/include/autoload.php';
    if (!is_file($autoload)) throw new \RuntimeException('Install and enable the Network Explorer base module.');
@@ -42,7 +47,7 @@ class WidgetView extends CControllerDashboardWidgetView {
     $payload = NetworkService::create()->build($hostid === '' ? [] : [$hostid], $cidr);
    }
    $payload['scope'] = array_replace($payload['scope'] ?? [], ['hostid'=>$hostid, 'interface_uid'=>$uid, 'itemid'=>$itemid,
-    'management_cidr'=>$cidr, 'layout'=>$layout, 'layer'=>$layer, 'mode'=>$mode]);
+    'management_cidr'=>$cidr, 'layout'=>$layout, 'layer'=>$layer, 'mode'=>$mode, 'colours'=>$colours]);
   }
   catch (\Throwable $e) {
    // Never reflect API/history exception text or device-reported values into diagnostics.

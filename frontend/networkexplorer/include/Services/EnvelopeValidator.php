@@ -170,7 +170,8 @@ final class EnvelopeValidator {
                 }
                 if (isset($row['oper_speed_bps']) && (!is_int($row['oper_speed_bps']) || $row['oper_speed_bps'] < 0)
                         || isset($row['autoneg_enabled']) && !is_bool($row['autoneg_enabled'])
-                        || isset($row['oper_duplex']) && !in_array($row['oper_duplex'], ['half','full'], true)) {
+                        || isset($row['oper_duplex']) && !in_array($row['oper_duplex'], ['half','full'], true)
+                        || isset($row['media']) && !in_array($row['media'], ['copper','sfp','sfp_plus'], true)) {
                     throw new \InvalidArgumentException('invalid_port_capability');
                 }
             }

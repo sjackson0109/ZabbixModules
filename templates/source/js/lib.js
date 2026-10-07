@@ -24,7 +24,12 @@ NE.IF = {
     connector: '1.3.6.1.2.1.31.1.1.1.17',
     alias: '1.3.6.1.2.1.31.1.1.1.18',
     stack: '1.3.6.1.2.1.31.1.2.1.3',
-    duplex: '1.3.6.1.2.1.10.7.2.1.19'
+    duplex: '1.3.6.1.2.1.10.7.2.1.19',
+    // ENTITY-MIB: physical position of each port (stack member, slot, port).
+    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',
+    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',
+    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',
+    entAlias: '1.3.6.1.2.1.47.1.3.2.1.2'
 };
 NE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';
 

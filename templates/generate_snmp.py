@@ -286,8 +286,24 @@ def build(version: str) -> dict:
                               "templates": templates}}
 
 
+class _Dumper(yaml.SafeDumper):
+    """Never folds a scalar. Zabbix's YAML import adds a space at every escaped line fold, which corrupted any script
+    line folded inside a string or regex literal. Multi-line text (scripts) is written as literal blocks instead."""
+
+
+def _represent_str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|" if "\n" in data else None)
+
+
+_Dumper.add_representer(str, _represent_str)
+
+
+def dump(document: dict) -> str:
+    return yaml.dump(document, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=1_000_000)
+
+
 def render(version: str) -> str:
-    return yaml.safe_dump(build(version), sort_keys=False, allow_unicode=True, width=110)
+    return dump(build(version))
 
 
 def widget(kind: str, name: str, x: int, y: int, width: int, height: int, fields: list[dict] | None = None) -> dict:
@@ -323,7 +339,7 @@ def build_dashboard(version: str) -> dict:
 
 
 def render_dashboard(version: str) -> str:
-    return yaml.safe_dump(build_dashboard(version), sort_keys=False, allow_unicode=True, width=110)
+    return dump(build_dashboard(version))
 
 
 def main() -> None:

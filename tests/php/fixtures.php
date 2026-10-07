@@ -5,7 +5,7 @@ require_once __DIR__.'/../../frontend/networkexplorer/include/autoload.php';
 
 use Modules\NetworkExplorer\Services\NetworkService;
 
-/** The four synthetic lab switches, normalised by the native template JavaScript, read as one network. */
+/** The five synthetic lab switches, normalised by the native template JavaScript, read as one network. */
 (static function (): void {
     $node = trim((string) shell_exec('command -v node'));
     if ($node === '') {
@@ -22,7 +22,7 @@ use Modules\NetworkExplorer\Services\NetworkService;
         'ne.raw.lldp'=>'ne.lldp.snapshot', 'ne.raw.vlan'=>'ne.vlan.snapshot', 'ne.raw.stp'=>'ne.stp.snapshot',
         'ne.raw.lag'=>'ne.lag.snapshot'];
     $switches = ['sw-core-01'=>['11','10.101.1.10'], 'sw-access-17'=>['12','10.101.2.17'],
-        'sw-dist-02'=>['13','10.101.0.2'], 'sw-dist-01'=>['14','10.102.5.10']];
+        'sw-dist-02'=>['13','10.101.0.2'], 'sw-dist-01'=>['14','10.102.5.10'], 'sw-stack-01'=>['15','10.101.3.1']];
     $gateway = new FixtureGateway();
     $now = 0;
     foreach ($switches as $name => [$id, $address]) {
@@ -54,8 +54,8 @@ use Modules\NetworkExplorer\Services\NetworkService;
 
     $assert($hosts['sw-dist-01']['out_of_subnet'] && !$hosts['sw-core-01']['out_of_subnet'],
         'The management subnet flags the connected switch outside it, and keeps it visible.');
-    $assert(count($network['edges']) === 5 && !array_filter($network['edges'], static fn($e) => $e['status'] !== 'bidirectional'),
-        'All five physical links are confirmed from both ends.');
+    $assert(count($network['edges']) === 6 && !array_filter($network['edges'], static fn($e) => $e['status'] !== 'bidirectional'),
+        'All six physical links are confirmed from both ends.');
     $assert($hosts['sw-dist-02']['stp'][0]['is_root'] && !$hosts['sw-core-01']['stp'][0]['is_root'], 'The RSTP root is marked.');
 
     $lags = array_column($network['lags'], null, 'name');
@@ -70,6 +70,25 @@ use Modules\NetworkExplorer\Services\NetworkService;
         'The core/distribution triangle blocks at sw-core-01 Gi1/0/24.');
     $assert($edges['13/14 Te0/2 - Te0/3']['vlan']['common'] === '1,49-50', 'The distribution link carries VLANs 1, 49 and 50.');
 
+    $assert($edges['13/15 Te0/4 - Te1/1/1']['vlan']['common'] === '1,49-50' && !$edges['13/15 Te0/4 - Te1/1/1']['stp']['blocked'],
+        'The stack uplink carries VLANs 1, 49 and 50 and forwards.');
+
+    // ENTITY-MIB placement and MAU media.
+    $ports = [];
+    foreach ($network['interfaces'] as $row) {
+        $ports[$row['hostid'].' '.$row['name']] = $row;
+    }
+    $place = static fn(string $key): string => implode('/', array_map(static fn($v) => var_export($v, true),
+        [$ports[$key]['member'] ?? null, $ports[$key]['slot'] ?? null, $ports[$key]['port'] ?? null, $ports[$key]['media'] ?? null]));
+    $assert($place('15 Gi1/0/24') === "1/0/24/'copper'" && $place('15 Gi2/0/3') === "2/0/3/'copper'"
+        && $place('15 Te2/1/2') === "2/1/2/'sfp_plus'", 'Stack ports are placed by member, slot and position: '.$place('15 Te2/1/2'));
+    $assert($place('11 Te1/0/2') === "1/1/2/'sfp_plus'" && $place('12 Gi1/0/48') === "1/0/48/'copper'",
+        'Single-chassis ports are placed on member 1.');
+    $assert($place('13 Te0/1') === "NULL/NULL/NULL/'sfp_plus'", 'Ports without port entities stay unplaced.');
+    $devices = array_column($network['hosts'], null, 'name');
+    $assert(array_column($devices['sw-stack-01']['stack_members'], 'member') === ['Unit 1', 'Unit 2']
+        && $devices['sw-core-01']['stack_members'] === [], 'The stack reports two members; a single chassis none.');
+
     $rules = array_map(static fn($f) => $f['rule'], $network['findings']);
     sort($rules);
     $assert($rules === ['duplex_mismatch','speed_below_intent','speed_below_intent','vlan_not_carried'],
@@ -83,7 +102,7 @@ use Modules\NetworkExplorer\Services\NetworkService;
     foreach (['sw-dist-01', '10.102.5.10', '00:11:22:33:44:a1', '0011223344a1'] as $secret) {
         $assert(!str_contains($json, $secret), "Restricted host detail \"$secret\" is absent from the payload.");
     }
-    $assert(count($restricted['hosts']) === 3 && count(array_filter($restricted['edges'], static fn($e) => $e['target'] === null
+    $assert(count($restricted['hosts']) === 4 && count(array_filter($restricted['edges'], static fn($e) => $e['target'] === null
         || $e['source'] === null)) === 2, 'Links to the hidden switch remain as undisclosed placeholders.');
 
     echo "Lab fixture network checks passed ($checks checks).\n";

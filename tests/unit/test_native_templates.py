@@ -185,3 +185,14 @@ def test_unsupported_dataset_does_not_raise_stale_trigger():
         expression = item["triggers"][0]["expression"]
         assert f"ne.collection.status[{name}])<>3" in expression
         assert GEN.stale_macro(entry) in expression
+
+
+@pytest.mark.parametrize("version", VERSIONS)
+def test_scripts_are_literal_blocks_never_folded(version):
+    # Zabbix's YAML import inserts a space at each escaped line fold, which broke a regex literal in a script.
+    for name in ("network_explorer_snmp.yaml", "network_explorer_dashboard.yaml"):
+        text = (ROOT / "templates/native" / version / name).read_text()
+        assert not any(line.endswith("\\") for line in text.splitlines()), name
+        for token in yaml.scan(text):
+            if isinstance(token, yaml.ScalarToken) and "\n" in token.value:
+                assert token.style == "|", (name, token.value[:60])

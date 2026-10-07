@@ -29,7 +29,7 @@ const assert=require('node:assert/strict');
   assert.equal(await page.locator('.ne-port').first().getAttribute('aria-pressed'),'true');
   const link=page.getByRole('link',{name:'Fixture switch B'});assert.equal(await link.count(),1);assert.ok((await link.getAttribute('href')).includes('#ne='));
   await page.locator('.ne-port').first().focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('.ne-port').nth(1).evaluate(e=>e===document.activeElement),true);
-  for(const layout of ['48','mixed','stack','generic']){await page.getByRole('combobox',{name:'Physical layout'}).selectOption(layout);assert.equal(await page.locator('.ne-port').count(),48);}
+  for(const layout of ['48','mixed','stack','generic']){await page.getByRole('combobox',{name:'Physical layout'}).selectOption(layout);assert.equal(await page.locator('.ne-port').count(),layout==='stack'?24:48);assert.equal(await page.getByRole('tab').count(),layout==='stack'?2:0);}
   assert.ok((await page.locator('#widget').innerText()).includes('VLAN collection: not collected'));
   await page.evaluate(()=>{const p=window.testPayload;p.hosts[0].vlans=[{vlan_id:10,name:'Users'},{vlan_id:49,name:'Wireless'}];p.hosts[1].vlans=[{vlan_id:10,name:'Users'}];
    p.interfaces[0].vlan={mode:'trunk',pvid:1,carried:'1,10,49',tagged:'10,49',untagged:'1',forbidden:''};p.interfaces[1].vlan={mode:'access',pvid:10,carried:'10',tagged:'',untagged:'10',forbidden:''};
@@ -53,8 +53,21 @@ const assert=require('node:assert/strict');
   await page.evaluate(()=>window.NEWidgetRuntime.render(document.querySelector('#widget'),window.testPayload,'findings'));
   const downloadEvent=page.waitForEvent('download');await page.getByRole('button',{name:'Export filtered CSV'}).click();const download=await downloadEvent;
   const stream=await download.createReadStream();let csv='';for await(const chunk of stream)csv+=chunk.toString('utf8');assert.ok(csv.includes("'=Unsafe spreadsheet formula"));assert.ok(csv.includes("' =Unsafe spreadsheet formula after space"));
+  // Stack members as tabs, ENTITY-MIB placement headings and configured colours.
+  await page.evaluate(()=>{const ports=[];for(const member of [1,2])for(let p=1;p<=4;p++)ports.push({hostid:'101',uid:`m${member}p${p}`,name:`Gi${member}/0/${p}`,physical:true,member,slot:0,port:p,media:'copper',admin_status:'up',oper_status:p===4?'down':'up',speed_bps:1e9});
+   ports.push({hostid:'101',uid:'loose',name:'Te9',physical:true,admin_status:'up',oper_status:'up',speed_bps:1e10});
+   window.NEWidgetRuntime.render(document.querySelector('#widget'),{scope:{hostid:'101',layout:'auto',colours:{normal:'123456',down:'not-a-colour'}},hosts:[{hostid:'101',name:'Stack'}],interfaces:ports,edges:[],lags:[],quality:[],findings:[]},'ports',()=>{});});
+  const tabs=page.getByRole('tab');assert.deepEqual(await tabs.allInnerTexts(),['Member 1','Member 2','Unplaced ports']);
+  assert.equal(await page.locator('.ne-port').count(),4);assert.ok((await page.locator('.ne-port-member h4').innerText()).includes('Member 1 · slot 0'));
+  await page.getByRole('tab',{name:'Member 2'}).click();assert.equal(await page.getByRole('tab',{name:'Member 2'}).getAttribute('aria-selected'),'true');
+  assert.ok((await page.locator('.ne-port').first().innerText()).includes('Gi2/0/1'));
+  await page.keyboard.press('ArrowRight');assert.ok((await page.locator('.ne-port').first().innerText()).includes('Te9'));
+  assert.equal(await page.locator('.ne-widget').first().evaluate(e=>e.style.getPropertyValue('--ne-colour-normal')),'#123456');
+  assert.equal(await page.locator('.ne-widget').first().evaluate(e=>e.style.getPropertyValue('--ne-colour-down')),'');
+  await page.getByRole('combobox',{name:'Physical layout'}).selectOption('mixed');assert.equal(await page.getByRole('tab').count(),0);
+  assert.ok((await page.locator('#widget').innerText()).includes('Member 2 · slot 0 · Copper'));
   assert.deepEqual(errors,[]);
-  console.log('Chromium: physical, VLAN and STP layers, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.');
+  console.log('Chromium: physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.');
  }
  finally {await browser.close();}
 })().catch(e=>{console.error(e.stack);process.exit(1);});

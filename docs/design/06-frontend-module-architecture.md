@@ -43,7 +43,7 @@ This answers open decision 14: the frontend reads **dedicated structured items**
   - *STP*: an instance selector; each port shows state (forwarding, blocking, learning, disabled) and role (root, designated, alternate). Derived roles are marked.
   - *LLDP*: ports with a neighbour are highlighted and labelled with the peer name (or "external" or "undisclosed").
 - **Configurable colours** (spec §3.1): widget form colour fields (`CWidgetFieldColor`) for each semantic state, defaulting to the table in [02](02-canonical-schema.md). Every state also has a label and an icon, so colour is never the only signal.
-- **Layouts** (spec §3.1, §25): 24-port, 48-port and mixed copper/SFP/SFP+ come from the new `media` field and ENTITY-MIB positions. Stack members appear as tabs. Unknown models use generic grouped rows. Geometry is a profile setting, never per-port manual data.
+- **Layouts** (spec §3.1, §25): 24-port, 48-port and mixed copper/SFP/SFP+ come from the new `media` field and ENTITY-MIB positions. Stack members appear as tabs. Unknown models use generic grouped rows. Geometry is a profile setting, never per-port manual data. *Implemented:* the inventory walk places ports by member, slot and position (entAliasMappingTable and the containment tree), port capability reports `media` from the MAU tables, and the panel shows members as tabs when a host has more than one. Ports the agent does not place are grouped as unplaced, never guessed from names.
 
 ### Physical Topology
 

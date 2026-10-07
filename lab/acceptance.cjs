@@ -23,8 +23,8 @@ async function login(browser,username,password){
 const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.length,name);};
 (async()=>{
  const token=await api('user.login',{username:'Admin',password:admin});
- const hosts=Object.fromEntries((await api('host.get',{output:['hostid','host'],filter:{host:['sw-core-01','sw-access-17','sw-dist-01','sw-dist-02']}},token)).map(h=>[h.host,h.hostid]));
- assert.equal(Object.keys(hosts).length,4,'Create the four lab switches first');
+ const hosts=Object.fromEntries((await api('host.get',{output:['hostid','host'],filter:{host:['sw-core-01','sw-access-17','sw-dist-01','sw-dist-02','sw-stack-01']}},token)).map(h=>[h.host,h.hostid]));
+ assert.equal(Object.keys(hosts).length,5,'Create the five lab switches first');
  // A shared fleet dashboard: topology with the management subnet, and findings.
  let fleet=(await api('dashboard.get',{output:['dashboardid'],filter:{name:'Network Explorer fleet (lab)'}},token))[0]?.dashboardid;
  if(!fleet)fleet=(await api('dashboard.create',{name:'Network Explorer fleet (lab)',private:0,display_period:30,auto_start:0,
@@ -47,7 +47,7 @@ const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.lengt
    // 4: management subnet.
    await page.goto(`${url}/zabbix.php?action=dashboard.view&dashboardid=${fleet}`);
    const topo=page.locator('.dashboard-widget-netopology');await topo.locator('svg .ne-node').first().waitFor({timeout:60000});
-   assert.equal(await topo.locator('svg .ne-node').count(),4);
+   assert.equal(await topo.locator('svg .ne-node').count(),5);
    assert.equal(await topo.locator('svg .ne-node-warning').getAttribute('aria-label').then(l=>l.startsWith('sw-dist-01')),true);step('10.101.0.0/16 flags sw-dist-01 and keeps it visible');
    // 5: VLAN 49 journey.
    await topo.getByRole('combobox',{name:'Overlay'}).selectOption('vlan');await topo.getByRole('combobox',{name:'VLAN',exact:true}).selectOption('49');
@@ -59,14 +59,22 @@ const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.lengt
    assert.equal(await topo.locator('svg .ne-edge-stp-blocked').count(),1);assert.equal(await topo.locator('svg .ne-stp-block-mark').count(),1);step('STP: root sw-dist-02, one blocking port');
    // 7: LAG.
    await topo.getByRole('combobox',{name:'Overlay'}).selectOption('physical');
-   assert.equal(await topo.locator('svg .ne-edge').count(),4);assert.ok((await topo.locator('svg').textContent()).includes('LAG ×2'));
-   await topo.getByRole('button',{name:'Expand LAG member links'}).click();assert.equal(await topo.locator('svg .ne-edge').count(),5);step('Po1/Po10 is one logical link with two members');
+   assert.equal(await topo.locator('svg .ne-edge').count(),5);assert.ok((await topo.locator('svg').textContent()).includes('LAG ×2'));
+   await topo.getByRole('button',{name:'Expand LAG member links'}).click();assert.equal(await topo.locator('svg .ne-edge').count(),6);step('Po1/Po10 is one logical link with two members');
+   // 8: a stack shows its members as tabs, with ports placed by ENTITY-MIB.
+   await page.goto(`${url}/zabbix.php?action=host.dashboard.view&hostid=${hosts['sw-stack-01']}`);
+   const stack=page.locator('.dashboard-widget-neportpanel');await stack.locator('.ne-port').first().waitFor({timeout:60000});
+   assert.deepEqual(await stack.getByRole('tab').allInnerTexts(),['Member 1','Member 2']);
+   assert.deepEqual(await stack.locator('.ne-port-member h4').allInnerTexts(),['Member 1 · slot 0','Member 1 · slot 1']);
+   await stack.getByRole('tab',{name:'Member 2'}).click();assert.ok((await stack.locator('.ne-port').first().innerText()).includes('Gi2/0/1'));
+   await stack.getByRole('combobox',{name:'Physical layout'}).selectOption('mixed');
+   assert.ok((await stack.innerText()).includes('Member 2 · slot 1 · SFP+'));step('sw-stack-01 shows two member tabs; SFP+ cages grouped apart');
    assert.deepEqual(errors,[]);
-   // 8: permissions.
+   // 9: permissions.
    const restricted=await login(browser,viewer.username,viewer.password);
    await restricted.page.goto(`${url}/zabbix.php?action=dashboard.view&dashboardid=${fleet}`);
    const rtopo=restricted.page.locator('.dashboard-widget-netopology');await rtopo.locator('svg .ne-node').first().waitFor({timeout:60000});
-   assert.equal(await rtopo.locator('svg .ne-node').count(),3);
+   assert.equal(await rtopo.locator('svg .ne-node').count(),4);
    const html=await restricted.page.content();for(const secret of HIDDEN)assert.ok(!html.includes(secret),'page leaks '+secret);
    for(const format of ['json','csv'])for(const report of ['inventory','peers','findings','stp']){
     const body=await (await restricted.page.request.get(`${url}/zabbix.php?action=networkexplorer.export&report=${report}&format=${format}`)).text();
@@ -77,7 +85,7 @@ const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.lengt
    assert.deepEqual(restricted.errors,[]);step('Restricted viewer: sw-dist-01 absent from page, API, JSON and CSV');
   }
   else{
-   // 9: a stopped agent.
+   // 10: a stopped agent.
    await page.goto(`${url}/zabbix.php?action=dashboard.view&dashboardid=${fleet}`);
    const topo=page.locator('.dashboard-widget-netopology');await topo.locator('svg .ne-node').first().waitFor({timeout:60000});
    assert.ok((await topo.locator('svg .ne-node-unreachable').getAttribute('aria-label')).includes('SNMP unreachable'));

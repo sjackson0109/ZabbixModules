@@ -26,7 +26,8 @@ The step change from today is the integration layer. It currently replays envelo
 | Speed normalisation | Exists | `test_interface_speed_units_logical_port_and_identity` (ifHighSpeed and ifSpeed saturation) |
 | | Planned | MAU bit decoding to speed lists; effective expected speed (all four precedence rules) |
 | Interface state normalisation | Exists | `test_status_mapping_and_unknown_speed_do_not_invent_health`, PHP policy checks |
-| | Planned | Seven semantic states, including duplex degraded from the LLDP partner, and custom colours |
+| | Exists (synthetic) | Custom state colours from the Port panel form (`tests/browser/widgets.runtime.cjs`; lab form check on 7.0, 7.2 and 7.4) |
+| | Planned | Seven semantic states, including duplex degraded from the LLDP partner |
 | VLAN membership normalisation | Planned | Bitmaps over 64 ports (MSB first), bridge port ≠ ifIndex, egress minus untagged = tagged, access/trunk/hybrid classification, forbidden, static versus current, missing join gives `unknown` |
 | LLDP peer matching | Exists | `test_lldp_uses_subtypes_and_compound_indices_not_localnum_ifindex`, PHP identity checks (chassis, address, domain isolation) |
 | STP state normalisation | Planned | State enum mapping, derived roles (root, designated, alternate), bridge ID formatting, topology-change counter reset after reboot |
@@ -43,7 +44,7 @@ Each scenario is an snmpsim data set built from a real (sanitised) walk where on
 |---|---|---|
 | 24-port switch | captured | 24 front-panel ports in a 24-port layout; states and speeds match the walk |
 | 48-port switch | captured | as above, 48-port layout |
-| Stack | captured | Member tabs; ports keep identity across a member renumbering replay |
+| Stack | synthetic (sw-stack-01); captured planned | Member tabs and ENTITY-MIB placement pass in the lab walkthrough; planned: ports keep identity across a member renumbering replay |
 | SFP/SFP+ switch | captured | Media shown per port; 10G uplinks evaluated against 10G expectation |
 | Multi-vendor LLDP link | two captured vendors | One confirmed edge; navigation from A highlights the right port on B |
 | VLAN trunk | captured | Tagged VLANs and native VLAN correct on both ends; carry/no-carry link classes |

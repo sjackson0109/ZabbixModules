@@ -999,6 +999,15 @@
             }
           ],
           "description": "null = unknown; [] = known to advertise nothing"
+        },
+        "media": {
+          "enum": [
+            "copper",
+            "sfp",
+            "sfp_plus",
+            null
+          ],
+          "description": "Optional. Port media from the operating MAU type, or from the supported MAU types when they all share one media."
         }
       }
     },

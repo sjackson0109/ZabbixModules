@@ -121,6 +121,12 @@ final class NetworkService {
             foreach (['vendor','model','firmware','hostname'] as $field) {
                 $host[$field] = is_string($device[$field] ?? null) ? $device[$field] : null;
             }
+            $host['stack_members'] = [];
+            foreach (is_array($device['stack_members'] ?? null) ? array_slice($device['stack_members'], 0, 16) : [] as $member) {
+                $host['stack_members'][] = array_map(static fn($v) => is_string($v) || is_int($v) ? $v : null,
+                    array_intersect_key((array) $member + ['member'=>null,'model'=>null,'firmware'=>null],
+                        array_flip(['member','model','firmware'])));
+            }
             $deviceAddresses = $device['management_addresses'] ?? [];
             $host['management_addresses'] = $this->addresses(array_merge($host['management_addresses'], $deviceAddresses));
             $host['addressing'] = $subnet->annotate($host['management_addresses'], $cidrs);
@@ -143,6 +149,7 @@ final class NetworkService {
                 $output['capability'] = $capability === null ? null : array_intersect_key($capability,
                     array_flip(['autoneg_enabled','oper_speed_bps','oper_duplex','supported_speeds_bps',
                         'advertised_speeds_bps','partner_advertised_speeds_bps']));
+                $output['media'] = $capability['media'] ?? null;
                 $output['vlan'] = $vlanPorts[$hostid][$row['uid']] ?? null;
                 $output['stp'] = $stpPorts[$hostid][$row['uid']] ?? [];
                 $output['itemid'] = $read['itemids'][$hostid][$row['uid']] ?? null;
