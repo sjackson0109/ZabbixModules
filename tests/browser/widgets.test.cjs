@@ -52,6 +52,10 @@ test('VLAN roles, link carry and trace follow the spec categories',()=>{
  const trace=runtime.vlanTrace({edges},'a',10);assert.deepEqual(trace.reached,['a','b']);assert.equal(trace.stops.length,1);
  assert.equal(trace.stops[0].hostid,'c');assert.equal(runtime.stpClass({state:'discarding'}),'blocking');assert.equal(runtime.stpClass(null),'unknown');
 });
+test('LAG member links group by the reader\'s lag_ids into one logical link',()=>{
+ const edges=[{id:'m1',source:'11',target:'13',lag_ids:['lag-b','lag-a']},{id:'m2',source:'11',target:'13',lag_ids:['lag-a','lag-b']},{id:'x',source:'11',target:'14',lag_ids:[]}];
+ const grouped=runtime.groupedEdges(edges);assert.equal(grouped.length,2);assert.equal(grouped.find(g=>g.id==='m1').members.length,2);
+});
 test('CSV exports escape quotes and spreadsheet formulas',()=>{
  const csv=runtime.findingsCsv([{hostid:'1',title:'=HYPERLINK("bad")',rule:'speed',severity:'warning',reason:'comma, "quoted"'}],{hosts:[{hostid:'1',name:'Switch'}]});
  assert.ok(csv.includes('"\'=HYPERLINK(""bad"")"'));assert.ok(csv.includes('"comma, ""quoted"""'));assert.ok(csv.startsWith('\ufeff'));

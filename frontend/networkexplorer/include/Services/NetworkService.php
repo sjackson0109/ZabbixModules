@@ -174,6 +174,39 @@ final class NetworkService {
             }
         }
         unset($host);
+        // A bridge ID embeds the bridge's MAC address, so one belonging to no permitted host is replaced by an
+        // opaque token: equal IDs stay equal within this response, and nothing identifies the hidden bridge.
+        $visibleBridges = [];
+        foreach ($stpBridges as $rows) {
+            foreach ($rows as $row) {
+                $visibleBridges[substr((string) ($row['bridge_id'] ?? ''), 4)] = true;
+            }
+        }
+        $salt = random_bytes(16);
+        $mask = static fn($id) => !is_string($id) || isset($visibleBridges[substr($id, 4)]) ? $id
+            : 'undisclosed-'.substr(hash_hmac('sha256', $id, $salt), 0, 8);
+        foreach ($stpBridges as $hostid => &$rows) {
+            foreach ($rows as &$row) {
+                $row['root_bridge_id'] = $mask($row['root_bridge_id'] ?? null);
+            }
+            unset($row);
+            $hosts[$hostid]['stp'] = $rows;
+        }
+        unset($rows);
+        foreach ($stpPorts as &$byUid) {
+            foreach ($byUid as &$rows) {
+                foreach ($rows as &$row) {
+                    $row['designated_bridge'] = $mask($row['designated_bridge'] ?? null);
+                }
+                unset($row);
+            }
+            unset($rows);
+        }
+        unset($byUid);
+        foreach ($interfaces as &$interface) {
+            $interface['stp'] = $stpPorts[$interface['hostid']][$interface['uid']] ?? [];
+        }
+        unset($interface);
         $graph = (new TopologyService())->build($hosts, $datasets);
         foreach ($graph['edges'] as &$edge) {
             foreach (['source','target'] as $side) {
@@ -186,6 +219,34 @@ final class NetworkService {
             }
         }
         unset($edge);
+        // VLAN and STP state belongs to the aggregator's bridge port; LAG members carry what their aggregator carries.
+        $viaLag = [];
+        foreach ($graph['lags'] as $lag) {
+            $hostid = (string) $lag['hostid'];
+            $aggregator = $lag['interface_uid'] ?? null;
+            foreach ($lag['members'] as $member) {
+                $uid = $member['interface_uid'] ?? null;
+                if ($aggregator === null || $uid === null) {
+                    continue;
+                }
+                if (!isset($vlanPorts[$hostid][$uid]) && isset($vlanPorts[$hostid][$aggregator])) {
+                    $vlanPorts[$hostid][$uid] = $vlanPorts[$hostid][$aggregator] + ['via_lag'=>$lag['name'] ?? $aggregator];
+                    $viaLag[$hostid][$uid] = true;
+                }
+                if (!isset($stpPorts[$hostid][$uid]) && isset($stpPorts[$hostid][$aggregator])) {
+                    $stpPorts[$hostid][$uid] = array_map(static fn($row) => $row + ['via_lag'=>$lag['name'] ?? $aggregator],
+                        $stpPorts[$hostid][$aggregator]);
+                    $viaLag[$hostid][$uid] = true;
+                }
+            }
+        }
+        foreach ($interfaces as &$interface) {
+            if (isset($viaLag[$interface['hostid']][$interface['uid']])) {
+                $interface['vlan'] = $vlanPorts[$interface['hostid']][$interface['uid']] ?? null;
+                $interface['stp'] = $stpPorts[$interface['hostid']][$interface['uid']] ?? [];
+            }
+        }
+        unset($interface);
         $labels = [];
         foreach ($interfaces as $interface) {
             $labels[$interface['hostid']][$interface['uid']] = $hosts[$interface['hostid']]['name'].' '.($interface['name'] ?? $interface['uid']);

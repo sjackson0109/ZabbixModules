@@ -61,3 +61,22 @@ The same two simulated switches were read through the installed frontend modules
 - Outage (7.0.20): after `native_snmp.py break`, Zabbix marked sw-access-17's SNMP interface unavailable. All seven of its datasets then reported `failed` with `agent_unreachable`, it was flagged as SNMP unreachable in the topology, and one `snmp_unreachable` finding replaced the per-dataset collection findings.
 
 The live check found two frontend defects, which are fixed in the same change: native state rows erased inventory attributes (every port showed as unclassified), and the fixture gave sw-core-01 Gi1/0/23 no VLAN membership.
+
+## Spec acceptance walkthrough (7 October 2026)
+
+The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two 10G ports (Po10, LACP) towards sw-core-01 Po1. sw-dist-01 closes a triangle, so sw-core-01 Gi1/0/24 blocks as an alternate port, and its management address 10.102.5.10 sits outside the 10.101.0.0/16 management subnet. sw-dist-01 is in its own host group, which a lab viewer user cannot read. `lab/acceptance.cjs` drives the spec's acceptance steps in Chromium against each version, from a fresh lab (`native_snmp.py import`, `hosts`, `poll`, `lab.py install-modules`, `native_snmp.py dashboard`, `viewer`):
+
+1. sw-core-01 Gi1/0/23 shows amber, below its expected speed.
+2. Following its LLDP peer opens sw-access-17 with Gi1/0/48 highlighted and "Navigated from Gi1/0/23".
+3. With the 10.101.0.0/16 management subnet, the topology draws four switches and flags sw-dist-01 as off-subnet without hiding it.
+4. Tracing VLAN 49 from sw-access-17 stops at sw-core-01 Gi1/0/23.
+5. The STP overlay names sw-dist-02 as root and marks one blocking port.
+6. Po1/Po10 is drawn as one logical link labelled "LAG ×2"; expanding it shows the two member links.
+7. The viewer sees three switches. sw-dist-01's name and address appear nowhere in the page, in the inventory, peers, findings and STP exports (JSON and CSV), or in `host.get`. Bridge IDs of switches the viewer cannot read are replaced with opaque per-request placeholders.
+8. After `native_snmp.py break`, sw-access-17 is drawn as SNMP unreachable and the Findings widget lists `snmp_unreachable`.
+
+All eight steps passed on 7.0.20, 7.2.7 and 7.4.3 with no browser errors, and all 4 switches polled with no unsupported items.
+
+The walkthrough found three defects, fixed in the same change: LAG member links carried no VLAN or STP state, the browser grouped parallel links without regard to their LAG, and a restricted viewer could read a hidden switch's MAC address through the STP designated bridge of a visible port.
+
+Build cost at scale (`php -d memory_limit=2G tests/perf/scale.php 3`): 300 switches with 50 ports each (15,000 interfaces) and 1,000 links, all with VLAN, STP, capability and LLDP data, built in a median of 1.86 s (slowest 2.98 s) with a 25.5 MB payload and 382 MB peak memory, on this lab container. `tests/perf/render.cjs` then draws that payload in the Topology widget in headless Chromium: 300 nodes and 1,000 links reached first paint in a median of 0.37 s (slowest 0.42 s over five runs), inside the spec's 5 s budget. Neither figure includes Zabbix API or history latency, which a real estate adds.

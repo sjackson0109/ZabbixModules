@@ -12,6 +12,8 @@ python templates/generate_snmp.py --check  # fail if stale
 node tests/js/run_normaliser.cjs ne.raw.lldp tests/fixtures/walks/sw-core-01.snmprec   # run one normaliser
 ```
 
+`native/<version>/network_explorer_dashboard.yaml` is optional. It holds the template `Network Explorer - Host dashboard`, whose host dashboard has Ports, Topology and Findings pages built from the five widgets. Install and enable the widget modules first, then import it and link it beside the profile. It holds no items, so it never competes with the profile for keys.
+
 ## Earlier specification and LAB replay
 
 The production deliverable at this stage is an implementation specification. No vendor/model has been qualified: live SNMP access, firmware inventory and representative walks are unavailable. Production SNMP templates will be implemented in separate family-specific work after those inputs are supplied.

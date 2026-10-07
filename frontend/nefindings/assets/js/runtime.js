@@ -151,7 +151,8 @@
   if (!collapse) return edges.map(edge => ({...edge, members: [edge]}));
   const groups = new Map();
   for (const edge of edges) {
-   const lag = edge.lag_id ?? edge.source_lag_id ?? edge.lag?.uid;
+   // The reader lists every LAG an edge belongs to, one per end; both ends name the same logical link.
+   const lag = edge.lag_id ?? edge.source_lag_id ?? edge.lag?.uid ?? (asRows(edge.lag_ids).length ? [...edge.lag_ids].sort().join('+') : null);
    const endpoints = [id(edge.source), id(edge.target)].sort();
    const key = lag ? JSON.stringify([endpoints, id(lag)]) : id(edge.id) || JSON.stringify([endpoints, edge.source_uid, edge.target_uid]);
    if (!groups.has(key)) groups.set(key, {...edge, members: []});
@@ -240,7 +241,11 @@
  }
  function capabilities(root, payload, hostid) {
   const rows = asRows(payload.quality).filter(q => (!hostid || id(q.hostid) === id(hostid)) && /^(vlan|stp)$/.test(q.dataset));
-  const state = dataset => rows.filter(q => q.dataset === dataset).map(q => text(q.capability?.state ?? q.capability)).join(', ') || 'not collected';
+  const state = dataset => {
+   const counts = new Map();
+   for (const q of rows.filter(q => q.dataset === dataset)) { const value = text(q.capability?.state ?? q.capability); counts.set(value, (counts.get(value) ?? 0) + 1); }
+   return [...counts].map(([value, n]) => counts.size > 1 || n > 1 ? `${value} on ${n} ${n === 1 ? 'host' : 'hosts'}` : value).join(', ') || 'not collected';
+  };
   notice(root, `VLAN collection: ${state('vlan')}. STP collection: ${state('stp')}.`);
  }
  function endpoints(edge) {
@@ -291,7 +296,7 @@
   }
   if (port.vlan) {
    const v = port.vlan;
-   sections.push(['VLAN membership', {'Mode': v.mode, 'Native VLAN (PVID)': v.pvid, 'Untagged': v.untagged || 'None', 'Tagged': v.tagged || 'None', 'Forbidden': v.forbidden || 'None'}]);
+   sections.push(['VLAN membership', {...(v.via_lag ? {'Carried via': v.via_lag} : {}), 'Mode': v.mode, 'Native VLAN (PVID)': v.pvid, 'Untagged': v.untagged || 'None', 'Tagged': v.tagged || 'None', 'Forbidden': v.forbidden || 'None'}]);
   }
   for (const [title, values] of sections) {
    root.appendChild(el('h4', title));
@@ -415,10 +420,17 @@
    const arranged=graphLayout(hosts,edges,positions),byId=new Map(arranged.map(h=>[id(h.hostid),h]));for(const h of arranged)positions.set(id(h.hostid),{x:h.x,y:h.y});
    const width=Math.max(500,...arranged.map(h=>h.x+120)),height=Math.max(180,...arranged.map(h=>h.y+75));
    const svg=svgEl('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':`Physical topology, ${arranged.length} permitted devices`});
+   svg.style.maxWidth=`${width*1.25}px`; // a small graph keeps its proportions instead of filling the widget
+   const drawn=groupedEdges(edges,collapse),parallel=new Map();
+   for(const edge of drawn){const key=[id(edge.source),id(edge.target)].sort().join('|');parallel.set(key,[...(parallel.get(key)??[]),edge]);}
    let externalCount=0;
-   for(const edge of groupedEdges(edges,collapse)){
+   for(const edge of drawn){
     const a=byId.get(id(edge.source)),b=byId.get(id(edge.target));if(!a&&!b)continue;
-    const start=a??b,end=a&&b?b:{x:start.x+85,y:start.y+52};
+    let start=a??b,end=a&&b?b:{x:start.x+85,y:start.y+52};
+    // Parallel links between the same two switches (expanded LAG members) are drawn side by side.
+    const siblings=a&&b?parallel.get([id(edge.source),id(edge.target)].sort().join('|')):[edge];
+    if(siblings.length>1){const i=siblings.indexOf(edge),dx=end.x-start.x,dy=end.y-start.y,len=Math.hypot(dx,dy)||1,shift=(i-(siblings.length-1)/2)*10;
+     start={x:start.x-dy/len*shift,y:start.y+dx/len*shift};end={x:end.x-dy/len*shift,y:end.y+dx/len*shift};}
     const uncertain=!a||!b||edge.freshness==='stale'||edge.confidence==='ambiguous'||!['confirmed','bidirectional','high'].includes(edge.confidence??edge.status);
     let overlay='';
     if(mode.value==='vlan')overlay=` ne-edge-vlan-${edgeVlanState(edge,vlan)}${trace&&trace.stops.some(s=>edge.members.some(m=>m.id===s.edge.id))?' ne-edge-trace-stop':''}`;
@@ -429,7 +441,7 @@
     if(!b){externalCount++;svg.appendChild(svgEl('circle',{cx:end.x,cy:end.y,r:6,class:'ne-external'}));}
     if(edge.members.length>1)svg.appendChild(svgEl('text',{x:(start.x+end.x)/2,y:(start.y+end.y)/2-5,class:'ne-svg-label'},`LAG ×${edge.members.length}`));
     if(mode.value==='stp'&&a&&b)for(const m of edge.members)for(const side of ['source','target'])if(['blocking','discarding'].includes(m.stp?.[side]?.state)){
-     const near=byId.get(id(m[side])),far=near===a?b:a;if(near)svg.appendChild(svgEl('text',{x:near.x+(far.x-near.x)*.25,y:near.y+(far.y-near.y)*.25,class:'ne-svg-label ne-stp-block-mark'},'⊘'));
+     const near=byId.get(id(m[side])),far=near===a?b:a;if(!near)continue;const dx=far.x-near.x,dy=far.y-near.y,len=Math.hypot(dx,dy)||1,t=Math.min(dx?90/Math.abs(dx):Infinity,dy?25/Math.abs(dy):Infinity,1);svg.appendChild(svgEl('text',{x:near.x+dx*t+dx/len*14,y:near.y+dy*t+dy/len*14+4,class:'ne-svg-label ne-stp-block-mark'},'⊘'));
     }
    }
    for(const host of arranged){

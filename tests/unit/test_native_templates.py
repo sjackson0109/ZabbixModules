@@ -75,6 +75,17 @@ def test_generated_exports_are_current(version):
     assert yaml.safe_load(path.read_text())["zabbix_export"]["version"] == version
 
 
+@pytest.mark.parametrize("version", VERSIONS)
+def test_dashboard_template_is_current_and_holds_only_the_dashboard(version):
+    path = ROOT / "templates/native" / version / "network_explorer_dashboard.yaml"
+    assert path.read_text() == GEN.render_dashboard(version)
+    template = GEN.build_dashboard(version)["zabbix_export"]["templates"][0]
+    assert "items" not in template and "templates" not in template
+    kinds = {w["type"] for page in template["dashboards"][0]["pages"] for w in page["widgets"]}
+    assert kinds == {"neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings"}
+    assert template["dashboards"][0]["auto_start"] == "NO"  # pages are tabs, not a slideshow
+
+
 def test_uuids_are_unique_v4_and_keys_unique_per_template():
     seen = set()
     for template in templates().values():
