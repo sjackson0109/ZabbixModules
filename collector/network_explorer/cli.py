@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import sys
 
 from .collect import DATASETS, collect, serialize
 from .config import ConfigurationError, load_device
@@ -28,7 +29,9 @@ async def run(args) -> dict:
         output = envelope(args.dataset)
         output["errors"] = [{"code": "configuration_error", "message": str(error)}]
         return output
-    except Exception:
+    except Exception as error:
+        # The class name is enough to triage without echoing device data or credentials from the message.
+        print(f"network-explorer-collect: {type(error).__name__}", file=sys.stderr)
         output = envelope(args.dataset, method="fixture" if args.command == "fixture" else "python_snmp")
         output["errors"] = [{"code": "collection_error", "message": "Collection could not produce a validated dataset."}]
         return output
