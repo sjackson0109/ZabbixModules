@@ -57,7 +57,7 @@ async def collect(transport, dataset: str, *, redact_remote: bool = True,
             evidence.error("required_oid_unsupported", "A required standard OID is not available in this context.")
     observed_at = utc_now()
     if dataset == "device":
-        rows = normalize.device(evidence, redact_remote)
+        rows = normalize.device(evidence)
         if rows[0]["hostname"] is None:
             rows = []
         proof = oids.SYS_NAME

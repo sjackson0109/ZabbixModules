@@ -2,8 +2,23 @@
 declare(strict_types=1);
 namespace Modules\NetworkExplorer\Services;
 
-/** Shared, permission-aware application layer for every widget, page and export. */
+/**
+ * Shared, permission-aware application layer for every widget, page and export.
+ *
+ * build() runs fixed stages: validate the scope, read the permitted hosts and their datasets, describe hosts and
+ * interfaces, mask hidden bridges, build the topology, share aggregator state with LAG members, link the VLAN and
+ * STP overlays, attach peers, add host findings, and finally narrow a seeded request to its one-hop neighbourhood.
+ */
 final class NetworkService {
+    private const MAX_CIDRS = 32;
+    private const MAX_CIDR_TEXT = 2048;
+    private const MAX_STACK_MEMBERS = 16;
+    private const INTERFACE_FIELDS = ['uid', 'if_index', 'name', 'description', 'alias', 'type', 'physical',
+        'admin_status', 'oper_status', 'speed_bps', 'duplex', 'mtu', 'mac_address', 'expected_speed_bps', 'member',
+        'slot', 'port'];
+    private const CAPABILITY_FIELDS = ['autoneg_enabled', 'oper_speed_bps', 'oper_duplex', 'supported_speeds_bps',
+        'advertised_speeds_bps', 'partner_advertised_speeds_bps'];
+
     private DataGateway $gateway;
     private ?int $now;
     /** Per-port expected speed overrides by hostid, from host macros. */
@@ -19,6 +34,64 @@ final class NetworkService {
     }
 
     public function build(array $hostids = [], string $managementCidr = ''): array {
+        [$hostids, $cidrs] = $this->validateScope($hostids, $managementCidr);
+        [$seeds, $hosts, $truncated] = $this->scopeHosts($hostids);
+        $read = (new DatasetReader($this->gateway, $this->now))->read($hosts);
+        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
+        // unless explicitly selected.
+        $seedIds = array_fill_keys(array_map('strval', array_column($seeds, 'hostid')), true);
+        $hosts = array_filter($hosts, static fn($host) => isset($read['collected'][$host['hostid']])
+            || isset($seedIds[$host['hostid']]));
+        $read['quality'] = array_values(array_filter($read['quality'],
+            static fn($row) => isset($hosts[$row['hostid']])));
+        $datasets = $read['datasets'];
+
+        $layers = $this->indexLayers($hosts, $datasets);
+        $findings = $this->describeHosts($hosts, $datasets, $layers, $cidrs);
+        [$interfaces, $interfaceFindings] = $this->interfaces($hosts, $datasets, $layers, $read);
+        $findings = array_merge($findings, $interfaceFindings);
+        $this->maskHiddenBridges($layers);
+        foreach ($layers['stp_bridges'] as $hostid => $rows) {
+            $hosts[$hostid]['stp'] = $rows;
+        }
+        foreach ($interfaces as &$interface) {
+            $interface['stp'] = $layers['stp_ports'][$interface['hostid']][$interface['uid']] ?? [];
+        }
+        unset($interface);
+
+        $graph = (new TopologyService())->build($hosts, $datasets);
+        $this->addEdgeLinks($graph['edges'], $hosts);
+        $this->shareAggregatorState($graph['lags'], $layers, $interfaces);
+        $labels = [];
+        foreach ($interfaces as $interface) {
+            $labels[$interface['hostid']][$interface['uid']] = $hosts[$interface['hostid']]['name'].' '
+                .($interface['name'] ?? $interface['uid']);
+        }
+        $findings = array_merge($findings,
+            VlanService::link($graph['edges'], $layers['vlan_ports'], array_map('array_filter', $layers['lldp']),
+                $labels),
+            StpService::link($graph['edges'], $layers['stp_bridges'], $layers['stp_ports'],
+                array_column($hosts, 'domain', 'hostid')));
+        $this->attachPeers($interfaces, $graph['edges'], $hosts);
+        $findings = array_merge($findings, $this->healthFindings($hosts, $read['quality'], $truncated),
+            $graph['findings']);
+
+        $network = ['hosts'=>$hosts, 'interfaces'=>$interfaces, 'edges'=>$graph['edges'], 'lags'=>$graph['lags'],
+            'quality'=>$read['quality'], 'findings'=>$findings];
+        if ($hostids) {
+            $network = $this->neighbourhood($network, $hostids, $seeds);
+        }
+        return ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
+            'scope'=>['seed_hostids'=>$hostids, 'management_cidrs'=>$cidrs, 'truncated'=>$truncated,
+                'neighbour_hops'=>$hostids ? 1 : 0],
+            'hosts'=>array_values($network['hosts']), 'interfaces'=>$network['interfaces'],
+            'edges'=>$network['edges'], 'lags'=>$network['lags'], 'quality'=>$network['quality'],
+            'findings'=>$network['findings'],
+            'budgets'=>$read['budgets']];
+    }
+
+    /** @return array{0: string[], 1: string[]} seed host IDs and management CIDRs */
+    private function validateScope(array $hostids, string $managementCidr): array {
         $hostids = array_values(array_unique(array_map('strval', $hostids)));
         foreach ($hostids as $id) {
             if (!preg_match('/^[1-9][0-9]*$/D', $id)) {
@@ -28,11 +101,11 @@ final class NetworkService {
         if (count($hostids) > Limits::HOSTS) {
             throw new \InvalidArgumentException('host_budget_exceeded');
         }
-        if (strlen($managementCidr) > 2048) {
+        if (strlen($managementCidr) > self::MAX_CIDR_TEXT) {
             throw new \InvalidArgumentException('invalid_management_cidr');
         }
         $cidrs = trim($managementCidr) === '' ? [] : preg_split('/[\s,]+/', trim($managementCidr));
-        if (count($cidrs) > 32) {
+        if (count($cidrs) > self::MAX_CIDRS) {
             throw new \InvalidArgumentException('invalid_management_cidr');
         }
         $subnet = new SubnetService();
@@ -41,6 +114,14 @@ final class NetworkService {
                 throw new \InvalidArgumentException('invalid_management_cidr');
             }
         }
+        return [$hostids, $cidrs];
+    }
+
+    /**
+     * Seeds plus every permitted host in a seed's matching domain, or every permitted host when unseeded.
+     * @return array{0: array, 1: array, 2: bool} seed rows, hosts by hostid, and whether the scope was capped
+     */
+    private function scopeHosts(array $hostids): array {
         $seeds = $hostids ? $this->gateway->hosts($hostids) : [];
         $rows = $this->gateway->hosts();
         $truncated = count($rows) > Limits::HOSTS;
@@ -69,88 +150,102 @@ final class NetworkService {
         if ($hostids && !$seeds) {
             $hosts = [];
         }
-        $read = (new DatasetReader($this->gateway, $this->now))->read($hosts);
-        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
-        // unless explicitly selected.
-        $seedIds = array_fill_keys(array_map('strval', array_column($seeds, 'hostid')), true);
-        $hosts = array_filter($hosts, static fn($host) => isset($read['collected'][$host['hostid']])
-            || isset($seedIds[$host['hostid']]));
-        $read['quality'] = array_values(array_filter($read['quality'], static fn($row) => isset($hosts[$row['hostid']])));
-        $datasets = $read['datasets'];
-        $qualityIndex = [];
-        foreach ($read['quality'] as $quality) {
-            $qualityIndex[$quality['hostid']][$quality['dataset']] = $quality;
-        }
-        $interfaces = [];
-        $findings = [];
-        $policy = new PortPolicy();
-        $vlanPorts = [];
-        $lldpByUid = [];
-        $stpBridges = [];
-        $stpPorts = [];
-        foreach ($hosts as $hostid => &$host) {
-            $capabilities = [];
-            foreach (($datasets[$hostid]['port_capability']['data'] ?? []) as $row) {
-                $capabilities[$row['uid']] = $row;
-            }
+        return [$seeds, $hosts, $truncated];
+    }
+
+    /**
+     * Per-host lookups the later stages share: LLDP rows, VLAN port and STP rows by interface UID.
+     * `vlans` and `stp_bridges` hold a host only when it reported that dataset.
+     */
+    private function indexLayers(array $hosts, array $datasets): array {
+        $layers = ['lldp'=>[], 'vlans'=>[], 'vlan_ports'=>[], 'stp_bridges'=>[], 'stp_ports'=>[]];
+        foreach (array_keys($hosts) as $hostid) {
             foreach (($datasets[$hostid]['lldp']['data'] ?? []) as $row) {
                 // One neighbour per port is the normal case; several make the peer's capability ambiguous.
                 $uid = $row['local_interface_uid'] ?? null;
                 if (is_string($uid)) {
-                    $lldpByUid[$hostid][$uid] = isset($lldpByUid[$hostid][$uid]) ? [] : $row;
+                    $layers['lldp'][$hostid][$uid] = isset($layers['lldp'][$hostid][$uid]) ? [] : $row;
                 }
             }
-            $host['vlans'] = null;
             if (isset($datasets[$hostid]['vlan'])) {
-                $host['vlans'] = [];
+                $layers['vlans'][$hostid] = [];
                 foreach ($datasets[$hostid]['vlan']['data'] as $row) {
                     if ($row['kind'] === 'vlan') {
-                        $host['vlans'][] = ['vlan_id'=>$row['vlan_id'], 'name'=>$row['name'] ?? null];
+                        $layers['vlans'][$hostid][] = ['vlan_id'=>$row['vlan_id'], 'name'=>$row['name'] ?? null];
                     }
                     elseif (is_string($row['interface_uid'] ?? null)) {
-                        $vlanPorts[$hostid][$row['interface_uid']] = VlanService::port($row);
+                        $layers['vlan_ports'][$hostid][$row['interface_uid']] = VlanService::port($row);
                     }
                 }
             }
-            $host['stp'] = null;
             if (isset($datasets[$hostid]['stp'])) {
-                [$host['stp'], $stpPorts[$hostid]] = StpService::split($datasets[$hostid]['stp']['data']);
-                $stpBridges[$hostid] = $host['stp'];
+                [$layers['stp_bridges'][$hostid], $layers['stp_ports'][$hostid]] =
+                    StpService::split($datasets[$hostid]['stp']['data']);
             }
+        }
+        return $layers;
+    }
+
+    /** Adds device, VLAN, STP and addressing details to each host. @return array findings */
+    private function describeHosts(array &$hosts, array $datasets, array $layers, array $cidrs): array {
+        $subnet = new SubnetService();
+        $findings = [];
+        foreach ($hosts as $hostid => &$host) {
+            $host['vlans'] = $layers['vlans'][$hostid] ?? null;
+            $host['stp'] = $layers['stp_bridges'][$hostid] ?? null;
             $device = $datasets[$hostid]['device']['data'][0] ?? [];
-            foreach (['vendor','model','firmware','hostname'] as $field) {
+            foreach (['vendor', 'model', 'firmware', 'hostname'] as $field) {
                 $host[$field] = is_string($device[$field] ?? null) ? $device[$field] : null;
             }
             $host['stack_members'] = [];
-            foreach (is_array($device['stack_members'] ?? null) ? array_slice($device['stack_members'], 0, 16) : [] as $member) {
+            $members = is_array($device['stack_members'] ?? null)
+                ? array_slice($device['stack_members'], 0, self::MAX_STACK_MEMBERS) : [];
+            foreach ($members as $member) {
                 $host['stack_members'][] = array_map(static fn($v) => is_string($v) || is_int($v) ? $v : null,
-                    array_intersect_key((array) $member + ['member'=>null,'model'=>null,'firmware'=>null],
-                        array_flip(['member','model','firmware'])));
+                    array_intersect_key((array) $member + ['member'=>null, 'model'=>null, 'firmware'=>null],
+                        array_flip(['member', 'model', 'firmware'])));
             }
-            $deviceAddresses = $device['management_addresses'] ?? [];
-            $host['management_addresses'] = $this->addresses(array_merge($host['management_addresses'], $deviceAddresses));
+            $host['management_addresses'] = $this->addresses(array_merge($host['management_addresses'],
+                $device['management_addresses'] ?? []));
             $host['addressing'] = $subnet->annotate($host['management_addresses'], $cidrs);
-            $host['out_of_subnet'] = in_array($host['addressing']['status'], ['outside','mixed'], true);
+            $host['out_of_subnet'] = in_array($host['addressing']['status'], ['outside', 'mixed'], true);
             if ($host['domain'] === '') {
-                $findings[] = $this->finding((string) $hostid, null, 'domain_unknown','info',
-                    'Matching domain is unknown.', 'Assign a provisioner-controlled ne.domain host tag before peer matching.');
+                $findings[] = Finding::create('domain_unknown', 'info', (string) $hostid, 'Matching domain is unknown.',
+                    'Assign a provisioner-controlled ne.domain host tag before peer matching.');
             }
+        }
+        unset($host);
+        return $findings;
+    }
+
+    /**
+     * One output row per reported interface, with derived speed intent, policy state and links.
+     * @return array{0: array, 1: array} interfaces and their findings
+     */
+    private function interfaces(array $hosts, array $datasets, array $layers, array $read): array {
+        $qualityIndex = [];
+        foreach ($read['quality'] as $quality) {
+            $qualityIndex[$quality['hostid']][$quality['dataset']] = $quality;
+        }
+        $policy = new PortPolicy();
+        $interfaces = [];
+        $findings = [];
+        foreach (array_keys($hosts) as $hostid) {
+            $hostid = (string) $hostid;
+            $capabilities = array_column($datasets[$hostid]['port_capability']['data'] ?? [], null, 'uid');
             foreach (($datasets[$hostid]['interfaces']['data'] ?? []) as $row) {
-                $output = array_intersect_key($row, array_flip(['uid','if_index','name','description','alias','type',
-                    'physical','admin_status','oper_status','speed_bps','duplex','mtu','mac_address',
-                    'expected_speed_bps','member','slot','port']));
-                $output['hostid'] = (string) $hostid;
-                $lldp = $lldpByUid[$hostid][$row['uid']] ?? null;
+                $output = array_intersect_key($row, array_flip(self::INTERFACE_FIELDS));
+                $output['hostid'] = $hostid;
+                $lldp = $layers['lldp'][$hostid][$row['uid']] ?? null;
                 $capability = $capabilities[$row['uid']] ?? null;
                 [$row['expected_speed_bps'], $row['expected_speed_source'], $basis] = SpeedIntent::derive($row,
                     $capability, $lldp ?: null, $this->overrides[$hostid] ?? []);
                 $row['peer_duplex'] = $lldp['remote_duplex'] ?? null;
                 $output['expected_speed_basis'] = $basis;
-                $output['capability'] = $capability === null ? null : array_intersect_key($capability,
-                    array_flip(['autoneg_enabled','oper_speed_bps','oper_duplex','supported_speeds_bps',
-                        'advertised_speeds_bps','partner_advertised_speeds_bps']));
+                $output['capability'] = $capability === null
+                    ? null : array_intersect_key($capability, array_flip(self::CAPABILITY_FIELDS));
                 $output['media'] = $capability['media'] ?? null;
-                $output['vlan'] = $vlanPorts[$hostid][$row['uid']] ?? null;
+                $output['vlan'] = $layers['vlan_ports'][$hostid][$row['uid']] ?? null;
                 $output['itemid'] = $read['itemids'][$hostid][$row['uid']] ?? null;
                 $quality = $qualityIndex[$hostid]['interfaces'];
                 if (!($row['_state_present'] ?? false)) {
@@ -161,17 +256,17 @@ final class NetworkService {
                 $evaluation = $policy->evaluate($row, $quality['freshness']);
                 $output = array_replace($output, $evaluation);
                 $output['observed_at'] = $quality['observed_at'];
-                $output['dashboard_url'] = Navigation::dashboard((string) $hostid, $row['uid']);
-                $output['explorer_url'] = Navigation::explorer((string) $hostid, $row['uid']);
+                $output['dashboard_url'] = Navigation::dashboard($hostid, $row['uid']);
+                $output['explorer_url'] = Navigation::explorer($hostid, $row['uid']);
                 $output['peers'] = [];
                 if ($evaluation['speed_degraded']) {
-                    $findings[] = $this->finding((string) $hostid, $row['uid'], 'speed_below_intent',
-                        $evaluation['speed_warning_confirmed'] ? 'warning' : 'info',
-                        'Speed below intended value.', $evaluation['reason']);
+                    $findings[] = Finding::create('speed_below_intent',
+                        $evaluation['speed_warning_confirmed'] ? 'warning' : 'info', $hostid,
+                        'Speed below intended value.', $evaluation['reason'], $row['uid']);
                 }
                 if ($evaluation['duplex_mismatch']) {
-                    $findings[] = $this->finding((string) $hostid, $row['uid'], 'duplex_mismatch', 'warning',
-                        'Duplex mismatch.', 'Half duplex against a full-duplex peer (from LLDP).');
+                    $findings[] = Finding::create('duplex_mismatch', 'warning', $hostid, 'Duplex mismatch.',
+                        'Half duplex against a full-duplex peer (from LLDP).', $row['uid']);
                 }
                 $interfaces[] = $output;
                 if (count($interfaces) > Limits::INTERFACES) {
@@ -179,27 +274,31 @@ final class NetworkService {
                 }
             }
         }
-        unset($host);
-        // A bridge ID embeds the bridge's MAC address, so one belonging to no permitted host is replaced by an
-        // opaque token: equal IDs stay equal within this response, and nothing identifies the hidden bridge.
-        $visibleBridges = [];
-        foreach ($stpBridges as $rows) {
+        return [$interfaces, $findings];
+    }
+
+    /**
+     * A bridge ID embeds the bridge's MAC address, so one belonging to no permitted host is replaced by an opaque
+     * token: equal IDs stay equal within this response, and nothing identifies the hidden bridge.
+     */
+    private function maskHiddenBridges(array &$layers): void {
+        $visible = [];
+        foreach ($layers['stp_bridges'] as $rows) {
             foreach ($rows as $row) {
-                $visibleBridges[substr((string) ($row['bridge_id'] ?? ''), 4)] = true;
+                $visible[substr((string) ($row['bridge_id'] ?? ''), 4)] = true;
             }
         }
         $salt = random_bytes(16);
-        $mask = static fn($id) => !is_string($id) || isset($visibleBridges[substr($id, 4)]) ? $id
+        $mask = static fn($id) => !is_string($id) || isset($visible[substr($id, 4)]) ? $id
             : 'undisclosed-'.substr(hash_hmac('sha256', $id, $salt), 0, 8);
-        foreach ($stpBridges as $hostid => &$rows) {
+        foreach ($layers['stp_bridges'] as &$rows) {
             foreach ($rows as &$row) {
                 $row['root_bridge_id'] = $mask($row['root_bridge_id'] ?? null);
             }
             unset($row);
-            $hosts[$hostid]['stp'] = $rows;
         }
         unset($rows);
-        foreach ($stpPorts as &$byUid) {
+        foreach ($layers['stp_ports'] as &$byUid) {
             foreach ($byUid as &$rows) {
                 foreach ($rows as &$row) {
                     $row['designated_bridge'] = $mask($row['designated_bridge'] ?? null);
@@ -209,13 +308,11 @@ final class NetworkService {
             unset($rows);
         }
         unset($byUid);
-        foreach ($interfaces as &$interface) {
-            $interface['stp'] = $stpPorts[$interface['hostid']][$interface['uid']] ?? [];
-        }
-        unset($interface);
-        $graph = (new TopologyService())->build($hosts, $datasets);
-        foreach ($graph['edges'] as &$edge) {
-            foreach (['source','target'] as $side) {
+    }
+
+    private function addEdgeLinks(array &$edges, array $hosts): void {
+        foreach ($edges as &$edge) {
+            foreach (['source', 'target'] as $side) {
                 $id = $edge[$side] ?? null;
                 $uid = $edge[$side.'_uid'] ?? null;
                 if ($id !== null && isset($hosts[(string) $id])) {
@@ -225,43 +322,44 @@ final class NetworkService {
             }
         }
         unset($edge);
-        // VLAN and STP state belongs to the aggregator's bridge port; LAG members carry what their aggregator carries.
+    }
+
+    /** VLAN and STP state belongs to the aggregator's bridge port; LAG members carry what their aggregator carries. */
+    private function shareAggregatorState(array $lags, array &$layers, array &$interfaces): void {
         $viaLag = [];
-        foreach ($graph['lags'] as $lag) {
+        foreach ($lags as $lag) {
             $hostid = (string) $lag['hostid'];
             $aggregator = $lag['interface_uid'] ?? null;
+            $via = ['via_lag'=>$lag['name'] ?? $aggregator];
             foreach ($lag['members'] as $member) {
                 $uid = $member['interface_uid'] ?? null;
                 if ($aggregator === null || $uid === null) {
                     continue;
                 }
-                if (!isset($vlanPorts[$hostid][$uid]) && isset($vlanPorts[$hostid][$aggregator])) {
-                    $vlanPorts[$hostid][$uid] = $vlanPorts[$hostid][$aggregator] + ['via_lag'=>$lag['name'] ?? $aggregator];
+                if (!isset($layers['vlan_ports'][$hostid][$uid]) && isset($layers['vlan_ports'][$hostid][$aggregator])) {
+                    $layers['vlan_ports'][$hostid][$uid] = $layers['vlan_ports'][$hostid][$aggregator] + $via;
                     $viaLag[$hostid][$uid] = true;
                 }
-                if (!isset($stpPorts[$hostid][$uid]) && isset($stpPorts[$hostid][$aggregator])) {
-                    $stpPorts[$hostid][$uid] = array_map(static fn($row) => $row + ['via_lag'=>$lag['name'] ?? $aggregator],
-                        $stpPorts[$hostid][$aggregator]);
+                if (!isset($layers['stp_ports'][$hostid][$uid]) && isset($layers['stp_ports'][$hostid][$aggregator])) {
+                    $layers['stp_ports'][$hostid][$uid] = array_map(static fn($row) => $row + $via,
+                        $layers['stp_ports'][$hostid][$aggregator]);
                     $viaLag[$hostid][$uid] = true;
                 }
             }
         }
         foreach ($interfaces as &$interface) {
             if (isset($viaLag[$interface['hostid']][$interface['uid']])) {
-                $interface['vlan'] = $vlanPorts[$interface['hostid']][$interface['uid']] ?? null;
-                $interface['stp'] = $stpPorts[$interface['hostid']][$interface['uid']] ?? [];
+                $interface['vlan'] = $layers['vlan_ports'][$interface['hostid']][$interface['uid']] ?? null;
+                $interface['stp'] = $layers['stp_ports'][$interface['hostid']][$interface['uid']] ?? [];
             }
         }
         unset($interface);
-        $labels = [];
-        foreach ($interfaces as $interface) {
-            $labels[$interface['hostid']][$interface['uid']] = $hosts[$interface['hostid']]['name'].' '.($interface['name'] ?? $interface['uid']);
-        }
-        $findings = array_merge($findings, VlanService::link($graph['edges'], $vlanPorts, array_map('array_filter', $lldpByUid), $labels),
-            StpService::link($graph['edges'], $stpBridges, $stpPorts, array_column($hosts, 'domain', 'hostid')));
+    }
+
+    private function attachPeers(array &$interfaces, array $edges, array $hosts): void {
         $adjacency = [];
-        foreach ($graph['edges'] as $edge) {
-            foreach (['source'=>'target','target'=>'source'] as $localSide => $side) {
+        foreach ($edges as $edge) {
+            foreach (['source'=>'target', 'target'=>'source'] as $localSide => $side) {
                 $localHost = $edge[$localSide] ?? null;
                 $localUid = $edge[$localSide.'_uid'] ?? null;
                 if ($localHost === null || $localUid === null) {
@@ -278,85 +376,89 @@ final class NetworkService {
             $interface['peers'] = $adjacency[$interface['hostid']][$interface['uid']] ?? [];
         }
         unset($interface);
+    }
+
+    /** SNMP reachability, collection quality and scope findings. */
+    private function healthFindings(array $hosts, array $quality, bool $truncated): array {
+        $findings = [];
         foreach ($hosts as $hostid => $host) {
             if ($host['snmp_available'] === false) {
-                $findings[] = $this->finding((string) $hostid, null, 'snmp_unreachable', 'warning',
+                $findings[] = Finding::create('snmp_unreachable', 'warning', (string) $hostid,
                     'SNMP agent is unreachable.', 'Zabbix marks the SNMP interface unavailable. Collection has stopped; '
                     .'the last successful observations are shown.');
             }
         }
-        foreach ($read['quality'] as $quality) {
+        foreach ($quality as $row) {
             // One unreachable finding per host replaces a collection finding per dataset.
-            if ($quality['errors'] === ['agent_unreachable']) {
+            if ($row['errors'] === ['agent_unreachable']) {
                 continue;
             }
-            if ($quality['status'] !== 'ok' || $quality['freshness'] !== 'current') {
-                $findings[] = $this->finding($quality['hostid'], null, 'collection_'.$quality['dataset'],
-                    $quality['status'] === 'failed' ? 'warning' : 'info',
-                    ucfirst($quality['dataset']).' collection requires attention.',
-                    'Outcome: '.$quality['status'].'; observation: '.$quality['freshness'].'.');
+            if ($row['warnings'] ?? []) {
+                $findings[] = Finding::create('collection_rows_skipped_'.$row['dataset'], 'info', $row['hostid'],
+                    ucfirst($row['dataset']).' collection skipped some rows.',
+                    'The rest of the dataset is current. Diagnostics: '.implode(', ', $row['warnings']).'.');
+            }
+            if ($row['status'] !== 'ok' || $row['freshness'] !== 'current') {
+                $findings[] = Finding::create('collection_'.$row['dataset'],
+                    $row['status'] === 'failed' ? 'warning' : 'info', $row['hostid'],
+                    ucfirst($row['dataset']).' collection requires attention.',
+                    'Outcome: '.$row['status'].'; observation: '.$row['freshness'].'.');
             }
         }
         if ($truncated) {
-            $findings[] = ['id'=>'scope:host_limit', 'hostid'=>null, 'interface_uid'=>null,
-                'severity'=>'info','rule'=>'scope_truncated','title'=>'Host scope is bounded.',
-                'reason'=>'Only the first '.Limits::HOSTS.' permitted hosts were read. Select a narrower host/domain scope.'];
+            $findings[] = Finding::create('scope_truncated', 'info', null, 'Host scope is bounded.',
+                'Only the first '.Limits::HOSTS.' permitted hosts were read. Select a narrower host/domain scope.');
         }
-        $findings = array_merge($findings, $graph['findings']);
-        if ($hostids) {
-            // Resolve against permitted same-domain candidates, then expose one
-            // hop from the seed set. Do not recursively add a neighbour's peers.
-            $display = [];
-            foreach ($seeds as $seed) {
-                $display[(string) $seed['hostid']] = true;
-            }
-            foreach ($graph['edges'] as $edge) {
-                if (isset($display[$edge['source'] ?? ''])
-                        && in_array((string) ($edge['source'] ?? ''), $hostids, true)
-                        && $edge['target'] !== null) {
-                    $display[(string) $edge['target']] = true;
-                }
-                if (isset($display[$edge['target'] ?? ''])
-                        && in_array((string) ($edge['target'] ?? ''), $hostids, true)
-                        && $edge['source'] !== null) {
-                    $display[(string) $edge['source']] = true;
-                }
-            }
-            $hosts = array_intersect_key($hosts, $display);
-            $interfaces = array_values(array_filter($interfaces,
-                static fn($row) => isset($display[$row['hostid']])));
-            $graph['edges'] = array_values(array_filter($graph['edges'], static fn($edge) =>
-                ($edge['source'] === null || isset($display[$edge['source']]))
-                && ($edge['target'] === null || isset($display[$edge['target']]))));
-            $edgeIds = array_fill_keys(array_column($graph['edges'], 'id'), true);
-            $graph['lags'] = array_values(array_filter($graph['lags'],
-                static fn($row) => isset($display[$row['hostid']])));
-            foreach ($graph['lags'] as &$lag) {
-                $lag['edge_ids'] = array_values(array_filter($lag['edge_ids'], static fn($id) => isset($edgeIds[$id])));
-                $lag['peer_hostids'] = array_values(array_filter($lag['peer_hostids'], static fn($id) => isset($display[$id])));
-                foreach ($lag['members'] as &$member) {
-                    $member['edge_ids'] = array_values(array_filter($member['edge_ids'], static fn($id) => isset($edgeIds[$id])));
-                }
-                unset($member);
-            }
-            unset($lag);
-            foreach ($interfaces as &$interface) {
-                $interface['peers'] = array_values(array_filter($interface['peers'], static fn($peer) =>
-                    $peer['hostid'] === null || isset($display[$peer['hostid']])));
-            }
-            unset($interface);
-            $read['quality'] = array_values(array_filter($read['quality'], static fn($row) => isset($display[$row['hostid']])));
-            $findings = array_values(array_filter($findings, static fn($row) =>
-                ($row['hostid'] === null || isset($display[$row['hostid']]))
-                && (!isset($row['edge_id']) || isset($edgeIds[$row['edge_id']]))));
+        return $findings;
+    }
+
+    /**
+     * Keeps the seeds and the hosts one hop from them. Peers are resolved against every permitted same-domain
+     * candidate first; a neighbour's own peers are not added.
+     */
+    private function neighbourhood(array $network, array $hostids, array $seeds): array {
+        $display = [];
+        foreach ($seeds as $seed) {
+            $display[(string) $seed['hostid']] = true;
         }
-        return ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
-            'scope'=>['seed_hostids'=>$hostids, 'management_cidrs'=>$cidrs, 'truncated'=>$truncated,
-                'neighbour_hops'=>$hostids ? 1 : 0],
-            'hosts'=>array_values($hosts), 'interfaces'=>$interfaces, 'edges'=>$graph['edges'],
-            'lags'=>$graph['lags'], 'quality'=>$read['quality'],
-            'findings'=>$findings,
-            'budgets'=>$read['budgets']];
+        foreach ($network['edges'] as $edge) {
+            if (isset($display[$edge['source'] ?? '']) && in_array((string) ($edge['source'] ?? ''), $hostids, true)
+                    && $edge['target'] !== null) {
+                $display[(string) $edge['target']] = true;
+            }
+            if (isset($display[$edge['target'] ?? '']) && in_array((string) ($edge['target'] ?? ''), $hostids, true)
+                    && $edge['source'] !== null) {
+                $display[(string) $edge['source']] = true;
+            }
+        }
+        $shown = static fn($hostid) => $hostid === null || isset($display[$hostid]);
+        $network['hosts'] = array_intersect_key($network['hosts'], $display);
+        $network['interfaces'] = array_values(array_filter($network['interfaces'],
+            static fn($row) => isset($display[$row['hostid']])));
+        $network['edges'] = array_values(array_filter($network['edges'],
+            static fn($edge) => $shown($edge['source']) && $shown($edge['target'])));
+        $edgeIds = array_fill_keys(array_column($network['edges'], 'id'), true);
+        $keepEdges = static fn(array $ids) => array_values(array_filter($ids, static fn($id) => isset($edgeIds[$id])));
+        $network['lags'] = array_values(array_filter($network['lags'], static fn($row) => isset($display[$row['hostid']])));
+        foreach ($network['lags'] as &$lag) {
+            $lag['edge_ids'] = $keepEdges($lag['edge_ids']);
+            $lag['peer_hostids'] = array_values(array_filter($lag['peer_hostids'], static fn($id) => isset($display[$id])));
+            foreach ($lag['members'] as &$member) {
+                $member['edge_ids'] = $keepEdges($member['edge_ids']);
+            }
+            unset($member);
+        }
+        unset($lag);
+        foreach ($network['interfaces'] as &$interface) {
+            $interface['peers'] = array_values(array_filter($interface['peers'],
+                static fn($peer) => $shown($peer['hostid'])));
+        }
+        unset($interface);
+        $network['quality'] = array_values(array_filter($network['quality'],
+            static fn($row) => isset($display[$row['hostid']])));
+        $network['findings'] = array_values(array_filter($network['findings'], static fn($row) =>
+            $shown($row['hostid']) && (!isset($row['edge_id']) || isset($edgeIds[$row['edge_id']]))));
+        return $network;
     }
 
     private function host(array $row): array {
@@ -400,11 +502,5 @@ final class NetworkService {
             }
         }
         return array_keys($result);
-    }
-
-    private function finding(string $hostid, ?string $uid, string $rule, string $severity,
-            string $title, string $reason): array {
-        return ['id'=>hash('sha256', $hostid.'|'.($uid ?? '').'|'.$rule), 'hostid'=>$hostid,
-            'interface_uid'=>$uid,'severity'=>$severity,'rule'=>$rule,'title'=>$title,'reason'=>$reason];
     }
 }

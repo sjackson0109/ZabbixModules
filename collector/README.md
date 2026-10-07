@@ -6,6 +6,13 @@ datasets. Synthetic fixtures and localhost SNMP tests exercise the contract;
 they do not qualify a vendor, model or firmware. Customer template development
 and captured-walk qualification remain separate work.
 
+**Status: frozen fallback.** The native SNMP templates are the primary producer.
+The collector stays on envelope schema 1.0 and receives security and correctness
+fixes only. It does not collect VLAN, STP or port capability data, ifStack-based
+static LAGs, or per-member LACP state, so a host it feeds shows no VLAN or STP
+overlay and no derived expected speed. Use it only where native SNMP items can't
+reach a device.
+
 Python 3.10 is the minimum. Python 3.14 is the primary runtime. Installation is
 manual copy-out; a Zabbix external check does not inherit the credentials of its
 host's SNMP interface. Never pass communities, usernames or passphrases as item
@@ -19,13 +26,17 @@ application directory; adapt paths to the deployment.
 
 ```sh
 python3 -m venv /opt/network-explorer/venv
-/opt/network-explorer/venv/bin/python -m pip install -r collector/requirements.lock
+/opt/network-explorer/venv/bin/python -m pip install --require-hashes -r collector/requirements.lock
 /opt/network-explorer/venv/bin/python -m pip install --no-deps ./collector
 ```
 
 Copy `packaging/devices.example.json` to an administrator-controlled location
-outside the frontend/web root. Fill bindings locally, set ownership to the
-collector service account (or a readable root-owned file), and mode `0600`.
+outside the frontend/web root. Fill bindings locally, then make the file owned
+by the account that runs the collector (for an external check, the Zabbix
+server or proxy service account, usually `zabbix`) with mode `0600` or `0400`.
+The collector refuses a file with any group or world permission bits. A
+root-owned file is accepted only when the collector itself runs as root, which
+an external check does not, so do not leave the file owned by root.
 The example strings are placeholders, not operational credentials. JSON is
 non-executable, symlinks are refused, and destinations must occur in the local
 device allowlist.

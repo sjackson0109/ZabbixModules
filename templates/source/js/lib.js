@@ -5,7 +5,7 @@
 
 var NE = {};
 NE.SCHEMA = '1.1';
-NE.VERSION = '1.1.0';
+NE.VERSION = '1.0.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
 NE.FAILED = '__NE_COLLECTION_FAILED__';
 NE.UPTIME = '1.3.6.1.2.1.1.3.0';
 
@@ -254,8 +254,9 @@ NE.uid = function (name, descr) {
 };
 
 // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-// Duplicate or missing identities map to null. They are reported (making the
-// envelope partial) unless quiet is set, for datasets that only join to interfaces.
+// Duplicate or missing identities map to null, so those rows are dropped.
+// They are reported as a warning unless quiet is set, for datasets that only
+// join to interfaces.
 NE.interfaceIndex = function (walk, env, quiet) {
     var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
     var out = {}, seen = {}, k, uid;
@@ -270,7 +271,7 @@ NE.interfaceIndex = function (walk, env, quiet) {
     for (k in out) {
         if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
             out[k] = null;
-            if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+            if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
         }
     }
     return out;
@@ -293,7 +294,18 @@ NE.lldpId = function (subtypeEntry, valueEntry, kind) {
 
 // ---------------------------------------------------------------- MAU / speeds
 
-// IANA-MAU-MIB dot3MauType arc -> [speed bit/s, duplex, media].
+// IANA-MAU-MIB dot3MauType arc -> [speed bit/s, duplex, media]. The same
+// numbers are the IANAifMauTypeListBits positions.
+// From 40G up (IANA-MAU-MIB revision 2017-04-10):
+//   70 dot3MauType40GbaseKR4, 71 40GbaseCR4, 72 40GbaseSR4, 73 40GbaseFR,
+//   74 40GbaseLR4, 75 100GbaseCR10, 76 100GbaseSR10, 77 100GbaseLR4,
+//   78 100GbaseER4, 88 25GbaseCR, 89 25GbaseCRS, 90 25GbaseKR, 91 25GbaseKRS,
+//   92 25GbaseR, 93 25GbaseSR, 94 25GbaseT, 95 40GbaseER4, 96 40GbaseR,
+//   97 40GbaseT, 98 100GbaseCR4, 99 100GbaseKR4, 100 100GbaseKP4,
+//   101 100GbaseR, 102 100GbaseSR4.
+// That revision defines no 2.5G, 5G or 50G types. Media is null for 25G/40G/
+// 100G MAUs other than BASE-T: the port_capability media enum has no SFP28 or
+// QSFP value, and a backplane or undefined PMD names no cage.
 NE.MAU = {
     5: [10e6, null, 'copper'], 10: [10e6, 'half', 'copper'], 11: [10e6, 'full', 'copper'],
     14: [100e6, 'half', 'copper'], 15: [100e6, 'half', 'copper'], 16: [100e6, 'full', 'copper'],
@@ -305,7 +317,15 @@ NE.MAU = {
     34: [10e9, 'full', 'sfp_plus'], 35: [10e9, 'full', 'sfp_plus'], 36: [10e9, 'full', 'sfp_plus'],
     41: [10e9, 'full', 'copper'], 44: [100e6, 'full', 'sfp'], 45: [100e6, 'full', 'sfp'], 46: [100e6, 'full', 'sfp'],
     47: [1e9, 'full', 'sfp'], 48: [1e9, 'full', 'sfp'], 49: [1e9, 'full', 'sfp'],
-    54: [10e9, 'full', 'copper'], 55: [10e9, 'full', 'sfp_plus']
+    54: [10e9, 'full', 'copper'], 55: [10e9, 'full', 'sfp_plus'],
+    70: [40e9, 'full', null], 71: [40e9, 'full', null], 72: [40e9, 'full', null], 73: [40e9, 'full', null],
+    74: [40e9, 'full', null], 75: [100e9, 'full', null], 76: [100e9, 'full', null], 77: [100e9, 'full', null],
+    78: [100e9, 'full', null],
+    88: [25e9, 'full', null], 89: [25e9, 'full', null], 90: [25e9, 'full', null], 91: [25e9, 'full', null],
+    92: [25e9, 'full', null], 93: [25e9, 'full', null], 94: [25e9, 'full', 'copper'],
+    95: [40e9, 'full', null], 96: [40e9, 'full', null], 97: [40e9, 'full', 'copper'],
+    98: [100e9, 'full', null], 99: [100e9, 'full', null], 100: [100e9, 'full', null], 101: [100e9, 'full', null],
+    102: [100e9, 'full', null]
 };
 
 NE.mauArc = function (entry) {
@@ -330,11 +350,17 @@ NE.speedsFromBits = function (bits, table) {
 
 // ---------------------------------------------------------------- envelope
 
-NE.error = function (env, code, message) {
-    for (var i = 0; i < env.errors.length; i++) {
-        if (env.errors[i].code === code) { return; }
+NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+// A problem confined to one row: the row is dropped or kept with unknown
+// fields, and the rest of the dataset stays a complete observation.
+NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+NE.note = function (list, code, message) {
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].code === code) { return; }
     }
-    if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+    if (list.length < 256) { list.push({code: code, message: message}); }
 };
 
 NE.envelope = function (dataset, adapter) {
@@ -344,7 +370,7 @@ NE.envelope = function (dataset, adapter) {
         generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
         attempted_at: now, observed_at: null, status: 'failed', complete: false,
         source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-        capability: {state: 'unknown', reason: null}, errors: [], data: []
+        capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
     };
 };
 
@@ -357,13 +383,13 @@ NE.run = function (dataset, adapter, value, normalise) {
         NE.error(env, 'collection_failed', 'The SNMP walk returned no data or the item is not supported.');
         return env;
     }
-    var walk = NE.parseWalk(String(value));
-    if (!NE.scalar(walk, NE.UPTIME)) {
-        NE.error(env, 'agent_unreachable', 'The walk did not include sysUpTime; the agent did not answer.');
-        return env;
-    }
-    var rows;
+    var walk, rows;
     try {
+        walk = NE.parseWalk(String(value));
+        if (!NE.scalar(walk, NE.UPTIME)) {
+            NE.error(env, 'agent_unreachable', 'The walk did not include sysUpTime; the agent did not answer.');
+            return env;
+        }
         rows = normalise(walk, env);
     }
     catch (e) {
@@ -371,9 +397,15 @@ NE.run = function (dataset, adapter, value, normalise) {
             env.status = 'unsupported';
             env.capability = {state: 'unsupported', reason: e.unsupported};
             env.errors = [{code: 'unsupported', message: e.unsupported}];
+            env.warnings = [];
             return env;
         }
-        throw e;
+        // A normaliser bug still records a failed attempt rather than no
+        // envelope at all. The message is fixed: an exception can quote
+        // device data.
+        env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+        env.warnings = [];
+        return env;
     }
     env.observed_at = env.attempted_at;
     env.data = rows;

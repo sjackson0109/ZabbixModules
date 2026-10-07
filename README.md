@@ -10,7 +10,7 @@ The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB
 - Five dashboard widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings.
 - Versioned canonical JSON Schema (1.1, with 1.0 still accepted).
 - Native standard-MIB SNMP templates and an inherited host dashboard for Zabbix 7.0, 7.2 and 7.4.
-- An optional bounded Python SNMP collector with fixture replay.
+- An optional bounded Python SNMP collector with fixture replay, kept as a frozen schema 1.0 fallback for devices native SNMP items can't reach.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
 - LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; portable fleet dashboard recipes.
 - Disposable integration labs, regression tests and deterministic copy-out packages.
@@ -47,3 +47,7 @@ For the implemented state, verified checks and next steps, read [the offline con
 Production enrolment, template replacement, customer network scans and scheduled report delivery are separate deployment actions. The build uses no customer credentials or live switch access.
 
 Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. Candidate discovery is bounded to the first 301 permitted monitored hosts before domain filtering; narrow-scope peer coverage can therefore be incomplete in larger mixed estates. Truncation is reported. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

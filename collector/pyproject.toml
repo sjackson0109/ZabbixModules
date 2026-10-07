@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "zabbix-network-explorer-collector"
 version = "1.0.0"
 description = "Read-only proxy-local standard SNMP dataset collector for Zabbix Network Explorer"
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = ["pysnmp==7.1.30", "jsonschema==4.26.0", "cryptography==50.0.1", "rpds-py==0.30.0"]
 

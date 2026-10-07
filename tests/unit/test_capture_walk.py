@@ -356,3 +356,35 @@ def test_snmp_target(host, expected):
 def test_snmp_target_rejects(host):
     with pytest.raises(cw.UsageError):
         cw.snmp_target(host, 161)
+
+
+@pytest.mark.parametrize("label", ["lab-sw1\n", "lab-sw1\nx", "-lab", "a/b", ""])
+def test_label_rejects_trailing_newline_and_bad_characters(tmp_path, label):
+    with pytest.raises(SystemExit):
+        cw.parse_args(["--host", "192.0.2.10", "--label", label, "--out-dir", str(tmp_path)])
+
+
+@pytest.mark.parametrize("host", ["sw1.example.net\n", "sw1\n.example.net", "-sw1"])
+def test_hostname_rejects_trailing_newline(host):
+    with pytest.raises(cw.UsageError):
+        cw.snmp_target(host, 161)
+
+
+def test_validate_oid_rejects_embedded_newline():
+    with pytest.raises(cw.UsageError):
+        cw.validate_oid("1.3.6.1\n.2")
+
+
+def test_write_private_tightens_existing_file_mode(tmp_path):
+    path = tmp_path / "out.snmprec"
+    path.write_text("old")
+    os.chmod(path, 0o644)
+    cw.write_private(path, "new\n")
+    assert path.read_text() == "new\n"
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_write_private_failure_is_usage_error(tmp_path):
+    with pytest.raises(cw.UsageError) as error:
+        cw.write_private(tmp_path / "missing-dir" / "out.snmprec", "x")
+    assert "missing-dir" not in str(error.value)

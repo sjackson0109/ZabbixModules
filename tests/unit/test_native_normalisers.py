@@ -215,23 +215,46 @@ def test_absent_mib_is_unsupported(validator, tmp_path, raw_key, prefix):
     assert (envelope["status"], envelope["capability"]["state"]) == ("unsupported", "unsupported")
 
 
-def test_missing_mandatory_interface_column_is_partial(validator, tmp_path):
+def test_missing_mandatory_interface_column_keeps_the_snapshot_complete(validator, tmp_path):
     path = walk_file(tmp_path, "ne.raw.if.state", CORE,
                      lambda text: "\n".join(l for l in text.splitlines() if not l.startswith(".1.3.6.1.2.1.2.2.1.8.7 ")))
     envelope = run("ne.raw.if.state", path)
     validator.validate(envelope)
-    assert envelope["status"] == "partial"
-    assert {e["code"] for e in envelope["errors"]} == {"missing_interface_fields"}
+    assert (envelope["status"], envelope["complete"], envelope["errors"]) == ("ok", True, [])
+    assert {w["code"] for w in envelope["warnings"]} == {"missing_interface_fields"}
+    assert [r["oper_status"] for r in envelope["data"] if r["if_index"] == 7] == [None]
 
 
-def test_duplicate_interface_names_are_partial_not_merged(validator, tmp_path):
+def test_duplicate_interface_names_skip_those_rows_only(validator, tmp_path):
+    complete = run("ne.raw.if.inventory", CORE)
     path = walk_file(tmp_path, "ne.raw.if.inventory", CORE,
                      lambda text: text.replace('.1.3.6.1.2.1.31.1.1.1.1.2 = STRING: "Gi1/0/2"',
                                                '.1.3.6.1.2.1.31.1.1.1.1.2 = STRING: "Gi1/0/1"'))
     envelope = run("ne.raw.if.inventory", path)
     validator.validate(envelope)
-    assert envelope["status"] == "partial"
-    assert not rows(envelope, name="Gi1/0/1")
+    assert (envelope["status"], envelope["complete"], envelope["errors"]) == ("ok", True, [])
+    assert {w["code"] for w in envelope["warnings"]} == {"identity_ambiguous"}
+    assert not rows(envelope, name="Gi1/0/1") and len(envelope["data"]) == len(complete["data"]) - 2
+
+
+def test_interface_count_mismatch_is_a_warning(validator, tmp_path):
+    path = walk_file(tmp_path, "ne.raw.if.inventory", CORE,
+                     lambda text: "\n".join(l if not l.startswith(".1.3.6.1.2.1.2.1.0 ")
+                                            else ".1.3.6.1.2.1.2.1.0 = INTEGER: 999" for l in text.splitlines()))
+    envelope = run("ne.raw.if.inventory", path)
+    validator.validate(envelope)
+    assert envelope["status"] == "ok"
+    assert {w["code"] for w in envelope["warnings"]} == {"interface_count_mismatch"}
+
+
+def test_no_identifiable_interface_is_partial(validator, tmp_path):
+    path = walk_file(tmp_path, "ne.raw.if.inventory", ACCESS,
+                     lambda text: "\n".join(l for l in text.splitlines()
+                                            if not l.startswith((".1.3.6.1.2.1.31.1.1.1.1.", ".1.3.6.1.2.1.2.2.1.2."))))
+    envelope = run("ne.raw.if.inventory", path)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["data"]) == ("partial", [])
+    assert {e["code"] for e in envelope["errors"]} == {"identity_ambiguous"}
 
 
 def test_wrapped_hex_and_display_hint_values_decode(tmp_path):
@@ -264,3 +287,55 @@ def test_wrapped_hex_and_display_hint_values_decode(tmp_path):
     assert peer["remote_port_id"] == {"subtype": 3, "value": "00:1b:2c:3d:4e:60"}
     assert peer["remote_management_addresses"] == ["2001:db8::1"]
     assert peer["local_interface_uid"] is None
+
+
+def test_normaliser_bug_is_a_failed_envelope_without_device_text(validator, tmp_path):
+    walk = tmp_path / "vlan.walk"
+    walk.write_text(".1.3.6.1.2.1.1.3.0 = Timeticks: 100\n")
+    broken = "(function () { throw new TypeError('secret-device-text'); })()"
+    script = ("const r=require(%s);const fs=require('fs');"
+              "const e=Object.assign({},r.datasetFor('ne.raw.vlan'),{call:%s});"
+              "process.stdout.write(new Function('value',r.compose(e))(fs.readFileSync(%s,'utf8')));") % (
+        json.dumps(str(RUNNER)), json.dumps(broken), json.dumps(str(walk)))
+    out = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True).stdout
+    envelope = json.loads(out)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["complete"], envelope["observed_at"], envelope["data"]) == ("failed", False, None, [])
+    assert [e["code"] for e in envelope["errors"]] == ["normaliser_error"]
+    assert "secret-device-text" not in out
+
+
+def bits(*positions: int) -> str:
+    octets = [0] * 13
+    for position in positions:
+        octets[position // 8] |= 0x80 >> (position % 8)
+    return " ".join(f"{o:02X}" for o in octets)
+
+
+def test_mau_types_above_10g(validator, tmp_path):
+    mau = ".1.3.6.1.2.1.26"
+    walk = tmp_path / "capability.walk"
+    walk.write_text("\n".join([
+        ".1.3.6.1.2.1.1.3.0 = Timeticks: 100",
+        '.1.3.6.1.2.1.31.1.1.1.1.1 = STRING: "Tw1/0/1"',
+        '.1.3.6.1.2.1.31.1.1.1.1.2 = STRING: "Hu1/0/2"',
+        '.1.3.6.1.2.1.31.1.1.1.1.3 = STRING: "Tw1/0/3"',
+        f"{mau}.2.1.1.3.1.1 = OID: {mau}.4.94",     # dot3MauType25GbaseT
+        f"{mau}.2.1.1.3.2.1 = OID: {mau}.4.98",     # dot3MauType100GbaseCR4
+        f"{mau}.2.1.1.13.1.1 = Hex-STRING: " + bits(54, 94),
+        f"{mau}.2.1.1.13.2.1 = Hex-STRING: " + bits(72, 102),
+        f"{mau}.2.1.1.13.3.1 = Hex-STRING: " + bits(36, 93),
+    ]))
+    envelope = run("ne.raw.if.capability", walk)
+    validator.validate(envelope)
+    by_uid = {r["uid"]: r for r in envelope["data"]}
+    copper = by_uid[uid("Tw1/0/1")]
+    assert (copper["oper_speed_bps"], copper["oper_duplex"], copper["media"]) == (25_000_000_000, "full", "copper")
+    assert copper["supported_speeds_bps"] == [10_000_000_000, 25_000_000_000]
+    dac = by_uid[uid("Hu1/0/2")]
+    assert (dac["oper_speed_bps"], dac["media"]) == (100_000_000_000, None)
+    assert dac["supported_speeds_bps"] == [40_000_000_000, 100_000_000_000]
+    # No operating MAU: 10GBASE-SR (SFP+) and 25GBASE-SR (no media value) share no one media.
+    idle = by_uid[uid("Tw1/0/3")]
+    assert (idle["oper_speed_bps"], idle["media"]) == (None, None)
+    assert idle["supported_speeds_bps"] == [10_000_000_000, 25_000_000_000]

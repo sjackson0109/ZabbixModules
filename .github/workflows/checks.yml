@@ -25,6 +25,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest
       - run: python templates/generate_lab.py --check
+      - run: python scripts/sync_widget_assets.py --check
 
   node:
     runs-on: ubuntu-24.04

@@ -4,7 +4,7 @@
 
 `native/<version>/network_explorer_snmp.yaml` holds the first native templates: `Network Explorer - Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG` and the profile `Network Explorer - Profile - Generic standard MIB`, which links them all. Link only the profile to a switch with an SNMP interface. Port positions come from ENTITY-MIB (entAliasMappingTable and the containment tree), so agents that publish no port entities leave ports unplaced rather than guessed. They use standard MIBs only and have been tested against simulated switches, not yet against real devices ([evidence](../lab/VERIFICATION.md)).
 
-They are generated from `source/datasets.json` and `source/js/`. Scripts are written as YAML literal blocks: Zabbix's import adds a space at every escaped line fold, which corrupts scripts. Do not edit the YAML by hand:
+They are generated from `source/datasets.json` and `source/js/`. Scripts are written as YAML literal blocks: Zabbix's import adds a space at every escaped line fold, which corrupts scripts. Zabbix also drops custom on-fail handlers from JavaScript steps at import, so a step that must discard its value returns a sentinel that a following regular-expression step discards. Both generators share these helpers in `_common.py`, take the vendor version from the root `VERSION` file, and the tests compile every generated script with Duktape (`dukpy`, pinned in `requirements-dev.txt`) so ES2015+ syntax is caught before Zabbix sees it. Do not edit the YAML by hand:
 
 ```sh
 python templates/generate_snmp.py          # regenerate

@@ -72,7 +72,7 @@ function normaliseInterfaces(walk, env) {
         var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
         var type = NE.int(t.type[k] || null);
         if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
-            NE.error(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus.');
+            NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
         }
         var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
         if (high !== null && high > 0) { bps = high * 1000000; }
@@ -102,7 +102,11 @@ function normaliseInterfaces(walk, env) {
     }
     var expected = NE.int(NE.scalar(walk, NE.IF.number));
     if (expected !== null && expected !== indexes.length) {
-        NE.error(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+        NE.warning(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+    }
+    // Skipping a few bad rows keeps the snapshot current; losing every row means the walk itself is unusable.
+    if (!rows.length && (indexes.length || expected > 0)) {
+        NE.error(env, 'identity_ambiguous', 'No interface in the walk could be identified by a unique name.');
     }
     if (!indexes.length && expected === null) {
         throw {unsupported: 'The agent returned no IF-MIB interface table.'};

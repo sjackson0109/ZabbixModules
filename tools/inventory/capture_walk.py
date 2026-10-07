@@ -222,7 +222,7 @@ def parse_value(oid: str, raw: str) -> Record | None:
         return Record(oid, TAG_IPADDRESS, str(ipaddress.IPv4Address(octets)))
     if kind == "OID":
         value = text.strip().lstrip(".")
-        if not NUMERIC_OID.match(value) and value not in ("0", "0.0"):
+        if not NUMERIC_OID.fullmatch(value) and value not in ("0", "0.0"):
             raise ValueError(f"non-numeric OID value: {value[:40]!r}")
         return Record(oid, TAG_OID, value)
     if kind == "NULL":
@@ -463,9 +463,18 @@ def read_protected_json(path: str, what: str, max_bytes: int = 1_048_576) -> Any
 
 
 def write_private(path: Path, content: str) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
-        stream.write(content)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            # O_CREAT's mode only applies to new files; tighten a pre-existing one.
+            os.fchmod(fd, 0o600)
+        except OSError:
+            os.close(fd)
+            raise
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+    except OSError:
+        raise UsageError(f"Cannot write output file {path.name}.") from None
 
 
 def _secret(value: Any, name: str) -> str:
@@ -547,7 +556,7 @@ def snmp_conf(credentials: dict) -> str:
 # --------------------------------------------------------------------------
 
 def validate_oid(text: str) -> str:
-    match = NUMERIC_OID.match(text.strip())
+    match = NUMERIC_OID.fullmatch(text.strip())
     if not match:
         raise UsageError(f"Subtree must be a numeric OID such as 1.3.6.1.4.1.9.9.23: {text[:60]!r}")
     return match.group(1)
@@ -557,7 +566,7 @@ def snmp_target(host: str, port: int) -> str:
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        if not HOSTNAME.match(host):
+        if not HOSTNAME.fullmatch(host):
             raise UsageError("--host must be an IP address or DNS name.") from None
         return f"udp:{host}:{port}"
     return f"udp6:[{address}]:{port}" if address.version == 6 else f"udp:{address}:{port}"
@@ -689,7 +698,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--sanitise-aliases", action="store_true", help="Replace ifAlias values")
     parser.add_argument("--sanitise-map", help="Private JSON mapping file reused across captures (never share it)")
     args = parser.parse_args(argv)
-    if not LABEL.match(args.label):
+    if not LABEL.fullmatch(args.label):
         parser.error("--label must be 1-64 characters of A-Z a-z 0-9 _ . - and start with a letter or digit")
     if not 1 <= args.port <= 65535:
         parser.error("--port must be 1-65535")

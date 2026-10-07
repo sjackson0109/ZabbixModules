@@ -196,3 +196,35 @@ def test_scripts_are_literal_blocks_never_folded(version):
         for token in yaml.scan(text):
             if isinstance(token, yaml.ScalarToken) and "\n" in token.value:
                 assert token.style == "|", (name, token.value[:60])
+
+
+def test_versions_follow_the_release():
+    import re
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    lib = (ROOT / "templates/source/js/lib.js").read_text(encoding="utf-8")
+    assert re.search(r"^NE\.VERSION = '([^']+)';", lib, re.M).group(1) == version  # envelope source.version
+    for template in templates().values():
+        assert template["vendor"]["version"] == version
+    assert GEN.build_dashboard("7.0")["zabbix_export"]["templates"][0]["vendor"]["version"] == version
+
+
+def test_restart_trigger_ignores_a_sysuptime_wrap():
+    item = next(i for i in all_items() if i["key"] == "ne.device.uptime")
+    expression = item["triggers"][0]["expression"]
+    uptime = "/Network Explorer - Base/ne.device.uptime"
+    assert expression == f"last({uptime})<600 and last({uptime},#2)<{2**32 // 100 - 86400}"
+    bound = int(expression.rsplit("<", 1)[1])
+    # The hourly poll before a wrap is above the bound, so the drop to near zero is not a restart.
+    assert 2**32 // 100 - 3600 > bound
+
+
+def test_javascript_is_ecmascript_5_for_duktape():
+    # Zabbix runs preprocessing in Duktape (ES5.1); Node accepts ES2015+ syntax the server would reject at run time.
+    import dukpy  # pinned in requirements-dev.txt; a Duktape build, unlike later QuickJS-based releases
+    with pytest.raises(dukpy.JSRuntimeError):
+        dukpy.evaljs("new Function('value', dukpy['script']); true", script="var f = (x) => x;")
+    for version in VERSIONS:
+        for item in all_items(version):
+            for step in item.get("preprocessing", []):
+                if step["type"] == "JAVASCRIPT":
+                    dukpy.evaljs("new Function('value', dukpy['script']); true", script=step["parameters"][0])

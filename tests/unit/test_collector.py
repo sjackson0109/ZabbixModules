@@ -19,6 +19,7 @@ from network_explorer.config import ConfigurationError, load_device, validate_de
 from network_explorer.normalize import interface_uid
 from network_explorer.transport import FixtureTransport, SnmpTransport
 from network_explorer.validation import validate_agent_snapshot, validate_envelope
+import network_explorer.validation as validation_module
 
 
 @pytest.fixture
@@ -265,6 +266,30 @@ def test_agent_contract_binds_owner_and_rejects_replay(fixture):
     output["observed_at"] = "2099-01-01T00:00:00Z"
     with pytest.raises(ValueError, match="clock skew"):
         validate_agent_snapshot(output, "site-a-switch-a")
+
+
+@pytest.mark.parametrize("stamp", ["2024-05-01T10:00:00.1Z", "2024-05-01T10:00:00.12Z",
+                                   "2024-05-01T10:00:00.1234567Z"])
+def test_agent_timestamps_accept_any_rfc3339_fraction(fixture, stamp):
+    # Python 3.10's fromisoformat rejects fractions that are not 3 or 6 digits.
+    output = collected(fixture, "interfaces")
+    output["source"].update(method="agent", source_instance="site-a-switch-a", collection_mode="once")
+    output["observed_at"] = output["attempted_at"] = stamp
+    validate_agent_snapshot(output, "site-a-switch-a")
+
+
+def test_agent_timestamp_error_never_echoes_input(fixture, monkeypatch):
+    output = collected(fixture, "interfaces")
+    output["source"].update(method="agent", source_instance="site-a-switch-a", collection_mode="once")
+    output["observed_at"] = "SECRET_MARKER"
+    monkeypatch.setattr(validation_module, "validate_envelope", lambda value: None)
+    with pytest.raises(ValueError) as error:
+        validate_agent_snapshot(output, "site-a-switch-a")
+    assert "SECRET_MARKER" not in str(error.value)
+    assert validation_module.parse_date_time("2024-02-30T00:00:00Z") is None
+    assert validation_module.parse_date_time("2024-05-01T10:00:00+24:00") is None
+    parsed = validation_module.parse_date_time("2024-05-01T10:00:00.1234567-05:30")
+    assert parsed.isoformat() == "2024-05-01T10:00:00.123456-05:30"
 
 
 def test_schema_rejects_false_success_and_unknown_version(fixture):

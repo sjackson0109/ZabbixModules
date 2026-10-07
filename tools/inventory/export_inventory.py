@@ -841,6 +841,12 @@ def summarise(rows: list[dict]) -> list[dict]:
 
 def write_csv(path: str, columns: list[str], rows: list[dict]) -> None:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        # O_CREAT's mode only applies to new files; tighten a pre-existing one.
+        os.fchmod(fd, 0o600)
+    except OSError:
+        os.close(fd)
+        raise
     with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream)
         writer.writerow(columns)
@@ -919,8 +925,12 @@ def main(argv: list[str] | None = None) -> int:
             transport = HttpTransport(url, token, args.timeout, args.ca_file, args.max_response_mb * 1024 * 1024)
         collector = Collector(ZabbixClient(transport), args.batch_size)
         rows = build_rows(collector, args.group, parse_tag_filters(args.tag), args.site_tag)
-        write_csv(args.hosts_out, HOST_COLUMNS, rows)
-        write_csv(args.summary_out, SUMMARY_COLUMNS, summarise(rows))
+        try:
+            write_csv(args.hosts_out, HOST_COLUMNS, rows)
+            write_csv(args.summary_out, SUMMARY_COLUMNS, summarise(rows))
+        except OSError:
+            # Report a fixed message rather than a traceback.
+            raise UsageError("an output CSV file could not be written.") from None
     except UsageError as error:
         print(f"error: {redact(str(error))}", file=sys.stderr)
         return EXIT_USAGE

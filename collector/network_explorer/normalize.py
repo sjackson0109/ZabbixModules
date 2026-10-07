@@ -253,7 +253,7 @@ def lag(evidence: Evidence, interface_rows: list[dict], redact_remote: bool = Tr
     return rows
 
 
-def device(evidence: Evidence, redact_remote: bool = True) -> list[dict]:
+def device(evidence: Evidence) -> list[dict]:
     chassis_type = evidence.scalar(oids.LLDP_LOCAL_CHASSIS_SUBTYPE)
     chassis_id = evidence.scalar(oids.LLDP_LOCAL_CHASSIS_ID)
     chassis = [identifier(chassis_type, chassis_id, "chassis")] if chassis_id is not None else []
