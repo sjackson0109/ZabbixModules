@@ -231,6 +231,12 @@ final class DatasetReader {
                 $errors[] = $code;
             }
         }
+        $warnings = [];
+        foreach (($latest['warnings'] ?? []) as $warning) {
+            if (is_string($warning['code'] ?? null)) {
+                $warnings[] = $warning['code'];
+            }
+        }
         if ($envelope['inventory_stale'] ?? false) {
             $errors[] = 'inventory_stale';
         }
@@ -240,6 +246,6 @@ final class DatasetReader {
             'age_seconds'=>$epoch !== false ? max(0, $this->now - $epoch) : null,
             'complete'=>$envelope['complete'] ?? false, 'retained'=> $envelope !== null
                 && $latest !== null && $latest['status'] !== 'ok',
-            'errors'=>array_values(array_unique($errors))];
+            'errors'=>array_values(array_unique($errors)), 'warnings'=>array_values(array_unique($warnings))];
     }
 }

@@ -49,6 +49,14 @@ final class EnvelopeValidator {
                     && $envelope['data'] !== []) {
             throw new \InvalidArgumentException('invalid_envelope');
         }
+        // 1.1 warnings report rows that were dropped or left with unknown fields; the observation still stands.
+        $warnings = $envelope['warnings'] ?? [];
+        if (array_key_exists('warnings', $envelope) && $version === '1.0'
+                || !is_array($warnings) || count($warnings) > 256
+                || array_filter($warnings, static fn($warning) => !is_array($warning)
+                    || !is_string($warning['code'] ?? null) || !preg_match('/^[a-z0-9_]{1,64}$/D', $warning['code']))) {
+            throw new \InvalidArgumentException('invalid_envelope');
+        }
         // Mirror the authoritative envelope schema's outcome invariants before
         // accepting any observation rows. A failure cannot carry fresh data.
         $status = $envelope['status'];

@@ -46,6 +46,12 @@
 
 No answer is required to continue shared design, schema/policy/parser development, synthetic test fixtures and packaging. Missing facts remain explicit and may block the affected integration/vendor/deployment work. A user reply updates this file and the relevant design rather than restarting the plan.
 
+## Release decisions (7 October 2026)
+
+1. Licence: MIT.
+2. The Python collector is a frozen fallback on envelope schema 1.0, with security and correctness fixes only. The native SNMP templates are the primary producer.
+3. One bad interface row (duplicate or missing name, missing status columns, `ifNumber` mismatch) is a warning: the row is skipped or keeps unknown fields and the snapshot stays complete. Only a walk with no identifiable interface fails the dataset.
+
 ## Build gates requiring facts or capabilities
 
 | Gate | What is needed | Work that proceeds independently |

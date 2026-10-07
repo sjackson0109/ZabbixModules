@@ -215,23 +215,46 @@ def test_absent_mib_is_unsupported(validator, tmp_path, raw_key, prefix):
     assert (envelope["status"], envelope["capability"]["state"]) == ("unsupported", "unsupported")
 
 
-def test_missing_mandatory_interface_column_is_partial(validator, tmp_path):
+def test_missing_mandatory_interface_column_keeps_the_snapshot_complete(validator, tmp_path):
     path = walk_file(tmp_path, "ne.raw.if.state", CORE,
                      lambda text: "\n".join(l for l in text.splitlines() if not l.startswith(".1.3.6.1.2.1.2.2.1.8.7 ")))
     envelope = run("ne.raw.if.state", path)
     validator.validate(envelope)
-    assert envelope["status"] == "partial"
-    assert {e["code"] for e in envelope["errors"]} == {"missing_interface_fields"}
+    assert (envelope["status"], envelope["complete"], envelope["errors"]) == ("ok", True, [])
+    assert {w["code"] for w in envelope["warnings"]} == {"missing_interface_fields"}
+    assert [r["oper_status"] for r in envelope["data"] if r["if_index"] == 7] == [None]
 
 
-def test_duplicate_interface_names_are_partial_not_merged(validator, tmp_path):
+def test_duplicate_interface_names_skip_those_rows_only(validator, tmp_path):
+    complete = run("ne.raw.if.inventory", CORE)
     path = walk_file(tmp_path, "ne.raw.if.inventory", CORE,
                      lambda text: text.replace('.1.3.6.1.2.1.31.1.1.1.1.2 = STRING: "Gi1/0/2"',
                                                '.1.3.6.1.2.1.31.1.1.1.1.2 = STRING: "Gi1/0/1"'))
     envelope = run("ne.raw.if.inventory", path)
     validator.validate(envelope)
-    assert envelope["status"] == "partial"
-    assert not rows(envelope, name="Gi1/0/1")
+    assert (envelope["status"], envelope["complete"], envelope["errors"]) == ("ok", True, [])
+    assert {w["code"] for w in envelope["warnings"]} == {"identity_ambiguous"}
+    assert not rows(envelope, name="Gi1/0/1") and len(envelope["data"]) == len(complete["data"]) - 2
+
+
+def test_interface_count_mismatch_is_a_warning(validator, tmp_path):
+    path = walk_file(tmp_path, "ne.raw.if.inventory", CORE,
+                     lambda text: "\n".join(l if not l.startswith(".1.3.6.1.2.1.2.1.0 ")
+                                            else ".1.3.6.1.2.1.2.1.0 = INTEGER: 999" for l in text.splitlines()))
+    envelope = run("ne.raw.if.inventory", path)
+    validator.validate(envelope)
+    assert envelope["status"] == "ok"
+    assert {w["code"] for w in envelope["warnings"]} == {"interface_count_mismatch"}
+
+
+def test_no_identifiable_interface_is_partial(validator, tmp_path):
+    path = walk_file(tmp_path, "ne.raw.if.inventory", ACCESS,
+                     lambda text: "\n".join(l for l in text.splitlines()
+                                            if not l.startswith((".1.3.6.1.2.1.31.1.1.1.1.", ".1.3.6.1.2.1.2.2.1.2."))))
+    envelope = run("ne.raw.if.inventory", path)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["data"]) == ("partial", [])
+    assert {e["code"] for e in envelope["errors"]} == {"identity_ambiguous"}
 
 
 def test_wrapped_hex_and_display_hint_values_decode(tmp_path):

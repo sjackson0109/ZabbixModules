@@ -136,6 +136,29 @@
         ]
       }
     },
+    "warnings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "description": "Row-level problems that did not stop the observation: the affected rows were dropped or carry unknown fields, and the rest of the dataset is complete. Allowed with any status."
+    },
     "data": {
       "type": "array",
       "maxItems": 50000

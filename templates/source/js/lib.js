@@ -254,8 +254,9 @@ NE.uid = function (name, descr) {
 };
 
 // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-// Duplicate or missing identities map to null. They are reported (making the
-// envelope partial) unless quiet is set, for datasets that only join to interfaces.
+// Duplicate or missing identities map to null, so those rows are dropped.
+// They are reported as a warning unless quiet is set, for datasets that only
+// join to interfaces.
 NE.interfaceIndex = function (walk, env, quiet) {
     var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
     var out = {}, seen = {}, k, uid;
@@ -270,7 +271,7 @@ NE.interfaceIndex = function (walk, env, quiet) {
     for (k in out) {
         if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
             out[k] = null;
-            if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+            if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
         }
     }
     return out;
@@ -349,11 +350,17 @@ NE.speedsFromBits = function (bits, table) {
 
 // ---------------------------------------------------------------- envelope
 
-NE.error = function (env, code, message) {
-    for (var i = 0; i < env.errors.length; i++) {
-        if (env.errors[i].code === code) { return; }
+NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+// A problem confined to one row: the row is dropped or kept with unknown
+// fields, and the rest of the dataset stays a complete observation.
+NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+NE.note = function (list, code, message) {
+    for (var i = 0; i < list.length; i++) {
+        if (list[i].code === code) { return; }
     }
-    if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+    if (list.length < 256) { list.push({code: code, message: message}); }
 };
 
 NE.envelope = function (dataset, adapter) {
@@ -363,7 +370,7 @@ NE.envelope = function (dataset, adapter) {
         generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
         attempted_at: now, observed_at: null, status: 'failed', complete: false,
         source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-        capability: {state: 'unknown', reason: null}, errors: [], data: []
+        capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
     };
 };
 
@@ -390,12 +397,14 @@ NE.run = function (dataset, adapter, value, normalise) {
             env.status = 'unsupported';
             env.capability = {state: 'unsupported', reason: e.unsupported};
             env.errors = [{code: 'unsupported', message: e.unsupported}];
+            env.warnings = [];
             return env;
         }
         // A normaliser bug still records a failed attempt rather than no
         // envelope at all. The message is fixed: an exception can quote
         // device data.
         env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+        env.warnings = [];
         return env;
     }
     env.observed_at = env.attempted_at;

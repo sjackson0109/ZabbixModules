@@ -393,6 +393,11 @@ final class NetworkService {
             if ($row['errors'] === ['agent_unreachable']) {
                 continue;
             }
+            if ($row['warnings'] ?? []) {
+                $findings[] = Finding::create('collection_rows_skipped_'.$row['dataset'], 'info', $row['hostid'],
+                    ucfirst($row['dataset']).' collection skipped some rows.',
+                    'The rest of the dataset is current. Diagnostics: '.implode(', ', $row['warnings']).'.');
+            }
             if ($row['status'] !== 'ok' || $row['freshness'] !== 'current') {
                 $findings[] = Finding::create('collection_'.$row['dataset'],
                     $row['status'] === 'failed' ? 'warning' : 'info', $row['hostid'],

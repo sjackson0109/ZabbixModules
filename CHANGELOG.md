@@ -11,6 +11,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - A Duktape compile check for every JavaScript step in the native and LAB templates.
 - 25G, 40G and 100G media types in the MAU capability table.
 - Validation of LAG member state and mode.
+- An MIT `LICENSE`, shipped in every release package.
+- Optional `warnings` in schema 1.1 envelopes, shown in the Data quality widget and as an informational finding.
 
 ### Changed
 - Schema 1.1 moved from `schemas/proposed/` to `schemas/`; it is the current schema, and 1.0 is still accepted.
@@ -22,6 +24,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - The LAB replay templates discard failed collections the same way as the native templates.
 - The restart trigger ignores the 497-day `sysUpTime` wrap.
 - Collector runtime dependencies are pinned by hash.
+- The Python collector is a frozen fallback on schema 1.0.
+- A duplicate interface name, a row missing its status columns or an `ifNumber` mismatch no longer makes the whole interfaces dataset partial. The row is skipped or keeps unknown fields, and the snapshot stays current.
 
 ### Fixed
 - A VLAN row without an interface no longer attaches to LLDP links with an unmapped local port.

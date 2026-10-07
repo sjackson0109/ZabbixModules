@@ -308,8 +308,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -324,7 +325,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -403,11 +404,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -417,7 +424,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -444,12 +451,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -1004,8 +1013,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -1020,7 +1030,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -1099,11 +1109,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -1113,7 +1129,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -1140,12 +1156,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -1236,7 +1254,7 @@ zabbix_export:
                   var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
                   var type = NE.int(t.type[k] || null);
                   if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
-                      NE.error(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus.');
+                      NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
                   }
                   var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
                   if (high !== null && high > 0) { bps = high * 1000000; }
@@ -1266,7 +1284,11 @@ zabbix_export:
               }
               var expected = NE.int(NE.scalar(walk, NE.IF.number));
               if (expected !== null && expected !== indexes.length) {
-                  NE.error(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+                  NE.warning(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+              }
+              // Skipping a few bad rows keeps the snapshot current; losing every row means the walk itself is unusable.
+              if (!rows.length && (indexes.length || expected > 0)) {
+                  NE.error(env, 'identity_ambiguous', 'No interface in the walk could be identified by a unique name.');
               }
               if (!indexes.length && expected === null) {
                   throw {unsupported: 'The agent returned no IF-MIB interface table.'};
@@ -1670,8 +1692,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -1686,7 +1709,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -1765,11 +1788,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -1779,7 +1808,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -1806,12 +1835,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -1902,7 +1933,7 @@ zabbix_export:
                   var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
                   var type = NE.int(t.type[k] || null);
                   if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
-                      NE.error(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus.');
+                      NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
                   }
                   var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
                   if (high !== null && high > 0) { bps = high * 1000000; }
@@ -1932,7 +1963,11 @@ zabbix_export:
               }
               var expected = NE.int(NE.scalar(walk, NE.IF.number));
               if (expected !== null && expected !== indexes.length) {
-                  NE.error(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+                  NE.warning(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+              }
+              // Skipping a few bad rows keeps the snapshot current; losing every row means the walk itself is unusable.
+              if (!rows.length && (indexes.length || expected > 0)) {
+                  NE.error(env, 'identity_ambiguous', 'No interface in the walk could be identified by a unique name.');
               }
               if (!indexes.length && expected === null) {
                   throw {unsupported: 'The agent returned no IF-MIB interface table.'};
@@ -2583,8 +2618,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -2599,7 +2635,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -2678,11 +2714,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -2692,7 +2734,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -2719,12 +2761,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -3240,8 +3284,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -3256,7 +3301,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -3335,11 +3380,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -3349,7 +3400,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -3376,12 +3427,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -3971,8 +4024,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -3987,7 +4041,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -4066,11 +4120,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -4080,7 +4140,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -4107,12 +4167,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -4680,8 +4742,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -4696,7 +4759,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -4775,11 +4838,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -4789,7 +4858,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -4816,12 +4885,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;
@@ -5437,8 +5508,9 @@ zabbix_export:
           };
 
           // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
-          // Duplicate or missing identities map to null. They are reported (making the
-          // envelope partial) unless quiet is set, for datasets that only join to interfaces.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
           NE.interfaceIndex = function (walk, env, quiet) {
               var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
               var out = {}, seen = {}, k, uid;
@@ -5453,7 +5525,7 @@ zabbix_export:
               for (k in out) {
                   if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
                       out[k] = null;
-                      if (!quiet) { NE.error(env, 'identity_ambiguous', 'An interface name is missing or duplicated; its identity is uncertain.'); }
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
                   }
               }
               return out;
@@ -5532,11 +5604,17 @@ zabbix_export:
 
           // ---------------------------------------------------------------- envelope
 
-          NE.error = function (env, code, message) {
-              for (var i = 0; i < env.errors.length; i++) {
-                  if (env.errors[i].code === code) { return; }
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
               }
-              if (env.errors.length < 256) { env.errors.push({code: code, message: message}); }
+              if (list.length < 256) { list.push({code: code, message: message}); }
           };
 
           NE.envelope = function (dataset, adapter) {
@@ -5546,7 +5624,7 @@ zabbix_export:
                   generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
                   attempted_at: now, observed_at: null, status: 'failed', complete: false,
                   source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
-                  capability: {state: 'unknown', reason: null}, errors: [], data: []
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
               };
           };
 
@@ -5573,12 +5651,14 @@ zabbix_export:
                       env.status = 'unsupported';
                       env.capability = {state: 'unsupported', reason: e.unsupported};
                       env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
                       return env;
                   }
                   // A normaliser bug still records a failed attempt rather than no
                   // envelope at all. The message is fixed: an exception can quote
                   // device data.
                   env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
                   return env;
               }
               env.observed_at = env.attempted_at;

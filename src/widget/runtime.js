@@ -1292,9 +1292,10 @@
         {
           label: 'Diagnostics',
           value: q =>
-            asRows(q.errors)
-              .map(e => (typeof e === 'string' ? e : (e.code ?? e.message)))
-              .join('; ') ||
+            [
+              ...asRows(q.errors).map(e => (typeof e === 'string' ? e : (e.code ?? e.message))),
+              ...asRows(q.warnings).map(code => `skipped rows: ${code}`)
+            ].join('; ') ||
             q.reason ||
             (q.status === 'ok' ? 'None reported' : 'Unknown')
         }

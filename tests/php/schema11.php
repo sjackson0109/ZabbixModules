@@ -115,7 +115,9 @@ use Modules\NetworkExplorer\Services\VlanService;
             'management_addresses'=>['192.0.2.'.$id]]])]);
     }
     $gateway->add('1','ne.interfaces.state',[$envelope('interfaces',[$port('if-a1','Gi1',100000000),$port('if-a2','Gi2',1000000000,'half')])]);
-    $gateway->add('2','ne.interfaces.state',[$envelope('interfaces',[$port('if-b1','Gi1',100000000)])]);
+    // One skipped row (a duplicate name) leaves host 2's interfaces a complete, current observation.
+    $gateway->add('2','ne.interfaces.state',[$envelope('interfaces',[$port('if-b1','Gi1',100000000)])
+        + ['warnings'=>[['code'=>'identity_ambiguous','message'=>'An interface name is duplicated.']]]]);
     $gateway->add('3','ne.interfaces.state',[$envelope('interfaces',[$port('if-c1','Gi1',1000000000)])]);
     $gateway->add('1','ne.port_capability.snapshot',[$envelope('port_capability',[['uid'=>'if-a1']
         + $gig + ['partner_advertised_speeds_bps'=>[10000000,100000000,1000000000]]])]);
@@ -139,6 +141,12 @@ use Modules\NetworkExplorer\Services\VlanService;
     $hosts = array_column($network['hosts'],null,'hostid');
     $ports = array_column($network['interfaces'],null,'uid');
     $rules = array_count_values(array_column($network['findings'],'rule'));
+
+    $skipped = array_values(array_filter($network['quality'], static fn($q) => $q['hostid'] === '2'
+        && $q['dataset'] === 'interfaces'))[0];
+    $assert($skipped['status'] === 'ok' && $skipped['freshness'] === 'current'
+        && $skipped['warnings'] === ['identity_ambiguous'] && ($rules['collection_rows_skipped_interfaces'] ?? 0) === 1
+        && !isset($rules['collection_interfaces']), 'Skipped rows are reported without failing the dataset.');
 
     $a1 = $ports['if-a1'];
     $assert($a1['expected_speed_bps'] == 1000000000 && $a1['expected_speed_source'] === 'negotiable'
@@ -192,6 +200,12 @@ use Modules\NetworkExplorer\Services\VlanService;
         'STP counters must be integers.');
     $rejects(fn() => $decode($envelope('stp', [array_replace($bridge, ['protocol'=>'spanning'])])), 'invalid_stp',
         'STP protocol is one of the schema values.');
+    $warned = $envelope('interfaces', []) + ['warnings'=>[['code'=>'interface_count_mismatch','message'=>'x']]];
+    $assert($decode($warned)['status'] === 'ok', 'A complete 1.1 observation may carry row warnings.');
+    $rejects(fn() => $decode(array_replace($warned, ['warnings'=>[['code'=>'Bad Code','message'=>'x']]])),
+        'invalid_envelope', 'Warning codes are bounded identifiers.');
+    $rejects(fn() => $decode(array_replace($warned, ['schema_version'=>'1.0'])), 'invalid_envelope',
+        'Schema 1.0 has no warnings.');
     $lag = ['uid'=>'po1','name'=>'Po1','if_index'=>100,'member_interface_uids'=>['if-a','if-b'],'oper_status'=>'up',
         'actor_system_id'=>null,'partner_system_id'=>null,'mode'=>'lacp',
         'members'=>[['uid'=>'if-a','selected'=>true,'collecting'=>true,'distributing'=>null,'partner_port'=>3]]];

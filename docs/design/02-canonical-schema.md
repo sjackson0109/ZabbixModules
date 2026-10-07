@@ -16,7 +16,8 @@ Every dataset is published per Zabbix host as one JSON envelope:
 | `complete` | True only for `ok` |
 | `source` | Method (`native_snmp`, `python_snmp`, `fixture`, `agent`), adapter name and version |
 | `capability` | `supported`, `partial`, `unsupported`, `unknown`, with a reason |
-| `errors` | Coded, credential-free messages |
+| `errors` | Coded, credential-free messages. Any error makes the observation `partial`. |
+| `warnings` | Optional, 1.1 only. Row-level problems, such as a duplicate interface name or an `ifNumber` mismatch: the row is skipped or keeps unknown fields, and the dataset stays `ok` and current. A walk with no identifiable interface at all is still an error. |
 | `data` | Rows for the dataset (below) |
 
 ## Freshness (spec §23)
