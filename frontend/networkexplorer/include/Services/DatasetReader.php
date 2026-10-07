@@ -5,11 +5,21 @@ namespace Modules\NetworkExplorer\Services;
 final class DatasetReader {
     public const KEYS = [
         'ne.device.snapshot'=>'device', 'ne.interfaces.inventory'=>'interfaces',
-        'ne.interfaces.state'=>'interfaces', 'ne.lldp.snapshot'=>'lldp', 'ne.lag.snapshot'=>'lag'
+        'ne.interfaces.state'=>'interfaces', 'ne.lldp.snapshot'=>'lldp', 'ne.lag.snapshot'=>'lag',
+        'ne.port_capability.snapshot'=>'port_capability', 'ne.vlan.snapshot'=>'vlan', 'ne.stp.snapshot'=>'stp'
     ];
+    // Native templates poll interface inventory and state as separate attempts.
     private const ATTEMPTS = ['ne.device.attempt'=>'device', 'ne.interfaces.attempt'=>'interfaces',
-        'ne.lldp.attempt'=>'lldp', 'ne.lag.attempt'=>'lag'];
-    private const TTL = ['device'=>172800, 'interfaces'=>180, 'lldp'=>900, 'lag'=>900];
+        'ne.interfaces.inventory.attempt'=>'interfaces', 'ne.lldp.attempt'=>'lldp', 'ne.lag.attempt'=>'lag',
+        'ne.port_capability.attempt'=>'port_capability', 'ne.vlan.attempt'=>'vlan', 'ne.stp.attempt'=>'stp'];
+    // Matches the native templates' {$NE.<DATASET>.STALE} defaults.
+    private const TTL = ['device'=>172800, 'interfaces'=>180, 'lldp'=>900, 'lag'=>900,
+        'port_capability'=>2700, 'vlan'=>1800, 'stp'=>360];
+    /** Interface attributes owned by the inventory walk, not the state walk. */
+    private const INVENTORY_FIELDS = ['description','alias','type','physical','mtu','mac_address','stack_parent_uid',
+        'member','slot','port'];
+    /** Always reported; the 1.1 datasets are reported only where a host has their items. */
+    private const CORE = ['device','interfaces','lldp','lag'];
     private DataGateway $gateway;
     private EnvelopeValidator $validator;
     private int $now;
@@ -27,10 +37,12 @@ final class DatasetReader {
         }
         $historyItems = [];
         $scalarItemIds = [];
+        $collected = [];
         foreach ($items as $item) {
             if (!isset($hosts[(string) $item['hostid']])) {
                 continue;
             }
+            $collected[(string) $item['hostid']] = true;
             $key = (string) $item['key_'];
             if (isset(self::KEYS[$key]) || isset(self::ATTEMPTS[$key])) {
                 // Canonical envelopes MUST be text history, never guessed as uint.
@@ -84,9 +96,14 @@ final class DatasetReader {
         $datasets = [];
         $quality = [];
         foreach ($hosts as $hostid => $host) {
-            foreach (['device','interfaces','lldp','lag'] as $dataset) {
+            foreach (array_keys(self::TTL) as $dataset) {
                 $records = $byHost[$hostid] ?? [];
                 $keys = array_keys(array_filter(self::KEYS, fn($value) => $value === $dataset));
+                $attemptKeys = array_keys(array_filter(self::ATTEMPTS, fn($value) => $value === $dataset));
+                if (!in_array($dataset, self::CORE, true)
+                        && !array_intersect_key($records, array_flip(array_merge($keys, $attemptKeys)))) {
+                    continue;
+                }
                 $parts = [];
                 $failure = null;
                 foreach ($keys as $key) {
@@ -106,24 +123,30 @@ final class DatasetReader {
                         }
                     }
                 }
-                $attemptKey = array_search($dataset, self::ATTEMPTS, true);
-                $attempt = $records[$attemptKey]['latest'] ?? null;
-                foreach ($keys as $key) {
+                $attempt = null;
+                foreach (array_merge($attemptKeys, $keys) as $key) {
                     $candidate = $records[$key]['latest'] ?? null;
                     if ($candidate !== null && ($attempt === null
                             || strtotime($candidate['attempted_at']) > strtotime($attempt['attempted_at']))) {
                         $attempt = $candidate;
                     }
                 }
-                $attemptError = $records[$attemptKey]['error'] ?? null;
-                if ($attemptError !== null) {
-                    $failure = $attemptError;
+                foreach ($attemptKeys as $attemptKey) {
+                    if (($records[$attemptKey]['error'] ?? null) !== null) {
+                        $failure = $records[$attemptKey]['error'];
+                    }
+                    if ($records[$attemptKey]['native_failed'] ?? false) {
+                        $failure = 'item_not_supported';
+                    }
+                    if ($records[$attemptKey]['disabled'] ?? false) {
+                        $failure = 'item_disabled';
+                    }
                 }
-                if ($records[$attemptKey]['native_failed'] ?? false) {
-                    $failure = 'item_not_supported';
-                }
-                if ($records[$attemptKey]['disabled'] ?? false) {
-                    $failure = 'item_disabled';
+                // A timeout makes Zabbix mark the SNMP interface unavailable and
+                // process no value, so no failed attempt is ever recorded for it.
+                $native = ($attempt['source']['method'] ?? null) === 'native_snmp';
+                if ($native && ($host['snmp_available'] ?? null) === false) {
+                    $failure = 'agent_unreachable';
                 }
                 $envelope = $this->merge($parts, $dataset);
                 $metadata = $this->quality($envelope, $attempt, $dataset, $failure);
@@ -135,7 +158,7 @@ final class DatasetReader {
                 }
             }
         }
-        return ['datasets'=>$datasets, 'quality'=>$quality, 'itemids'=>$scalarItemIds,
+        return ['datasets'=>$datasets, 'quality'=>$quality, 'itemids'=>$scalarItemIds, 'collected'=>$collected,
             'budgets'=>['history_items'=>count($historyItems), 'history_bytes'=>$byteCount,
                 'host_limit'=>300, 'interface_limit'=>30000]];
     }
@@ -158,6 +181,14 @@ final class DatasetReader {
             $rows[$row['uid']] = $row;
         }
         foreach (($state['data'] ?? []) as $row) {
+            // Native state walks leave inventory attributes null; they must not erase the inventory values.
+            if ($inventory !== null) {
+                foreach (self::INVENTORY_FIELDS as $field) {
+                    if (($row[$field] ?? null) === null) {
+                        unset($row[$field]);
+                    }
+                }
+            }
             // Never pair a reused ifIndex with an unrelated UID.
             $rows[$row['uid']] = array_replace($rows[$row['uid']] ?? [], $row);
             $rows[$row['uid']]['_state_present'] = true;

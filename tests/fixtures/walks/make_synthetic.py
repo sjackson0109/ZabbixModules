@@ -239,12 +239,13 @@ def core() -> Agent:
     for port_num, peer in ((25, "Te0/1"), (26, "Te0/2")):
         lldp_remote(a, port_num, 1, chassis=DIST2_MAC, port=peer, port_desc="Po10 member", sys_name="sw-dist-02",
                     address="10.101.0.2", oper_mau=33, aggregated_port=1010, pvid=1)
-    # VLANs (bridge ports): 1-2 access 49; 3 trunk 49,50 native 1; 4 trunk 50 only; 27 (Po1) trunk 49,50.
+    # VLANs (bridge ports): 1-2 access 49; 3 trunk 49,50 native 1; 4 and 23 trunk 50 native 1, without 49;
+    # 27 (Po1) trunk 49,50. Port 23 is where VLAN 49 from sw-access-17 stops (the spec's Appendix A).
     vlans(a, {
-        1: ("default", [3, 4, 7, 8, 24, 27], [3, 4, 7, 8, 24, 27], []),
+        1: ("default", [3, 4, 7, 8, 23, 24, 27], [3, 4, 7, 8, 23, 24, 27], []),
         49: ("Wireless APs", [1, 2, 3, 27], [1, 2], [4]),
-        50: ("Voice", [3, 4, 27], [], []),
-    }, {1: 49, 2: 49, 3: 1, 4: 1, 7: 1, 8: 1, 24: 1, 27: 1}, size=4)
+        50: ("Voice", [3, 4, 23, 27], [], []),
+    }, {1: 49, 2: 49, 3: 1, 4: 1, 7: 1, 8: 1, 23: 1, 24: 1, 27: 1}, size=4)
     # RSTP: root is dist-02 via Po1 (bridge port 27); port 24 to dist-01 is the alternate path.
     own = (32768).to_bytes(2, "big") + mac(CORE_MAC)
     a.int("1.3.6.1.2.1.17.2.1.0", 3)

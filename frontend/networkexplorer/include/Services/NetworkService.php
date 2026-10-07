@@ -6,6 +6,8 @@ namespace Modules\NetworkExplorer\Services;
 final class NetworkService {
     private DataGateway $gateway;
     private ?int $now;
+    /** Per-port expected speed overrides by hostid, from host macros. */
+    private array $overrides = [];
 
     public function __construct(DataGateway $gateway, ?int $now = null) {
         $this->gateway = $gateway;
@@ -68,6 +70,12 @@ final class NetworkService {
             $hosts = [];
         }
         $read = (new DatasetReader($this->gateway, $this->now))->read($hosts);
+        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
+        // unless explicitly selected.
+        $seedIds = array_fill_keys(array_map('strval', array_column($seeds, 'hostid')), true);
+        $hosts = array_filter($hosts, static fn($host) => isset($read['collected'][$host['hostid']])
+            || isset($seedIds[$host['hostid']]));
+        $read['quality'] = array_values(array_filter($read['quality'], static fn($row) => isset($hosts[$row['hostid']])));
         $datasets = $read['datasets'];
         $qualityIndex = [];
         foreach ($read['quality'] as $quality) {
@@ -76,7 +84,39 @@ final class NetworkService {
         $interfaces = [];
         $findings = [];
         $policy = new PortPolicy();
+        $vlanPorts = [];
+        $lldpByUid = [];
+        $stpBridges = [];
+        $stpPorts = [];
         foreach ($hosts as $hostid => &$host) {
+            $capabilities = [];
+            foreach (($datasets[$hostid]['port_capability']['data'] ?? []) as $row) {
+                $capabilities[$row['uid']] = $row;
+            }
+            foreach (($datasets[$hostid]['lldp']['data'] ?? []) as $row) {
+                // One neighbour per port is the normal case; several make the peer's capability ambiguous.
+                $uid = $row['local_interface_uid'] ?? null;
+                if (is_string($uid)) {
+                    $lldpByUid[$hostid][$uid] = isset($lldpByUid[$hostid][$uid]) ? [] : $row;
+                }
+            }
+            $host['vlans'] = null;
+            if (isset($datasets[$hostid]['vlan'])) {
+                $host['vlans'] = [];
+                foreach ($datasets[$hostid]['vlan']['data'] as $row) {
+                    if ($row['kind'] === 'vlan') {
+                        $host['vlans'][] = ['vlan_id'=>$row['vlan_id'], 'name'=>$row['name'] ?? null];
+                    }
+                    else {
+                        $vlanPorts[$hostid][$row['interface_uid']] = VlanService::port($row);
+                    }
+                }
+            }
+            $host['stp'] = null;
+            if (isset($datasets[$hostid]['stp'])) {
+                [$host['stp'], $stpPorts[$hostid]] = StpService::split($datasets[$hostid]['stp']['data']);
+                $stpBridges[$hostid] = $host['stp'];
+            }
             $device = $datasets[$hostid]['device']['data'][0] ?? [];
             foreach (['vendor','model','firmware','hostname'] as $field) {
                 $host[$field] = is_string($device[$field] ?? null) ? $device[$field] : null;
@@ -94,6 +134,17 @@ final class NetworkService {
                     'physical','admin_status','oper_status','speed_bps','duplex','mtu','mac_address',
                     'expected_speed_bps','member','slot','port']));
                 $output['hostid'] = (string) $hostid;
+                $lldp = $lldpByUid[$hostid][$row['uid']] ?? null;
+                $capability = $capabilities[$row['uid']] ?? null;
+                [$row['expected_speed_bps'], $row['expected_speed_source'], $basis] = SpeedIntent::derive($row,
+                    $capability, $lldp ?: null, $this->overrides[$hostid] ?? []);
+                $row['peer_duplex'] = $lldp['remote_duplex'] ?? null;
+                $output['expected_speed_basis'] = $basis;
+                $output['capability'] = $capability === null ? null : array_intersect_key($capability,
+                    array_flip(['autoneg_enabled','oper_speed_bps','oper_duplex','supported_speeds_bps',
+                        'advertised_speeds_bps','partner_advertised_speeds_bps']));
+                $output['vlan'] = $vlanPorts[$hostid][$row['uid']] ?? null;
+                $output['stp'] = $stpPorts[$hostid][$row['uid']] ?? [];
                 $output['itemid'] = $read['itemids'][$hostid][$row['uid']] ?? null;
                 $quality = $qualityIndex[$hostid]['interfaces'];
                 if (!($row['_state_present'] ?? false)) {
@@ -111,6 +162,10 @@ final class NetworkService {
                     $findings[] = $this->finding((string) $hostid, $row['uid'], 'speed_below_intent',
                         $evaluation['speed_warning_confirmed'] ? 'warning' : 'info',
                         'Speed below intended value.', $evaluation['reason']);
+                }
+                if ($evaluation['duplex_mismatch']) {
+                    $findings[] = $this->finding((string) $hostid, $row['uid'], 'duplex_mismatch', 'warning',
+                        'Duplex mismatch.', 'Half duplex against a full-duplex peer (from LLDP).');
                 }
                 $interfaces[] = $output;
                 if (count($interfaces) > 30000) {
@@ -131,6 +186,12 @@ final class NetworkService {
             }
         }
         unset($edge);
+        $labels = [];
+        foreach ($interfaces as $interface) {
+            $labels[$interface['hostid']][$interface['uid']] = $hosts[$interface['hostid']]['name'].' '.($interface['name'] ?? $interface['uid']);
+        }
+        $findings = array_merge($findings, VlanService::link($graph['edges'], $vlanPorts, array_map('array_filter', $lldpByUid), $labels),
+            StpService::link($graph['edges'], $stpBridges, $stpPorts, array_column($hosts, 'domain', 'hostid')));
         $adjacency = [];
         foreach ($graph['edges'] as $edge) {
             foreach (['source'=>'target','target'=>'source'] as $localSide => $side) {
@@ -150,7 +211,18 @@ final class NetworkService {
             $interface['peers'] = $adjacency[$interface['hostid']][$interface['uid']] ?? [];
         }
         unset($interface);
+        foreach ($hosts as $hostid => $host) {
+            if ($host['snmp_available'] === false) {
+                $findings[] = $this->finding((string) $hostid, null, 'snmp_unreachable', 'warning',
+                    'SNMP agent is unreachable.', 'Zabbix marks the SNMP interface unavailable. Collection has stopped; '
+                    .'the last successful observations are shown.');
+            }
+        }
         foreach ($read['quality'] as $quality) {
+            // One unreachable finding per host replaces a collection finding per dataset.
+            if ($quality['errors'] === ['agent_unreachable']) {
+                continue;
+            }
             if ($quality['status'] !== 'ok' || $quality['freshness'] !== 'current') {
                 $findings[] = $this->finding($quality['hostid'], null, 'collection_'.$quality['dataset'],
                     $quality['status'] === 'failed' ? 'warning' : 'info',
@@ -211,13 +283,12 @@ final class NetworkService {
                 ($row['hostid'] === null || isset($display[$row['hostid']]))
                 && (!isset($row['edge_id']) || isset($edgeIds[$row['edge_id']]))));
         }
-        return ['schema_version'=>'1.0', 'generated_at'=>gmdate('c', $this->now ?? time()),
+        return ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
             'scope'=>['seed_hostids'=>$hostids, 'management_cidrs'=>$cidrs, 'truncated'=>$truncated,
                 'neighbour_hops'=>$hostids ? 1 : 0],
             'hosts'=>array_values($hosts), 'interfaces'=>$interfaces, 'edges'=>$graph['edges'],
             'lags'=>$graph['lags'], 'quality'=>$read['quality'],
             'findings'=>$findings,
-            'unsupported'=>['vlan'=>'Planned subsequent release.', 'stp'=>'Planned subsequent release.'],
             'budgets'=>$read['budgets'] + ($this->gateway instanceof ApiGateway ? $this->gateway->metrics : [])];
     }
 
@@ -247,11 +318,20 @@ final class NetworkService {
                 $addresses[] = $interface['ip'];
             }
         }
+        // Zabbix marks an SNMP interface unavailable (2) after timeouts; it records no failed value then.
+        $available = null;
+        foreach ($row['interfaces'] ?? [] as $interface) {
+            if ((int) ($interface['type'] ?? 0) === 2 && isset($interface['available'])) {
+                $state = (int) $interface['available'];
+                $available = $state === 2 ? false : ($state === 1 && $available !== false ? true : $available);
+            }
+        }
         $id = (string) $row['hostid'];
+        $this->overrides[$id] = SpeedIntent::overrides($row['macros'] ?? []);
         return ['hostid'=>$id, 'host'=>(string) $row['host'], 'name'=>(string) $row['name'],
             'domain'=>count($domains) === 1 ? (string) array_key_first($domains) : '',
             'management_addresses'=>$this->addresses($addresses), 'dashboard_url'=>Navigation::dashboard($id),
-            'explorer_url'=>Navigation::explorer($id)];
+            'explorer_url'=>Navigation::explorer($id), 'snmp_available'=>$available];
     }
 
     private function addresses(array $addresses): array {

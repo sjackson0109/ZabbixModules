@@ -5,6 +5,7 @@ use Zabbix\Widgets\Fields\{CWidgetFieldMultiSelectOverrideHost,CWidgetFieldSelec
 class WidgetForm extends CWidgetForm {
  public function addFields(): self {
   return $this->addField(new CWidgetFieldMultiSelectOverrideHost())
- ->addField(new CWidgetFieldTextBox('management_cidr', _('Management subnet (annotation)')));
+ ->addField(new CWidgetFieldTextBox('management_cidr', _('Management subnet (annotation)')))
+ ->addField((new CWidgetFieldSelect('mode', _('Default overlay'), [0=>_('Physical'),1=>_('VLAN'),2=>_('STP')]))->setDefault(0));
  }
 }

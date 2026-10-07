@@ -49,4 +49,15 @@ Two import behaviours found here are now designed around (see [03](../docs/desig
 - Zabbix drops `error_handler` on JavaScript steps at import. The native gates return a sentinel that a regular-expression step discards. The LAB replay template still relies on the dropped handler: its failed or partial gates make the snapshot item *not supported* rather than discarding the value, so the last value is retained but the item state flips.
 - A discarded value does not clear an item that is already not supported, so per-port scalars return explicit unknown values.
 
-Not covered yet: forcing an agent-side SNMP error to prove the `__NE_COLLECTION_FAILED__` path end to end, real switch walks, SNMPv3, the frontend reading schema 1.1, and load.
+Not covered yet: forcing an agent-side SNMP error to prove the `__NE_COLLECTION_FAILED__` path end to end, real switch walks, SNMPv3, and load.
+
+## Frontend on schema 1.1 (7 October 2026)
+
+The same two simulated switches were read through the installed frontend modules as Admin, on 7.0.20 and 7.4.3, using the Network Explorer JSON exports and a dashboard holding the Port Panel (VLAN layer), Topology (STP overlay) and Findings widgets. No browser errors were raised on either version.
+
+- Findings, matching the spec's Appendix A journey: sw-core-01 Gi1/0/23 below its configured 1G (`policy`, from the per-port macro) and half duplex against a full-duplex peer; sw-access-17 Gi1/0/48 below the 1G both ends advertise (`negotiable`, with no macro set); and "VLAN 49 is carried by sw-access-17 Gi1/0/48 but not permitted on sw-core-01 Gi1/0/23".
+- The core-to-access link carries VLANs 1 and 50, with native VLAN 1 on both ends. The STP overlay highlights it as the access switch's root-port link, marks the core's blocking alternate port towards sw-dist-01, and names the unmonitored root bridge.
+- The Zabbix server host, which has no Network Explorer items, is no longer drawn in the topology.
+- Outage (7.0.20): after `native_snmp.py break`, Zabbix marked sw-access-17's SNMP interface unavailable. All seven of its datasets then reported `failed` with `agent_unreachable`, it was flagged as SNMP unreachable in the topology, and one `snmp_unreachable` finding replaced the per-dataset collection findings.
+
+The live check found two frontend defects, which are fixed in the same change: native state rows erased inventory attributes (every port showed as unclassified), and the fixture gave sw-core-01 Gi1/0/23 no VLAN membership.

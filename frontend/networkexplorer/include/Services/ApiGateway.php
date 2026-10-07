@@ -11,16 +11,20 @@ final class ApiGateway implements DataGateway {
 
     public function hosts(array $hostids = []): array {
         $options = ['output'=>['hostid','host','name'], 'monitored_hosts'=>true,
-            'selectTags'=>['tag','value'], 'selectInterfaces'=>['ip','dns','useip','type'],
-            'sortfield'=>'hostid', 'limit'=>301];
+            'selectTags'=>['tag','value'], 'selectInterfaces'=>['ip','dns','useip','type','available'],
+            'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>301];
         if ($hostids) {
             $options['hostids'] = $hostids;
         }
         ++$this->metrics['host_calls'];
         $rows = \API::Host()->get($options);
-        foreach ($rows as $row) {
+        foreach ($rows as &$row) {
             $this->authorisedHosts[(string) $row['hostid']] = true;
+            // Only plain-text per-port speed intent leaves the gateway; other host macros may hold secrets.
+            $row['macros'] = array_values(array_filter($row['macros'] ?? [], static fn($macro): bool =>
+                (int) ($macro['type'] ?? 0) === 0 && strpos((string) $macro['macro'], '{$NE.IF.EXPECTED_SPEED:') === 0));
         }
+        unset($row);
         return $rows;
     }
 

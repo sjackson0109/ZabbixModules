@@ -30,9 +30,22 @@ const assert=require('node:assert/strict');
   const link=page.getByRole('link',{name:'Fixture switch B'});assert.equal(await link.count(),1);assert.ok((await link.getAttribute('href')).includes('#ne='));
   await page.locator('.ne-port').first().focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('.ne-port').nth(1).evaluate(e=>e===document.activeElement),true);
   for(const layout of ['48','mixed','stack','generic']){await page.getByRole('combobox',{name:'Physical layout'}).selectOption(layout);assert.equal(await page.locator('.ne-port').count(),48);}
-  assert.ok((await page.locator('#widget').innerText()).includes('VLAN: not collected'));
+  assert.ok((await page.locator('#widget').innerText()).includes('VLAN collection: not collected'));
+  await page.evaluate(()=>{const p=window.testPayload;p.hosts[0].vlans=[{vlan_id:10,name:'Users'},{vlan_id:49,name:'Wireless'}];p.hosts[1].vlans=[{vlan_id:10,name:'Users'}];
+   p.interfaces[0].vlan={mode:'trunk',pvid:1,carried:'1,10,49',tagged:'10,49',untagged:'1',forbidden:''};p.interfaces[1].vlan={mode:'access',pvid:10,carried:'10',tagged:'',untagged:'10',forbidden:''};
+   p.interfaces[0].stp=[{instance:0,role:'alternate',role_source:'derived',state:'blocking'}];
+   p.edges[0].vlan={common:'10',source_only:'49',target_only:'',source_pvid:1,target_pvid:1};p.edges[1].vlan={common:'10',source_only:'',target_only:'',source_pvid:10,target_pvid:10};
+   p.edges[0].stp={source:{role:'alternate',state:'blocking'},target:{role:'designated',state:'forwarding'},blocked:true};
+   window.NEWidgetRuntime.render(document.querySelector('#widget'),p,'ports',()=>{});});
+  await page.getByRole('combobox',{name:'Layer'}).selectOption('vlan');await page.getByRole('combobox',{name:'VLAN',exact:true}).selectOption('49');
+  assert.ok((await page.locator('.ne-port').nth(0).innerText()).includes('Trunk (tagged)'));assert.ok((await page.locator('.ne-port').nth(1).innerText()).includes('Unrelated'));
+  await page.getByRole('combobox',{name:'Layer'}).selectOption('stp');assert.ok((await page.locator('.ne-port').nth(0).innerText()).includes('blocking'));
   await page.evaluate(()=>window.NEWidgetRuntime.render(document.querySelector('#widget'),window.testPayload,'topology',(h,i)=>window.testBroadcasts.push([h,i])));
   assert.equal(await page.locator('svg .ne-node').count(),2);assert.equal(await page.locator('svg .ne-edge').count(),1);
+  await page.getByRole('combobox',{name:'Overlay'}).selectOption('vlan');await page.getByRole('combobox',{name:'VLAN',exact:true}).selectOption('49');
+  await page.getByRole('combobox',{name:'Trace VLAN from'}).selectOption('101');assert.equal(await page.locator('svg .ne-edge-vlan-stopped').count(),1);
+  assert.ok((await page.locator('#widget').innerText()).includes('VLAN 49 stops at Fixture switch B'));
+  await page.getByRole('combobox',{name:'Overlay'}).selectOption('physical');
   await page.getByRole('button',{name:'Expand LAG member links'}).click();assert.equal(await page.locator('svg .ne-edge').count(),2);
   await page.locator('svg .ne-node').first().focus();await page.keyboard.press('Enter');assert.ok((await page.locator('.ne-drawer').innerText()).includes('Fixture switch A'));
   await page.evaluate(()=>window.NEWidgetRuntime.render(document.querySelector('#widget'),window.testPayload,'quality'));
@@ -41,7 +54,7 @@ const assert=require('node:assert/strict');
   const downloadEvent=page.waitForEvent('download');await page.getByRole('button',{name:'Export filtered CSV'}).click();const download=await downloadEvent;
   const stream=await download.createReadStream();let csv='';for await(const chunk of stream)csv+=chunk.toString('utf8');assert.ok(csv.includes("'=Unsafe spreadsheet formula"));assert.ok(csv.includes("' =Unsafe spreadsheet formula after space"));
   assert.deepEqual(errors,[]);
-  console.log('Chromium: physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.');
+  console.log('Chromium: physical, VLAN and STP layers, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.');
  }
  finally {await browser.close();}
 })().catch(e=>{console.error(e.stack);process.exit(1);});

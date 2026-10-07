@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace Modules\NetworkExplorer\Services;
 
 final class ReportService {
-    public const REPORTS = ['inventory','peers','addressing','degradation','quality','findings'];
+    public const REPORTS = ['inventory','peers','addressing','degradation','vlans','stp','quality','findings'];
 
     public function rows(array $network, string $report): array {
         if (!in_array($report, self::REPORTS, true)) {
@@ -24,6 +24,19 @@ final class ReportService {
                 return array_values(array_filter($network['interfaces'],
                     static fn($row) => $row['speed_degraded'] || $row['state'] === 'down'
                         || $row['state'] === 'duplex_observation'));
+            case 'vlans':
+                return array_values(array_map(static fn($row) => ['hostid'=>$row['hostid'], 'interface'=>$row['name'] ?? null,
+                    'interface_uid'=>$row['uid']] + $row['vlan'], array_filter($network['interfaces'],
+                    static fn($row) => ($row['vlan'] ?? null) !== null)));
+            case 'stp':
+                $result = [];
+                foreach ($network['interfaces'] as $row) {
+                    foreach ($row['stp'] ?? [] as $port) {
+                        $result[] = ['hostid'=>$row['hostid'], 'interface'=>$row['name'] ?? null,
+                            'interface_uid'=>$row['uid']] + $port;
+                    }
+                }
+                return $result;
             case 'quality':
                 return $network['quality'];
             default:

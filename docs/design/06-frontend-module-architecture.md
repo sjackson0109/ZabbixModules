@@ -26,8 +26,9 @@ Browser widget ──▶ widget view action (PHP, current user session)
                       ├── IdentityResolver  (LLDP/CDP peer → permitted host or placeholder)
                       ├── TopologyService   (edges, LAG grouping, scope, CIDR annotation)
                       ├── PortPolicy        (state, effective expected speed, colours)
-                      ├── VlanService       (new: port roles, edge carry/no-carry, path trace)
-                      ├── StpService        (new: roles/states overlay, root path)
+                      ├── SpeedIntent       (effective expected speed and its source)
+                      ├── VlanService       (port membership, edge carry/no-carry, VLAN findings)
+                      ├── StpService        (bridges, port roles/states per link, STP findings)
                       └── ReportService     (findings, CSV/JSON exports)
 ```
 

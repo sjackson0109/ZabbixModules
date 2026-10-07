@@ -12,9 +12,9 @@ else {
         new CLabel(_('Management CIDR(s)'), 'management_cidr'),
         new CTextBox('management_cidr', $data['management_cidr']), new CSubmit('apply', _('Apply'))]);
     $root->addItem($form);
-    $root->addItem(new CTag('p', true, _('Interfaces, LLDP and LAG reflect permitted current observations. VLAN and STP are planned subsequent releases.')));
+    $root->addItem(new CTag('p', true, _('Interfaces, LLDP, LAG, VLAN and STP reflect permitted current observations.')));
     $exports = new CDiv();
-    foreach (['inventory','peers','addressing','degradation','quality','findings'] as $report) {
+    foreach (\Modules\NetworkExplorer\Services\ReportService::REPORTS as $report) {
         $params = ['action'=>'networkexplorer.export', 'report'=>$report, 'format'=>'csv'];
         if ($data['selected_hostid'] !== '') {
             $params['hostid'] = $data['selected_hostid'];
@@ -22,7 +22,7 @@ else {
         if ($data['management_cidr'] !== '') {
             $params['management_cidr'] = $data['management_cidr'];
         }
-        $exports->addItem((new CLink(ucfirst($report).' CSV', 'zabbix.php?'.http_build_query($params)))->addClass('ne-export'));
+        $exports->addItem((new CLink((['vlans'=>'VLAN', 'stp'=>'STP'][$report] ?? ucfirst($report)).' CSV', 'zabbix.php?'.http_build_query($params)))->addClass('ne-export'));
     }
     $root->addItem($exports);
     $hosts = (new CTableInfo())->setHeader([_('Host'), _('Vendor / model'), _('Domain'), _('Management addresses')]);
