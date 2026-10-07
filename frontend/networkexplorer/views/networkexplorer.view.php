@@ -3,7 +3,7 @@
 $page = (new CHtmlPage())->setTitle(_('Network Explorer'));
 $root = (new CDiv())->addClass('ne-explorer');
 if (isset($data['error'])) {
-    $root->addItem((new CDiv(_('Unable to read datasets.').' '.$data['error']))->addClass('msg-bad'));
+    $root->addItem((new CDiv(\Modules\NetworkExplorer\Services\Errors::message($data['error'])))->addClass('msg-bad'));
 }
 else {
     $form = (new CForm('get'))->setAction('zabbix.php');
@@ -14,6 +14,9 @@ else {
     $root->addItem($form);
     $root->addItem(new CTag('p', true, _('Interfaces, LLDP, LAG, VLAN and STP reflect permitted current observations.')));
     $exports = new CDiv();
+    $labels = ['inventory'=>_('Inventory CSV'), 'peers'=>_('Peers CSV'), 'addressing'=>_('Addressing CSV'),
+        'degradation'=>_('Degradation CSV'), 'vlans'=>_('VLAN CSV'), 'stp'=>_('STP CSV'), 'quality'=>_('Quality CSV'),
+        'findings'=>_('Findings CSV')];
     foreach (\Modules\NetworkExplorer\Services\ReportService::REPORTS as $report) {
         $params = ['action'=>'networkexplorer.export', 'report'=>$report, 'format'=>'csv'];
         if ($data['selected_hostid'] !== '') {
@@ -22,7 +25,8 @@ else {
         if ($data['management_cidr'] !== '') {
             $params['management_cidr'] = $data['management_cidr'];
         }
-        $exports->addItem((new CLink((['vlans'=>'VLAN', 'stp'=>'STP'][$report] ?? ucfirst($report)).' CSV', 'zabbix.php?'.http_build_query($params)))->addClass('ne-export'));
+        $exports->addItem((new CLink($labels[$report] ?? $report, 'zabbix.php?'.http_build_query($params)))
+            ->addClass('ne-export'));
     }
     $root->addItem($exports);
     $hosts = (new CTableInfo())->setHeader([_('Host'), _('Vendor / model'), _('Domain'), _('Management addresses')]);

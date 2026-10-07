@@ -32,7 +32,7 @@ final class DatasetReader {
 
     public function read(array $hosts): array {
         $items = $this->gateway->items(array_map('strval', array_keys($hosts)));
-        if (count($items) > 50000) {
+        if (count($items) > Limits::ITEMS) {
             throw new \RuntimeException('item_budget_exceeded');
         }
         $historyItems = [];
@@ -46,7 +46,7 @@ final class DatasetReader {
             $key = (string) $item['key_'];
             if (isset(self::KEYS[$key]) || isset(self::ATTEMPTS[$key])) {
                 // Canonical envelopes MUST be text history, never guessed as uint.
-                if ((int) $item['value_type'] === 4) {
+                if ((int) $item['value_type'] === ITEM_VALUE_TYPE_TEXT) {
                     $historyItems[] = $item;
                 }
             }
@@ -54,7 +54,7 @@ final class DatasetReader {
                 $scalarItemIds[(string) $item['hostid']][$match[1]] = (string) $item['itemid'];
             }
         }
-        if (count($historyItems) > 3000) {
+        if (count($historyItems) > Limits::HISTORY_ITEMS) {
             throw new \RuntimeException('history_budget_exceeded');
         }
         $history = $this->gateway->history($historyItems, 2);
@@ -70,7 +70,7 @@ final class DatasetReader {
             foreach ($history[(string) $item['itemid']] ?? [] as $row) {
                 $value = (string) ($row['value'] ?? '');
                 $byteCount += strlen($value);
-                if ($byteCount > 67108864) {
+                if ($byteCount > Limits::HISTORY_BYTES) {
                     throw new \RuntimeException('response_budget_exceeded');
                 }
                 try {
@@ -160,7 +160,7 @@ final class DatasetReader {
         }
         return ['datasets'=>$datasets, 'quality'=>$quality, 'itemids'=>$scalarItemIds, 'collected'=>$collected,
             'budgets'=>['history_items'=>count($historyItems), 'history_bytes'=>$byteCount,
-                'host_limit'=>300, 'interface_limit'=>30000]];
+                'host_limit'=>Limits::HOSTS, 'interface_limit'=>Limits::INTERFACES]];
     }
 
     private function merge(array $parts, string $dataset): ?array {
@@ -196,7 +196,8 @@ final class DatasetReader {
         $merged['data'] = array_values($rows);
         if ($inventory !== null) {
             $merged['inventory_observed_at'] = $inventory['observed_at'];
-            $merged['inventory_stale'] = strtotime((string) $inventory['observed_at']) < $this->now - 7200;
+            $observed = is_string($inventory['observed_at']) ? strtotime($inventory['observed_at']) : false;
+            $merged['inventory_stale'] = $observed !== false && $observed < $this->now - Limits::INVENTORY_STALE_AFTER;
         }
         return $merged;
     }

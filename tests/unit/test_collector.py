@@ -281,3 +281,43 @@ def test_schema_rejects_false_success_and_unknown_version(fixture):
 def test_packaged_schema_matches_public_contract():
     assert (ROOT / "schemas/envelope.schema.json").read_bytes() == (
         ROOT / "collector/network_explorer/envelope.schema.json").read_bytes()
+
+
+def test_schema_checks_timestamps_without_optional_packages(fixture):
+    output = collected(fixture, "interfaces")
+    for bad in ("not-a-date", "2026-13-01T00:00:00Z", "2026-10-07 12:00:00Z"):
+        output["attempted_at"] = bad
+        with pytest.raises(ValueError):
+            validate_envelope(output)
+
+
+FIXTURE = ROOT / "tests/fixtures/snmp/standard-switch.json"
+
+
+def run_cli(*args):
+    command = "import sys; from network_explorer.cli import main; sys.argv[0] = 'collect'; raise SystemExit(main())"
+    return subprocess.run([sys.executable, "-c", command, *args], capture_output=True, text=True, check=True,
+                          env={**os.environ, "PYTHONPATH": str(ROOT / "collector")})
+
+
+def test_cli_fixture_prints_a_valid_envelope():
+    result = run_cli("fixture", "--path", str(FIXTURE), "--dataset", "interfaces")
+    output = json.loads(result.stdout)
+    validate_envelope(output)
+    assert output["status"] == "ok" and result.stderr == ""
+
+
+def test_cli_configuration_error_is_a_failed_envelope(tmp_path):
+    result = run_cli("collect", "--config", str(tmp_path / "missing.json"), "--device", "a", "--dataset", "device")
+    output = json.loads(result.stdout)
+    assert output["status"] == "failed" and output["errors"][0]["code"] == "configuration_error"
+
+
+def test_cli_unexpected_error_names_only_the_exception_class(tmp_path):
+    broken = tmp_path / "broken.json"
+    broken.write_text("{ community: secret-value")
+    result = run_cli("fixture", "--path", str(broken), "--dataset", "device")
+    output = json.loads(result.stdout)
+    assert output["status"] == "failed" and output["errors"][0]["code"] == "collection_error"
+    assert result.stderr.strip() == "network-explorer-collect: JSONDecodeError"
+    assert "secret-value" not in result.stdout + result.stderr

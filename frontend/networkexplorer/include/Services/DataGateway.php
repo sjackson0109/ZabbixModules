@@ -8,5 +8,4 @@ interface DataGateway {
     public function items(array $hostids): array;
     /** Latest rows PER item, keyed by itemid; never a global history limit. */
     public function history(array $items, int $limit): array;
-    public function dashboards(array $hostids): array;
 }

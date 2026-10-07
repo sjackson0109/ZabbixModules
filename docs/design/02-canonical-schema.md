@@ -1,6 +1,6 @@
 # 02 — Canonical schema (Canonical Network Discovery Dataset)
 
-Status: **proposed 1.1, for review** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/proposed/envelope-1.1.schema.json`](../../schemas/proposed/envelope-1.1.schema.json), with worked examples in [`schemas/proposed/examples/`](../../schemas/proposed/examples/) checked by `tests/unit/test_proposed_schema.py`. Version 1.0 (`schemas/envelope.schema.json`) stays live until 1.1 is approved; 1.1 only adds datasets and optional fields, so a 1.0 producer is still readable.
+Status: **current 1.1** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/envelope-1.1.schema.json`](../../schemas/envelope-1.1.schema.json), with worked examples in [`schemas/examples/`](../../schemas/examples/) checked by `tests/unit/test_schema_1_1.py`. The native templates emit 1.1. Version 1.0 (`schemas/envelope.schema.json`) is still accepted by the frontend and is what the Python collector emits; 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable.
 
 ## Envelope (unchanged from 1.0)
 

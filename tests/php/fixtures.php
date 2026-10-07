@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/../../frontend/networkexplorer/include/autoload.php';
+require_once __DIR__.'/zabbix_stubs.php';
 
 use Modules\NetworkExplorer\Services\NetworkService;
 

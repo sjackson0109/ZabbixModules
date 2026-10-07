@@ -262,6 +262,17 @@ def run(version: str, require_frontend: bool = True) -> dict:
             assert_that(len(response["ne_payload"].get("interfaces", [])) >= 2,
                         f"Widget {module} returned no host observations.")
         result["checks"].append("all-five-widget-render-actions")
+        base = api("module.get", {"output": ["moduleid"], "filter": {"id": "networkexplorer"}})[0]["moduleid"]
+        api("module.update", {"moduleid": base, "status": 0})
+        try:
+            response = json.loads(frontend(admin_browser, config, "widget.nefindings.view", {
+                "name": "Runtime test", "fields": {}, "dashboardid": dashboards[0]["dashboardid"]}, post=True))
+        finally:
+            api("module.update", {"moduleid": base, "status": 1})
+        payload = response.get("ne_payload", {})
+        assert_that(payload.get("message") == "Install and enable the Network Explorer base module."
+                    and not payload.get("interfaces"), f"A widget read data while its base module was disabled: {payload}")
+        result["checks"].append("widgets-stop-when-base-module-disabled")
         data = json.loads(frontend(user_browser, config, "networkexplorer.data", {"hostids[]": list(hostids.values())}))
         encoded = json.dumps(data)
         assert_that("ne-lab-hidden" not in encoded and "192.0.2.3" not in encoded, "Private peer data leaked through Explorer.")

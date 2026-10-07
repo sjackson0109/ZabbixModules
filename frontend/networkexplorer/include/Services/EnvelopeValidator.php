@@ -92,7 +92,7 @@ final class EnvelopeValidator {
                 }
                 $seenUids[$row['uid']] = true;
                 foreach (['speed_bps','expected_speed_bps','mtu'] as $field) {
-                    if (isset($row[$field]) && (!is_int($row[$field]) || $row[$field] < 0)) {
+                    if (isset($row[$field]) && !is_int($row[$field])) {
                         throw new \InvalidArgumentException('invalid_interface_value');
                     }
                 }
@@ -223,6 +223,16 @@ final class EnvelopeValidator {
                 if (isset($row['root_port_uid']) && !self::validUid($row['root_port_uid'])) {
                     throw new \InvalidArgumentException('invalid_stp');
                 }
+                if (isset($row['protocol'])
+                        && !in_array($row['protocol'], ['stp','rstp','mstp','pvst','rapid_pvst','unknown'], true)) {
+                    throw new \InvalidArgumentException('invalid_stp');
+                }
+                foreach (['cost','root_cost','priority','topology_changes','time_since_topology_change_s'] as $field) {
+                    if (isset($row[$field]) && !is_int($row[$field])) {
+                        throw new \InvalidArgumentException('invalid_stp');
+                    }
+                }
+                self::nullableString($row, 'vlans');
             }
         }
         return $envelope;

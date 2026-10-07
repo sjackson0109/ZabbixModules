@@ -67,7 +67,7 @@ final class ReportService {
                 $value = (string) $value;
                 // Prefix every spreadsheet execution/control character, including
                 // formulas hidden behind spaces. Keep RFC CSV quoting intact.
-                if (preg_match('/^[\s\x00-\x20]*[=+@-]/u', $value)
+                if (preg_match('/^[\s\x00-\x20]*[=+@-]/', $value)
                         || preg_match('/^[\t\r\n]/', $value)) {
                     $value = "'".$value;
                 }

@@ -6,23 +6,20 @@ namespace Modules\NetworkExplorer\Services;
 final class ApiGateway implements DataGateway {
     private array $authorisedItems = [];
     private array $authorisedHosts = [];
-    public array $metrics = ['host_calls'=>0, 'item_calls'=>0, 'history_batches'=>0,
-        'history_items'=>0, 'dashboard_calls'=>0];
 
     public function hosts(array $hostids = []): array {
         $options = ['output'=>['hostid','host','name'], 'monitored_hosts'=>true,
             'selectTags'=>['tag','value'], 'selectInterfaces'=>['ip','dns','useip','type','available'],
-            'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>301];
+            'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>Limits::HOSTS + 1];
         if ($hostids) {
             $options['hostids'] = $hostids;
         }
-        ++$this->metrics['host_calls'];
         $rows = \API::Host()->get($options);
         foreach ($rows as &$row) {
             $this->authorisedHosts[(string) $row['hostid']] = true;
             // Only plain-text per-port speed intent leaves the gateway; other host macros may hold secrets.
             $row['macros'] = array_values(array_filter($row['macros'] ?? [], static fn($macro): bool =>
-                (int) ($macro['type'] ?? 0) === 0 && strpos((string) $macro['macro'], '{$NE.IF.EXPECTED_SPEED:') === 0));
+                (int) ($macro['type'] ?? -1) === ZBX_MACRO_TYPE_TEXT && strpos((string) $macro['macro'], '{$NE.IF.EXPECTED_SPEED:') === 0));
         }
         unset($row);
         return $rows;
@@ -34,10 +31,9 @@ final class ApiGateway implements DataGateway {
         if (!$hostids) {
             return [];
         }
-        ++$this->metrics['item_calls'];
         $rows = \API::Item()->get(['output'=>['itemid','hostid','key_','value_type','state','status'],
             'hostids'=>$hostids, 'search'=>['key_'=>'ne.'], 'startSearch'=>true,
-            'limit'=>50001]);
+            'limit'=>Limits::ITEMS + 1]);
         foreach ($rows as $row) {
             $this->authorisedItems[(string) $row['itemid']] = $row;
         }
@@ -56,27 +52,9 @@ final class ApiGateway implements DataGateway {
         $limit = max(1, min(3, $limit));
         $result = [];
         foreach (array_chunk($safe, 50) as $batch) {
-            ++$this->metrics['history_batches'];
-            $this->metrics['history_items'] += count($batch);
             // Supported frontend manager, after explicit host/item authorisation.
             // Its SQL/Elasticsearch adapter returns $limit rows for EACH item.
-            $result += \Manager::History()->getLastValues($batch, $limit, 604800);
-        }
-        return $result;
-    }
-
-    public function dashboards(array $hostids): array {
-        $result = [];
-        // HostDashboard API accepts multiple host IDs but rows do not carry hostid.
-        // Query only displayed hosts and cap one page request to 300 hosts.
-        foreach (array_slice($hostids, 0, 300) as $hostid) {
-            if (!isset($this->authorisedHosts[(string) $hostid])) {
-                continue;
-            }
-            ++$this->metrics['dashboard_calls'];
-            $rows = \API::HostDashboard()->get(['output'=>['dashboardid','name'],
-                'hostids'=>[(string) $hostid], 'sortfield'=>'name', 'limit'=>1]);
-            $result[(string) $hostid] = $rows[0]['dashboardid'] ?? null;
+            $result += \Manager::History()->getLastValues($batch, $limit, Limits::HISTORY_PERIOD);
         }
         return $result;
     }

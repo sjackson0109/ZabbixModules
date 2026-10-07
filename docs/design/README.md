@@ -5,7 +5,7 @@ The requirements specification asks for these seven artefacts to be reviewed bef
 | # | Artefact | Status |
 |---|---|---|
 | 1 | [Vendor capability matrix](01-vendor-capability-matrix.md) | Hypotheses only; waiting on inventory and walks |
-| 2 | [Canonical schema](02-canonical-schema.md) and [`schemas/proposed/`](../../schemas/proposed/) | Proposed 1.1, adds VLAN, STP and port capability |
+| 2 | [Canonical schema](02-canonical-schema.md) and [`schemas/`](../../schemas/) | Current 1.1, adds VLAN, STP and port capability |
 | 3 | [Zabbix template architecture](03-template-architecture.md) | Proposed |
 | 4 | [SNMP acquisition matrix](04-snmp-acquisition-matrix.md) | Proposed; OIDs marked *verify* need a MIB check |
 | 5 | [Proxy script architecture](05-proxy-script-architecture.md) | Proposed; describes the existing collector |

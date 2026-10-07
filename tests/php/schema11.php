@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/../../frontend/networkexplorer/include/autoload.php';
+require_once __DIR__.'/zabbix_stubs.php';
 
 use Modules\NetworkExplorer\Services\DatasetReader;
 use Modules\NetworkExplorer\Services\EnvelopeValidator;
@@ -183,6 +184,21 @@ use Modules\NetworkExplorer\Services\VlanService;
     $row = (new DatasetReader($split,$now))->read(['1'=>['hostid'=>'1']])['datasets']['1']['interfaces']['data'][0];
     $assert($row['physical'] === true && $row['alias'] === 'Uplink' && $row['mtu'] === 1500 && $row['speed_bps'] === 100000000,
         'State rows refresh operational fields without erasing inventory attributes.');
+
+    $bridge = ['kind'=>'bridge','instance'=>0,'protocol'=>'rstp','bridge_id'=>str_repeat('a',16),
+        'root_bridge_id'=>str_repeat('a',16),'root_cost'=>0,'root_port_uid'=>null];
+    $assert(count($decode($envelope('stp', [$bridge]))['data']) === 1, 'A well-formed STP bridge row is accepted.');
+    $rejects(fn() => $decode($envelope('stp', [array_replace($bridge, ['topology_changes'=>[1]])])), 'invalid_stp',
+        'STP counters must be integers.');
+    $rejects(fn() => $decode($envelope('stp', [array_replace($bridge, ['protocol'=>'spanning'])])), 'invalid_stp',
+        'STP protocol is one of the schema values.');
+
+    // A VLAN row whose interface is unresolved must never attach to an LLDP edge with an unmapped local port.
+    $orphan = VlanService::port(['kind'=>'port','interface_uid'=>null,'mode'=>'trunk','pvid'=>99,'tagged'=>'99',
+        'untagged'=>null,'forbidden'=>null,'current_egress'=>null,'current_untagged'=>null]);
+    $edges = [['id'=>'e1','source'=>'1','source_uid'=>null,'target'=>'2','target_uid'=>'if-b1']];
+    $found = VlanService::link($edges, ['1'=>[''=>$orphan], '2'=>['if-b1'=>$orphan]], []);
+    $assert($found === [] && !isset($edges[0]['vlan']), 'An edge end without a local port carries no VLAN comparison.');
 
     echo "Schema 1.1, VLAN, STP and expected-speed checks passed ($checks checks).\n";
 })();

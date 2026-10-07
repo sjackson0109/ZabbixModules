@@ -29,7 +29,7 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is
 
 @pytest.fixture(scope="module")
 def validator():
-    schema = json.loads((ROOT / "schemas/proposed/envelope-1.1.schema.json").read_text())
+    schema = json.loads((ROOT / "schemas/envelope-1.1.schema.json").read_text())
     return jsonschema.Draft202012Validator(schema)
 
 

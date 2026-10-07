@@ -1,6 +1,6 @@
 # Offline continuation handoff
 
-Status: initial alpha implementation, reviewed 7 October 2026. This is a working fixture-driven module/data pipeline, not a vendor-qualified monitoring release.
+Status: release candidate for 1.0.0, reviewed 7 October 2026. The frontend, native standard-MIB templates and collector are complete for the first production-capable scope and tested against simulated switches; no vendor or model has been qualified on real hardware. Release history is in the [changelog](../../CHANGELOG.md).
 
 ## Implemented
 
@@ -13,13 +13,13 @@ Status: initial alpha implementation, reviewed 7 October 2026. This is a working
 
 ## Verification
 
-- Python 3.14.7: 50 unit/transport/template/package tests passed.
+- Python: 209 unit, transport, template, schema and package tests pass (`scripts/test-dev.sh`, and in CI on Python 3.10 and 3.12).
 - Collector transport and normalisation tests also passed on Python 3.10 and 3.12; localhost SNMPv2c and SNMPv3 SHA256/AES128 roundtrips used disposable credentials.
-- PHP: 64 dataset/policy/report/navigation checks and 28 topology/subnet checks passed.
-- JavaScript: seven algorithm/manifest/export checks passed; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks passed.
+- PHP: the service, topology, schema 1.1, lab-fixture and gateway-authorisation suites pass on PHP 8.0 and 8.3.
+- JavaScript: the widget algorithm, manifest and export checks pass; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks are run separately with Playwright.
 - Real Zabbix 7.0.20, 7.2.7 and 7.4.3 labs exercise module registration, replay ingestion, LLD, native graphs, inherited dashboards, ordinary-user permissions, API/report behaviour and malformed/failing collection preservation. See [runtime evidence](../../lab/VERIFICATION.md).
 - Ports are placed by stack member, slot and position from ENTITY-MIB, with media (copper, SFP, SFP+) from the MAU tables; the Port panel shows stack members as tabs and takes its state colours from the widget form.
-- The spec's acceptance walkthrough (amber port, peer navigation, off-subnet switch, VLAN journey, STP root and blocking port, LAG as one link, a restricted viewer, a stopped agent) passes in Chromium against four simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`).
+- The spec's acceptance walkthrough (amber port, peer navigation, off-subnet switch, VLAN journey, STP root and blocking port, LAG as one link, a restricted viewer, a stopped agent) passes in Chromium against five simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`).
 - Live browser tests exercised inherited dashboards, host/item broadcasts and peer-interface highlighting. These are synthetic lab hosts, not customer switches.
 
 ## Continue locally
@@ -39,7 +39,7 @@ Browser scripts require the externally installed Playwright test dependency and 
 
 ## Next implementation threads
 
-Use [the family handoff index](../../templates/specifications/FAMILY_HANDOFFS.md), [shared contract](../../templates/specifications/CONTRACT.md) and authoritative [schema](../../schemas/envelope.schema.json). Obtain sanitised model/firmware inventory and numeric-OID walks before implementing or claiming support for a family profile. Preserve existing monitoring coverage and qualify each producer against the module contracts.
+Use [the family handoff index](../../templates/specifications/FAMILY_HANDOFFS.md), [shared contract](../../templates/specifications/CONTRACT.md) and the current [schema 1.1](../../schemas/envelope-1.1.schema.json). Obtain sanitised model/firmware inventory and numeric-OID walks before implementing or claiming support for a family profile. Preserve existing monitoring coverage and qualify each producer against the module contracts.
 
 Production vendor templates remain specifications; the generic standard-MIB native templates and the frontend read VLAN, STP and port capability (schema 1.1). Snapshot partitioning, coherent topology history, automatic duplicate-address conflict reporting, scheduled PDFs and business service provisioning are later scope. At the spec's 300-switch/15,000-port scale, synthetic data builds in under 3 s and renders in under 0.5 s; production performance, including Zabbix API and history latency, is not established. Candidate host retrieval currently applies a 301-host cap before domain filtering; larger mixed estates can therefore have incomplete peer coverage, with truncation reported.
 

@@ -25,7 +25,7 @@ final class NetworkService {
                 throw new \InvalidArgumentException('invalid_hostid');
             }
         }
-        if (count($hostids) > 300) {
+        if (count($hostids) > Limits::HOSTS) {
             throw new \InvalidArgumentException('host_budget_exceeded');
         }
         if (strlen($managementCidr) > 2048) {
@@ -43,7 +43,7 @@ final class NetworkService {
         }
         $seeds = $hostids ? $this->gateway->hosts($hostids) : [];
         $rows = $this->gateway->hosts();
-        $truncated = count($rows) > 300;
+        $truncated = count($rows) > Limits::HOSTS;
         $hosts = [];
         $seedDomains = [];
         foreach ($seeds as $row) {
@@ -59,7 +59,7 @@ final class NetworkService {
                     && ($host['domain'] === '' || !isset($seedDomains[$host['domain']]))) {
                 continue;
             }
-            if (count($hosts) >= 300 && !isset($hosts[$host['hostid']])) {
+            if (count($hosts) >= Limits::HOSTS && !isset($hosts[$host['hostid']])) {
                 $truncated = true;
                 continue;
             }
@@ -107,7 +107,7 @@ final class NetworkService {
                     if ($row['kind'] === 'vlan') {
                         $host['vlans'][] = ['vlan_id'=>$row['vlan_id'], 'name'=>$row['name'] ?? null];
                     }
-                    else {
+                    elseif (is_string($row['interface_uid'] ?? null)) {
                         $vlanPorts[$hostid][$row['interface_uid']] = VlanService::port($row);
                     }
                 }
@@ -151,7 +151,6 @@ final class NetworkService {
                         'advertised_speeds_bps','partner_advertised_speeds_bps']));
                 $output['media'] = $capability['media'] ?? null;
                 $output['vlan'] = $vlanPorts[$hostid][$row['uid']] ?? null;
-                $output['stp'] = $stpPorts[$hostid][$row['uid']] ?? [];
                 $output['itemid'] = $read['itemids'][$hostid][$row['uid']] ?? null;
                 $quality = $qualityIndex[$hostid]['interfaces'];
                 if (!($row['_state_present'] ?? false)) {
@@ -175,7 +174,7 @@ final class NetworkService {
                         'Duplex mismatch.', 'Half duplex against a full-duplex peer (from LLDP).');
                 }
                 $interfaces[] = $output;
-                if (count($interfaces) > 30000) {
+                if (count($interfaces) > Limits::INTERFACES) {
                     throw new \RuntimeException('interface_budget_exceeded');
                 }
             }
@@ -301,7 +300,7 @@ final class NetworkService {
         if ($truncated) {
             $findings[] = ['id'=>'scope:host_limit', 'hostid'=>null, 'interface_uid'=>null,
                 'severity'=>'info','rule'=>'scope_truncated','title'=>'Host scope is bounded.',
-                'reason'=>'Only the first 300 permitted hosts were read. Select a narrower host/domain scope.'];
+                'reason'=>'Only the first '.Limits::HOSTS.' permitted hosts were read. Select a narrower host/domain scope.'];
         }
         $findings = array_merge($findings, $graph['findings']);
         if ($hostids) {
@@ -357,19 +356,7 @@ final class NetworkService {
             'hosts'=>array_values($hosts), 'interfaces'=>$interfaces, 'edges'=>$graph['edges'],
             'lags'=>$graph['lags'], 'quality'=>$read['quality'],
             'findings'=>$findings,
-            'budgets'=>$read['budgets'] + ($this->gateway instanceof ApiGateway ? $this->gateway->metrics : [])];
-    }
-
-    public function selectedInterface(string $hostid, string $uid): ?array {
-        if (!EnvelopeValidator::validUid($uid)) {
-            return null;
-        }
-        foreach ($this->build([$hostid])['interfaces'] as $interface) {
-            if ($interface['hostid'] === $hostid && $interface['uid'] === $uid) {
-                return $interface;
-            }
-        }
-        return null;
+            'budgets'=>$read['budgets']];
     }
 
     private function host(array $row): array {
@@ -382,16 +369,18 @@ final class NetworkService {
         }
         $addresses = [];
         foreach ($row['interfaces'] ?? [] as $interface) {
-            if ((int) ($interface['type'] ?? 0) === 2 && (int) ($interface['useip'] ?? 0) === 1) {
+            if ((int) ($interface['type'] ?? 0) === INTERFACE_TYPE_SNMP && (int) ($interface['useip'] ?? 0) === INTERFACE_USE_IP) {
                 $addresses[] = $interface['ip'];
             }
         }
-        // Zabbix marks an SNMP interface unavailable (2) after timeouts; it records no failed value then.
+        // Zabbix marks an SNMP interface unavailable after timeouts; it records no failed value then.
         $available = null;
         foreach ($row['interfaces'] ?? [] as $interface) {
-            if ((int) ($interface['type'] ?? 0) === 2 && isset($interface['available'])) {
+            if ((int) ($interface['type'] ?? 0) === INTERFACE_TYPE_SNMP && isset($interface['available'])) {
                 $state = (int) $interface['available'];
-                $available = $state === 2 ? false : ($state === 1 && $available !== false ? true : $available);
+                $available = $state === INTERFACE_AVAILABLE_FALSE
+                    ? false
+                    : ($state === INTERFACE_AVAILABLE_TRUE && $available !== false ? true : $available);
             }
         }
         $id = (string) $row['hostid'];

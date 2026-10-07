@@ -1,17 +1,36 @@
 """Canonical and future agent contracts; no agent execution/ingestion endpoint."""
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from importlib.resources import files
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+RFC3339 = re.compile(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})")
+FORMATS = FormatChecker()
+
+
+@FORMATS.checks("date-time")
+def is_date_time(value) -> bool:
+    """jsonschema skips date-time unless an optional package is installed; check it without one."""
+    if not isinstance(value, str):
+        return True
+    match = RFC3339.fullmatch(value)
+    if match is None:
+        return False
+    try:
+        datetime(*(int(part) for part in match.groups()))
+    except ValueError:
+        return False
+    return True
+
 
 @lru_cache(maxsize=1)
 def validator():
     schema = json.loads(files("network_explorer").joinpath("envelope.schema.json").read_text(encoding="utf-8"))
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+    return Draft202012Validator(schema, format_checker=FORMATS)
 
 
 def validate_envelope(value: dict) -> None:

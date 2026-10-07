@@ -156,7 +156,7 @@
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://network-explorer.invalid/schema/envelope-1.1.json",
-  "title": "Network Explorer canonical dataset envelope 1.1 (proposed)",
+  "title": "Network Explorer canonical dataset envelope 1.1",
   "$defs": {
     "interfaces": {
       "type": "object",
