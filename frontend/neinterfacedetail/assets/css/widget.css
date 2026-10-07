@@ -50,3 +50,22 @@
 @media print { .ne-widget { max-height: none; overflow: visible; }.ne-widget .ne-toolbar { display: none; }.ne-widget .ne-graph { overflow: visible; } }
 
 .ne-widget button.ne-state-speed_observation,.ne-widget button.ne-state-duplex_observation { border-color: #b37312; border-style: dashed; background: rgba(179,115,18,.07); }
+
+.ne-widget button.ne-vlan-access,.ne-widget button.ne-vlan-native { border-color: #287e3f; background: rgba(40,126,63,.14); }
+.ne-widget button.ne-vlan-tagged { border-color: #2676b9; background: rgba(38,118,185,.12); }
+.ne-widget button.ne-vlan-not_permitted { border-color: #b04444; border-style: dashed; background: rgba(176,68,68,.08); }
+.ne-widget button.ne-vlan-unrelated,.ne-widget button.ne-vlan-unknown,.ne-widget button.ne-lldp-none,.ne-widget button.ne-stp-unknown { opacity: .55; }
+.ne-widget button.ne-stp-forwarding,.ne-widget button.ne-lldp-peer { border-color: #287e3f; background: rgba(40,126,63,.10); }
+.ne-widget button.ne-stp-blocking { border-color: #b04444; background: rgba(176,68,68,.12); }
+.ne-widget button.ne-stp-learning { border-color: #b37312; background: rgba(179,115,18,.10); }
+.ne-widget button.ne-stp-disabled { border-style: dashed; opacity: .75; }
+.ne-widget .ne-edge-vlan-carried { stroke: #287e3f; stroke-width: 4; }
+.ne-widget .ne-edge-vlan-stopped { stroke: #b04444; stroke-dasharray: 3 3; stroke-width: 4; }
+.ne-widget .ne-edge-vlan-unrelated,.ne-widget .ne-edge-vlan-unknown { stroke: #a2adb7; }
+.ne-widget .ne-edge-trace-stop { stroke-width: 7; }
+.ne-widget .ne-edge-stp-blocked { stroke: #b04444; stroke-dasharray: 2 4; }
+.ne-widget .ne-edge-stp-rootpath { stroke: #2676b9; stroke-width: 5; }
+.ne-widget .ne-stp-block-mark { fill: #b04444; font-size: 16px; }
+.ne-widget .ne-node-vlan rect { fill: #e3f2e7; stroke: #287e3f; }
+.ne-widget .ne-node-root rect { stroke: #2676b9; stroke-width: 4; }
+.ne-widget .ne-node-unreachable rect { stroke: #b04444; stroke-dasharray: 5 3; }

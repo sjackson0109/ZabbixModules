@@ -5,6 +5,7 @@ use Zabbix\Widgets\Fields\{CWidgetFieldMultiSelectOverrideHost,CWidgetFieldSelec
 class WidgetForm extends CWidgetForm {
  public function addFields(): self {
   return $this->addField(new CWidgetFieldMultiSelectOverrideHost())
- ->addField((new CWidgetFieldSelect('layout', _('Physical layout'), [0=>_('Automatic'),1=>_('24 port'),2=>_('48 port'),3=>_('Mixed copper / fibre'),4=>_('Stack'),5=>_('Generic rows')]))->setDefault(0));
+ ->addField((new CWidgetFieldSelect('layout', _('Physical layout'), [0=>_('Automatic'),1=>_('24 port'),2=>_('48 port'),3=>_('Mixed copper / fibre'),4=>_('Stack'),5=>_('Generic rows')]))->setDefault(0))
+ ->addField((new CWidgetFieldSelect('layer', _('Default layer'), [0=>_('Physical'),1=>_('VLAN'),2=>_('STP'),3=>_('LLDP')]))->setDefault(0));
  }
 }

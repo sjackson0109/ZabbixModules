@@ -37,6 +37,21 @@ test('peer navigation permits core relative routes and validates highlight conte
  for(const bad of ['javascript:alert(1)','https://attacker.invalid/zabbix.php?action=host.dashboard.view','//attacker.invalid/zabbix.php?action=host.dashboard.view','zabbix.php?action=user.delete'])assert.equal(runtime.safeNavigation(bad),null);
  assert.equal(runtime.fragmentContext('#ne='+encodeURIComponent(JSON.stringify({hostid:'12',uid:'x\n'}))),null);
 });
+test('VLAN roles, link carry and trace follow the spec categories',()=>{
+ const trunk={vlan:{mode:'trunk',pvid:1,carried:'1,10-12',untagged:'1',forbidden:'99'}};
+ assert.equal(runtime.vlanRole(trunk,11),'tagged');assert.equal(runtime.vlanRole(trunk,1),'native');
+ assert.equal(runtime.vlanRole(trunk,99),'not_permitted');assert.equal(runtime.vlanRole(trunk,20),'not_permitted');
+ assert.equal(runtime.vlanRole({vlan:{mode:'access',carried:'49',untagged:'49'}},49),'access');
+ assert.equal(runtime.vlanRole({vlan:{mode:'access',carried:'49',untagged:'49'}},10),'unrelated');
+ assert.equal(runtime.vlanRole({},10),'unknown');
+ assert.deepEqual([...runtime.vlanSet('1,4093-4096,x')],[1,4093,4094]);
+ const edges=[{id:'ab',source:'a',target:'b',vlan:{common:'10',source_only:'',target_only:''}},
+  {id:'bc',source:'b',target:'c',vlan:{common:'',source_only:'10',target_only:''}},{id:'cd',source:'c',target:'d',vlan:{common:'10'}}];
+ assert.equal(runtime.edgeVlanState(edges[0],10),'carried');assert.equal(runtime.edgeVlanState(edges[1],10),'stopped');
+ assert.equal(runtime.edgeVlanState(edges[1],20),'unrelated');assert.equal(runtime.edgeVlanState({},10),'unknown');
+ const trace=runtime.vlanTrace({edges},'a',10);assert.deepEqual(trace.reached,['a','b']);assert.equal(trace.stops.length,1);
+ assert.equal(trace.stops[0].hostid,'c');assert.equal(runtime.stpClass({state:'discarding'}),'blocking');assert.equal(runtime.stpClass(null),'unknown');
+});
 test('CSV exports escape quotes and spreadsheet formulas',()=>{
  const csv=runtime.findingsCsv([{hostid:'1',title:'=HYPERLINK("bad")',rule:'speed',severity:'warning',reason:'comma, "quoted"'}],{hosts:[{hostid:'1',name:'Switch'}]});
  assert.ok(csv.includes('"\'=HYPERLINK(""bad"")"'));assert.ok(csv.includes('"comma, ""quoted"""'));assert.ok(csv.startsWith('\ufeff'));

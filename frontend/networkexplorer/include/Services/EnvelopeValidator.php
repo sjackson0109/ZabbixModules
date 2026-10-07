@@ -6,6 +6,9 @@ namespace Modules\NetworkExplorer\Services;
 final class EnvelopeValidator {
     public const MAX_BYTES = 2097152;
     public const MAX_ROWS = 20000;
+    /** 1.1 adds port_capability, vlan and stp; existing dataset rows are unchanged. */
+    public const SCHEMAS = ['1.0'=>['device','interfaces','lldp','lag'],
+        '1.1'=>['device','interfaces','lldp','lag','port_capability','vlan','stp']];
 
     public function decode(string $value, string $dataset): array {
         if (strlen($value) > self::MAX_BYTES) {
@@ -17,7 +20,8 @@ final class EnvelopeValidator {
         catch (\JsonException $e) {
             throw new \InvalidArgumentException('invalid_json');
         }
-        if (!is_array($envelope) || ($envelope['schema_version'] ?? null) !== '1.0') {
+        $version = is_array($envelope) ? ($envelope['schema_version'] ?? null) : null;
+        if (!is_string($version) || !in_array($dataset, self::SCHEMAS[$version] ?? [], true)) {
             throw new \InvalidArgumentException('unsupported_schema');
         }
         if (($envelope['dataset'] ?? null) !== $dataset
@@ -137,6 +141,15 @@ final class EnvelopeValidator {
                     self::nullableString($row, $field);
                 }
                 self::addresses($row['remote_management_addresses'] ?? []);
+                // 1.1 peer attributes feed expected speed, duplex and native VLAN checks.
+                self::speeds($row['remote_advertised_speeds_bps'] ?? null, 'invalid_lldp_peer');
+                $enabled = $row['capabilities']['enabled'] ?? [];
+                if (!in_array($row['remote_duplex'] ?? null, [null,'half','full','unknown'], true)
+                        || ($row['remote_pvid'] ?? null) !== null && !self::vlanId($row['remote_pvid'])
+                        || !is_array($enabled) || count($enabled) > 16
+                        || array_filter($enabled, static fn($cap) => !is_string($cap) || strlen($cap) > 32)) {
+                    throw new \InvalidArgumentException('invalid_lldp_peer');
+                }
             }
             if ($dataset === 'lag' && (!self::validUid($row['uid'] ?? null)
                     || !is_array($row['member_interface_uids'] ?? null))) {
@@ -150,6 +163,66 @@ final class EnvelopeValidator {
                     }
                 }
             }
+            if ($dataset === 'port_capability') {
+                self::interfaceRef($row, 'uid');
+                foreach (['supported_speeds_bps','advertised_speeds_bps','partner_advertised_speeds_bps'] as $field) {
+                    self::speeds($row[$field] ?? null);
+                }
+                if (isset($row['oper_speed_bps']) && (!is_int($row['oper_speed_bps']) || $row['oper_speed_bps'] < 0)
+                        || isset($row['autoneg_enabled']) && !is_bool($row['autoneg_enabled'])
+                        || isset($row['oper_duplex']) && !in_array($row['oper_duplex'], ['half','full'], true)) {
+                    throw new \InvalidArgumentException('invalid_port_capability');
+                }
+            }
+            if ($dataset === 'vlan') {
+                $kind = $row['kind'] ?? null;
+                if ($kind === 'vlan') {
+                    if (!self::vlanId($row['vlan_id'] ?? null)) {
+                        throw new \InvalidArgumentException('invalid_vlan');
+                    }
+                    self::nullableString($row, 'name');
+                }
+                elseif ($kind === 'port') {
+                    self::interfaceRef($row, 'interface_uid');
+                    if (!in_array($row['mode'] ?? null, ['access','trunk','hybrid','unknown'], true)
+                            || isset($row['pvid']) && !self::vlanId($row['pvid'])) {
+                        throw new \InvalidArgumentException('invalid_vlan');
+                    }
+                    foreach (['tagged','untagged','forbidden','current_egress','current_untagged'] as $field) {
+                        if (isset($row[$field]) && (!is_string($row[$field])
+                                || !preg_match('/^(?:\d{1,4}(?:-\d{1,4})?(?:,\d{1,4}(?:-\d{1,4})?)*)?$/D', $row[$field]))) {
+                            throw new \InvalidArgumentException('invalid_vlan');
+                        }
+                    }
+                }
+                else {
+                    throw new \InvalidArgumentException('invalid_vlan');
+                }
+            }
+            if ($dataset === 'stp') {
+                $kind = $row['kind'] ?? null;
+                if (!in_array($kind, ['bridge','port'], true)
+                        || !is_int($row['instance'] ?? null) || $row['instance'] < 0 || $row['instance'] > 4094) {
+                    throw new \InvalidArgumentException('invalid_stp');
+                }
+                if ($kind === 'port') {
+                    self::interfaceRef($row, 'interface_uid');
+                    if (isset($row['role']) && !in_array($row['role'],
+                            ['root','designated','alternate','backup','disabled','master','unknown'], true)
+                            || isset($row['state']) && !in_array($row['state'],
+                            ['disabled','blocking','listening','learning','forwarding','broken','discarding','unknown'], true)) {
+                        throw new \InvalidArgumentException('invalid_stp');
+                    }
+                }
+                foreach (['bridge_id','root_bridge_id','designated_bridge'] as $field) {
+                    if (isset($row[$field]) && (!is_string($row[$field]) || !preg_match('/^[0-9a-f]{16}$/D', $row[$field]))) {
+                        throw new \InvalidArgumentException('invalid_stp');
+                    }
+                }
+                if (isset($row['root_port_uid']) && !self::validUid($row['root_port_uid'])) {
+                    throw new \InvalidArgumentException('invalid_stp');
+                }
+            }
         }
         return $envelope;
     }
@@ -161,6 +234,31 @@ final class EnvelopeValidator {
     private static function nullableString(array $row, string $field): void {
         if (isset($row[$field]) && (!is_string($row[$field]) || strlen($row[$field]) > 4096)) {
             throw new \InvalidArgumentException('invalid_field_type');
+        }
+    }
+
+    private static function interfaceRef(array $row, string $field): void {
+        // Rows whose interface could not be resolved carry null rather than a guess.
+        if (($row[$field] ?? null) !== null && !self::validUid($row[$field])) {
+            throw new \InvalidArgumentException('invalid_interface_identity');
+        }
+    }
+
+    private static function vlanId($id): bool {
+        return is_int($id) && $id >= 1 && $id <= 4094;
+    }
+
+    private static function speeds($speeds, string $code = 'invalid_port_capability'): void {
+        if ($speeds === null) {
+            return;
+        }
+        if (!is_array($speeds) || count($speeds) > 64) {
+            throw new \InvalidArgumentException($code);
+        }
+        foreach ($speeds as $speed) {
+            if (!is_int($speed) || $speed <= 0) {
+                throw new \InvalidArgumentException($code);
+            }
         }
     }
 

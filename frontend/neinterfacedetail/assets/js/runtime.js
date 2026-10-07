@@ -37,6 +37,71 @@
   const value = port.physical;
   return value === true || value === 'physical' || value === 'true' || value?.state === 'physical';
  }
+ // VLAN ranges arrive as canonical strings such as "1,10-12".
+ function vlanSet(ranges) {
+  const result = new Set();
+  for (const part of String(ranges ?? '').split(',')) {
+   const match = /^(\d{1,4})(?:-(\d{1,4}))?$/.exec(part);
+   if (!match) continue;
+   for (let v = Math.max(1, Number(match[1])); v <= Math.min(4094, Number(match[2] ?? match[1])); v++) result.add(v);
+  }
+  return result;
+ }
+ /** Role of one port in one VLAN: access, tagged, native, not_permitted, unrelated or unknown. */
+ function vlanRole(port, vlan) {
+  const v = port.vlan, n = Number(vlan);
+  if (!v || !n) return 'unknown';
+  const trunk = v.mode === 'trunk' || v.mode === 'hybrid';
+  if (vlanSet(v.forbidden).has(n)) return 'not_permitted';
+  if (!vlanSet(v.carried).has(n)) return trunk ? 'not_permitted' : 'unrelated';
+  if (!trunk) return 'access';
+  return vlanSet(v.untagged).has(n) ? 'native' : 'tagged';
+ }
+ const VLAN_LABELS = {access: '▣ Access (untagged)', tagged: '⇉ Trunk (tagged)', native: '◆ Trunk (native)', not_permitted: '⊘ Not permitted', unrelated: '· Unrelated', unknown: '? No VLAN data'};
+ /** carried: both ends carry it; stopped: the link exists but one end does not; unrelated; unknown. */
+ function edgeVlanState(edge, vlan) {
+  const v = edge.vlan, n = Number(vlan);
+  if (!v) return 'unknown';
+  if (vlanSet(v.common).has(n)) return 'carried';
+  if (vlanSet(v.source_only).has(n) || vlanSet(v.target_only).has(n)) return 'stopped';
+  return 'unrelated';
+ }
+ /** Walks links that carry a VLAN from one switch, and reports each link where it stops. */
+ function vlanTrace(payload, start, vlan) {
+  const n = Number(vlan), reached = new Set([id(start)]), stops = [], queue = [id(start)];
+  const edges = asRows(payload.edges);
+  while (queue.length) {
+   const current = queue.shift();
+   for (const edge of edges) {
+    const ends = [id(edge.source), id(edge.target)];
+    if (!ends.includes(current) || edge.target === null || edge.source === null) continue;
+    const other = ends[0] === current ? ends[1] : ends[0];
+    const state = edgeVlanState(edge, n);
+    if (state === 'carried' && !reached.has(other)) { reached.add(other); queue.push(other); }
+    else if (state === 'stopped' && !reached.has(other)) {
+     const missing = vlanSet(edge.vlan.source_only).has(n) ? 'target' : 'source';
+     stops.push({edge, hostid: id(edge[missing]), uid: edge[missing + '_uid']});
+    }
+   }
+  }
+  return {reached: [...reached], stops};
+ }
+ function stpPort(port, instance = 0) {
+  return asRows(port.stp).find(row => Number(row.instance) === Number(instance)) ?? null;
+ }
+ function stpClass(row) {
+  const state = row?.state;
+  if (state === 'forwarding') return 'forwarding';
+  if (state === 'blocking' || state === 'discarding') return 'blocking';
+  if (state === 'learning' || state === 'listening') return 'learning';
+  if (state === 'disabled' || state === 'broken') return 'disabled';
+  return 'unknown';
+ }
+ function stpLabel(row) {
+  if (!row) return '? No STP data';
+  const marks = {forwarding: '● ', blocking: '⊘ ', learning: '◐ ', disabled: '○ ', unknown: '? '};
+  return `${marks[stpClass(row)]}${text(row.state)} · ${text(row.role)}${row.role_source === 'derived' ? '*' : ''}`;
+ }
  function groupPorts(ports, layout = 'auto') {
   const groups = new Map();
   for (const port of ports.slice().sort((a, b) => natural(a.member, b.member) || natural(a.slot, b.slot) || natural(a.port ?? a.name, b.port ?? b.name))) {
@@ -154,6 +219,9 @@
  function hostName(payload, hostid) { return asRows(payload.hosts).find(h => id(h.hostid) === id(hostid))?.name ?? hostid; }
  function observations(root, payload, hostid) {
   const quality = asRows(payload.quality).filter(q => !hostid || id(q.hostid) === id(hostid));
+  for (const host of asRows(payload.hosts).filter(h => (!hostid || id(h.hostid) === id(hostid)) && h.snmp_available === false)) {
+   notice(root, `${text(host.name)}: the SNMP agent is unreachable. Values shown are the last successful observations.`, 'warning');
+  }
   if (!quality.length) { notice(root, 'No collection timestamps or capability evidence are available.'); return; }
   const summaries = quality.filter(q => ['interfaces','interfaces.inventory','interfaces.state','lldp','lag'].includes(q.dataset));
   if (!hostid && new Set(summaries.map(q => id(q.hostid))).size > 1) {
@@ -172,7 +240,7 @@
  function capabilities(root, payload, hostid) {
   const rows = asRows(payload.quality).filter(q => (!hostid || id(q.hostid) === id(hostid)) && /^(vlan|stp)$/.test(q.dataset));
   const state = dataset => rows.filter(q => q.dataset === dataset).map(q => text(q.capability?.state ?? q.capability)).join(', ') || 'not collected';
-  notice(root, `VLAN: ${state('vlan')}. STP: ${state('stp')}. Their overlays are planned for a later release.`);
+  notice(root, `VLAN collection: ${state('vlan')}. STP collection: ${state('stp')}.`);
  }
  function endpoints(edge) {
   const source = edge.source_endpoint ?? {hostid:edge.source,uid:edge.source_uid};
@@ -207,12 +275,33 @@
    'Member / slot / port': [port.member, port.slot, port.port].map(text).join(' / '),
    'Administrative state': enumValue(port.admin_status), 'Operational state': enumValue(port.oper_status),
    'Observed speed': speed(port.speed_bps), 'Intended speed': speed(port.expected_speed_bps),
-   'Speed policy source': port.expected_speed_source ?? port.policy?.source,
+   'Expected speed source': [port.expected_speed_source ?? port.policy?.source, port.expected_speed_basis].filter(Boolean).join(' · '),
    'Observed at': port.observed_at ?? port.quality?.observed_at, 'Freshness': port.freshness ?? port.quality?.freshness,
    'Duplex': port.duplex, 'MTU': port.mtu, 'MAC address': port.mac_address
   };
   for (const [label,value] of Object.entries(details)) { list.appendChild(el('dt',label));list.appendChild(el('dd',text(value))); }
   root.appendChild(list);
+  const sections = [];
+  if (port.capability) {
+   const c = port.capability, speeds = list => Array.isArray(list) ? (list.length ? list.map(speed).join(', ') : 'None') : 'Unknown';
+   sections.push(['Port capability', {'Auto-negotiation': c.autoneg_enabled === true ? 'Enabled' : c.autoneg_enabled === false ? 'Disabled' : null,
+    'Supported': speeds(c.supported_speeds_bps), 'Advertised': speeds(c.advertised_speeds_bps), 'Partner advertised': speeds(c.partner_advertised_speeds_bps),
+    'Operating (MAU)': `${speed(c.oper_speed_bps)} ${text(c.oper_duplex)}`}]);
+  }
+  if (port.vlan) {
+   const v = port.vlan;
+   sections.push(['VLAN membership', {'Mode': v.mode, 'Native VLAN (PVID)': v.pvid, 'Untagged': v.untagged || 'None', 'Tagged': v.tagged || 'None', 'Forbidden': v.forbidden || 'None'}]);
+  }
+  for (const [title, values] of sections) {
+   root.appendChild(el('h4', title));
+   const dl = el('dl', undefined, 'ne-details');
+   for (const [label, value] of Object.entries(values)) { dl.appendChild(el('dt', label)); dl.appendChild(el('dd', text(value))); }
+   root.appendChild(dl);
+  }
+  if (asRows(port.stp).length) {
+   table(root, [{label: 'Instance', value: r => r.instance}, {label: 'State', value: r => r.state}, {label: 'Role', value: r => `${text(r.role)}${r.role_source === 'derived' ? ' (derived)' : ''}`},
+    {label: 'Cost', value: r => r.cost}, {label: 'Edge port', value: r => r.edge === true ? 'Yes' : r.edge === false ? 'No' : null}], port.stp, 'Spanning tree');
+  }
   const ownHost = asRows(payload.hosts).find(h => id(h.hostid) === id(port.hostid));
   if (ownHost?.dashboard_url) {
    const href = peerUrl(ownHost.dashboard_url,{hostid:port.hostid,uid:port.uid}, 'Interface detail');
@@ -232,25 +321,46 @@
   const hostid=id(payload.scope?.hostid), ports=asRows(payload.interfaces).filter(p=>id(p.hostid)===hostid);
   if(!ports.length){notice(root,'No validated interface observations are available for this host.');return;}
   observations(root,payload,hostid);
-  const legend=el('p','● Up  × Down  ○ Admin disabled  △ Speed / duplex observation  ⚠ Sustained degradation  ? Unknown','ne-legend');root.appendChild(legend);
+  const legends={physical:'● Up  × Down  ○ Admin disabled  △ Speed / duplex observation  ⚠ Sustained degradation  ? Unknown',
+   vlan:Object.values(VLAN_LABELS).join('  '),stp:'● Forwarding  ⊘ Blocking  ◐ Learning  ○ Disabled  ? Unknown  * derived role',lldp:'⇄ LLDP neighbour  · No neighbour'};
+  const legend=el('p',undefined,'ne-legend');root.appendChild(legend);
   const physical=ports.filter(isPhysical), other=ports.filter(p=>!isPhysical(p));
   const toolbar=el('div',undefined,'ne-toolbar'), layout=el('select');layout.setAttribute('aria-label','Physical layout');
   for(const value of ['auto','24','48','mixed','stack','generic']){const option=el('option',{'auto':'Automatic','24':'24 port','48':'48 port','mixed':'Mixed copper / fibre','stack':'Stack','generic':'Generic rows'}[value]);option.value=value;layout.appendChild(option);}
-  layout.value=payload.scope?.layout??'auto';toolbar.appendChild(layout);root.appendChild(toolbar);
+  layout.value=payload.scope?.layout??'auto';toolbar.appendChild(layout);
+  const host=asRows(payload.hosts).find(h=>id(h.hostid)===hostid)??{};
+  const layer=el('select'),vlanPick=el('select'),instancePick=el('select');layer.setAttribute('aria-label','Layer');vlanPick.setAttribute('aria-label','VLAN');instancePick.setAttribute('aria-label','Spanning-tree instance');
+  for(const [value,label] of [['physical','Physical'],['vlan','VLAN'],['stp','STP'],['lldp','LLDP']]){const option=el('option',label);option.value=value;layer.appendChild(option);}
+  const vlanIds=new Set(asRows(host.vlans).map(v=>Number(v.vlan_id)));for(const p of ports)for(const v of vlanSet(p.vlan?.carried))vlanIds.add(v);
+  for(const v of [...vlanIds].sort((a,b)=>a-b)){const named=asRows(host.vlans).find(x=>Number(x.vlan_id)===v);const option=el('option',named?.name?`${v} · ${named.name}`:String(v));option.value=String(v);vlanPick.appendChild(option);}
+  const instances=new Set(asRows(host.stp).map(b=>Number(b.instance)));for(const p of ports)for(const r of asRows(p.stp))instances.add(Number(r.instance));
+  for(const i of [...instances].sort((a,b)=>a-b)){const option=el('option',i===0?'CIST / instance 0':`Instance ${i}`);option.value=String(i);instancePick.appendChild(option);}
+  layer.value=state.layer??payload.scope?.layer??'physical';if(state.vlan)vlanPick.value=state.vlan;if(state.instance)instancePick.value=state.instance;
+  toolbar.append(layer,vlanPick,instancePick);root.appendChild(toolbar);
+  const layerNote=el('p',undefined,'ne-legend');root.appendChild(layerNote);
   const panel=el('div',undefined,'ne-port-panel'), drawer=el('section',undefined,'ne-drawer');drawer.setAttribute('aria-label','Selected interface details');drawer.setAttribute('aria-live','polite');
   const selection=fragmentContext(global.location?.hash);
   let selected=selection?.hostid===hostid?ports.find(p=>id(p.uid)===selection.uid):ports.find(p=>id(p.uid)===state.selected_uid&&id(p.hostid)===state.selected_hostid);
   function select(port,tile){selected=port;state.selected_uid=id(port.uid);state.selected_hostid=id(port.hostid);state.last_broadcast=`${port.hostid}:${port.uid}`;for(const node of panel.querySelectorAll('[aria-pressed]'))node.setAttribute('aria-pressed','false');if(tile)tile.setAttribute('aria-pressed','true');showDetail(drawer,payload,port,broadcast);broadcast(port.hostid,port.itemid);}
+  function tileView(port){
+   if(layer.value==='vlan'){const role=vlanRole(port,vlanPick.value);return {className:`ne-vlan-${role}`,status:VLAN_LABELS[role],extra:port.vlan?.pvid?`PVID ${port.vlan.pvid}`:''};}
+   if(layer.value==='stp'){const row=stpPort(port,instancePick.value||0);return {className:`ne-stp-${stpClass(row)}`,status:stpLabel(row),extra:''};}
+   if(layer.value==='lldp'){const peer=peersFor(payload,port)[0]?.peer;const name=peer?(peer.hostid?hostName(payload,peer.hostid):'External or undisclosed'):'';return {className:peer?'ne-lldp-peer':'ne-lldp-none',status:peer?'⇄ Neighbour':'· No neighbour',extra:name};}
+   return {className:`ne-state-${portState(port)}`,status:stateLabel(port),extra:speed(port.speed_bps)};
+  }
   function draw(){
-   panel.replaceChildren();
+   panel.replaceChildren();state.layer=layer.value;state.vlan=vlanPick.value;state.instance=instancePick.value;
+   vlanPick.hidden=layer.value!=='vlan';instancePick.hidden=layer.value!=='stp';legend.textContent=legends[layer.value];
+   layerNote.textContent=layer.value==='vlan'&&!vlanIds.size?'No VLAN membership has been collected for this host.':layer.value==='stp'&&!instances.size?'No spanning-tree data has been collected for this host.':'';
    if(!physical.length)notice(panel,'No interfaces have confirmed physical-port classification. Use the interface table below; no chassis geometry has been inferred.');
    for(const group of groupPorts(physical,layout.value)){
     const section=el('section',undefined,'ne-port-member');section.appendChild(el('h4',`Member / slot ${group.key}`));
     const grid=el('div',undefined,`ne-port-grid ne-layout-${layout.value}`);grid.setAttribute('role','group');grid.setAttribute('aria-label',`Ports ${group.key}`);
     for(const port of group.ports){
-     const tile=button('',()=>select(port,tile),`ne-port ne-state-${portState(port)}`);tile.dataset.uid=id(port.uid);tile.setAttribute('aria-pressed',selected?.uid===port.uid?'true':'false');
-     tile.setAttribute('aria-label',`${text(port.name)}: ${stateLabel(port)}; ${speed(port.speed_bps)}; ${text(port.description)}`);
-     tile.append(el('span',text(port.port??port.name),'ne-port-number'),el('span',stateLabel(port),'ne-port-status'),el('span',speed(port.speed_bps),'ne-port-speed'));
+     const view=tileView(port);
+     const tile=button('',()=>select(port,tile),`ne-port ${view.className}`);tile.dataset.uid=id(port.uid);tile.setAttribute('aria-pressed',selected?.uid===port.uid?'true':'false');
+     tile.setAttribute('aria-label',`${text(port.name)}: ${view.status}; ${view.extra}; ${text(port.description)}`);
+     tile.append(el('span',text(port.port??port.name),'ne-port-number'),el('span',view.status,'ne-port-status'),el('span',view.extra,'ne-port-speed'));
      tile.addEventListener('keydown',event=>{
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
       event.preventDefault();const buttons=[...grid.querySelectorAll('button')],index=buttons.indexOf(tile),step=event.key==='ArrowLeft'?-1:event.key==='ArrowRight'?1:event.key==='ArrowUp'?-12:12;
@@ -259,7 +369,7 @@
     }section.appendChild(grid);panel.appendChild(section);
    }
   }
-  layout.addEventListener('change',draw);draw();root.append(panel,drawer);
+  for(const control of [layout,layer,vlanPick,instancePick])control.addEventListener('change',draw);draw();root.append(panel,drawer);
   if(selected){showDetail(drawer,payload,selected,broadcast);if(selection?.origin)notice(drawer,`Navigated from ${selection.origin}.`);if(state.last_broadcast!==`${selected.hostid}:${selected.uid}`){broadcast(selected.hostid,selected.itemid);state.last_broadcast=`${selected.hostid}:${selected.uid}`;}}
   const details=el('details');details.appendChild(el('summary',`Interface table (${ports.length}; ${other.length} logical or unclassified)`));
   table(details,[{label:'Interface',value:p=>button(text(p.name),()=>select(p), 'ne-link-button')},{label:'Classification',value:p=>isPhysical(p)?'Physical':p.physical===false?'Logical':'Unknown'},{label:'State',value:stateLabel},{label:'Speed',value:p=>speed(p.speed_bps)},{label:'Description',value:p=>p.description}],ports,'All observed interfaces');root.appendChild(details);
@@ -272,13 +382,35 @@
   if(!hosts.length){notice(root,'No permitted hosts with network observations are available.');return;}
   const toolbar=el('div',undefined,'ne-toolbar'),search=el('input');search.type='search';search.placeholder='Find visible host';search.setAttribute('aria-label','Find visible host');toolbar.appendChild(search);
   let collapse=state.collapse_lag??true;
-  const lagToggle=button('Expand LAG member links',()=>{collapse=!collapse;state.collapse_lag=collapse;lagToggle.textContent=collapse?'Expand LAG member links':'Collapse LAG member links';draw();});toolbar.appendChild(lagToggle);root.appendChild(toolbar);
+  const lagToggle=button('Expand LAG member links',()=>{collapse=!collapse;state.collapse_lag=collapse;lagToggle.textContent=collapse?'Expand LAG member links':'Collapse LAG member links';draw();});toolbar.appendChild(lagToggle);
+  const mode=el('select'),vlanPick=el('select'),tracePick=el('select');mode.setAttribute('aria-label','Overlay');vlanPick.setAttribute('aria-label','VLAN');tracePick.setAttribute('aria-label','Trace VLAN from');
+  for(const [value,label] of [['physical','Physical'],['vlan','VLAN'],['stp','STP']]){const option=el('option',label);option.value=value;mode.appendChild(option);}
+  const vlanNames=new Map();for(const h of hosts)for(const v of asRows(h.vlans))if(!vlanNames.has(Number(v.vlan_id))||v.name)vlanNames.set(Number(v.vlan_id),v.name);
+  for(const v of [...vlanNames.keys()].sort((a,b)=>a-b)){const option=el('option',vlanNames.get(v)?`${v} · ${vlanNames.get(v)}`:String(v));option.value=String(v);vlanPick.appendChild(option);}
+  const none=el('option','No trace');none.value='';tracePick.appendChild(none);
+  for(const h of hosts.filter(h=>asRows(h.vlans).length)){const option=el('option',`Trace from ${text(h.name)}`);option.value=id(h.hostid);tracePick.appendChild(option);}
+  mode.value=state.mode??payload.scope?.mode??'physical';if(state.vlan)vlanPick.value=state.vlan;if(state.trace)tracePick.value=state.trace;
+  toolbar.append(mode,vlanPick,tracePick);root.appendChild(toolbar);
+  const overlayNote=el('div');root.appendChild(overlayNote);
   const graph=el('div',undefined,'ne-graph'),details=el('section',undefined,'ne-drawer');details.setAttribute('aria-label','Topology selection details');root.append(graph,details);
   notice(root,'Solid: confirmed. Dashed: one-sided, ambiguous, external or stale. LAG grouping retains each member link.');
   if(payload.scope?.management_cidr)notice(root,`Management subnet ${payload.scope.management_cidr} is an annotation; permitted connected neighbours outside it remain visible.`);
   const positions=state.positions??=new Map();
   function draw(){
-   graph.replaceChildren();const arranged=graphLayout(hosts,edges,positions),byId=new Map(arranged.map(h=>[id(h.hostid),h]));for(const h of arranged)positions.set(id(h.hostid),{x:h.x,y:h.y});
+   graph.replaceChildren();overlayNote.replaceChildren();state.mode=mode.value;state.vlan=vlanPick.value;state.trace=tracePick.value;
+   vlanPick.hidden=tracePick.hidden=mode.value!=='vlan';
+   const vlan=Number(vlanPick.value),trace=mode.value==='vlan'&&tracePick.value?vlanTrace(payload,tracePick.value,vlan):null;
+   const roots=new Set();for(const h of hosts)if(asRows(h.stp).some(b=>Number(b.instance)===0&&b.is_root))roots.add(id(h.hostid));
+   if(mode.value==='vlan'){
+    if(!vlanNames.size)notice(overlayNote,'No VLAN membership has been collected for the visible switches.');
+    else notice(overlayNote,`Solid: both ends carry VLAN ${vlan}. Red: the physical link exists but one end does not permit VLAN ${vlan}. Grey: neither end carries it.`);
+    if(trace){
+     if(!trace.stops.length)notice(overlayNote,`VLAN ${vlan} reaches ${trace.reached.length} switches from ${text(hostName(payload,tracePick.value))} without stopping at a monitored link.`);
+     for(const stop of trace.stops)notice(overlayNote,`VLAN ${vlan} stops at ${text(hostName(payload,stop.hostid))} port ${text(asRows(payload.interfaces).find(p=>id(p.hostid)===stop.hostid&&id(p.uid)===id(stop.uid))?.name??stop.uid)}: physical link yes, VLAN ${vlan} not permitted.`,'warning');
+    }
+   }
+   if(mode.value==='stp')notice(overlayNote,roots.size?'Root bridge marked ★. Root-port links are highlighted; ⊘ marks a blocking port end.':'No visible switch reports itself as the spanning-tree root.');
+   const arranged=graphLayout(hosts,edges,positions),byId=new Map(arranged.map(h=>[id(h.hostid),h]));for(const h of arranged)positions.set(id(h.hostid),{x:h.x,y:h.y});
    const width=Math.max(500,...arranged.map(h=>h.x+120)),height=Math.max(180,...arranged.map(h=>h.y+75));
    const svg=svgEl('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':`Physical topology, ${arranged.length} permitted devices`});
    let externalCount=0;
@@ -286,16 +418,23 @@
     const a=byId.get(id(edge.source)),b=byId.get(id(edge.target));if(!a&&!b)continue;
     const start=a??b,end=a&&b?b:{x:start.x+85,y:start.y+52};
     const uncertain=!a||!b||edge.freshness==='stale'||edge.confidence==='ambiguous'||!['confirmed','bidirectional','high'].includes(edge.confidence??edge.status);
-    const path=svgEl('line',{x1:start.x,y1:start.y,x2:end.x,y2:end.y,class:`ne-edge${uncertain?' ne-edge-uncertain':''}`,tabindex:0,role:'button','aria-label':`Link ${text(hostName(payload,edge.source))} to ${b?text(hostName(payload,edge.target)):'external or undisclosed peer'}; ${edge.members.length} members; ${text(edge.status)}; ${text(edge.freshness)}`});
-    const select=()=>{details.replaceChildren();details.appendChild(el('h4',`${edge.members.length>1?'LAG member links':'Observed physical link'} · ${text(edge.status)}; confidence ${text(edge.confidence)}`));table(details,[{label:'Local host',value:e=>hostName(payload,e.source)},{label:'Local interface',value:e=>e.source_uid},{label:'Peer',value:e=>hostName(payload,e.target)||'Undisclosed'},{label:'Peer interface',value:e=>e.target_uid},{label:'Freshness',value:e=>e.freshness}],edge.members,'Individual observed members');};
+    let overlay='';
+    if(mode.value==='vlan')overlay=` ne-edge-vlan-${edgeVlanState(edge,vlan)}${trace&&trace.stops.some(s=>edge.members.some(m=>m.id===s.edge.id))?' ne-edge-trace-stop':''}`;
+    if(mode.value==='stp'){const ends=edge.members.map(m=>m.stp).filter(Boolean);overlay=ends.some(s=>s.blocked)?' ne-edge-stp-blocked':ends.some(s=>s.source?.role==='root'||s.target?.role==='root')?' ne-edge-stp-rootpath':'';}
+    const path=svgEl('line',{x1:start.x,y1:start.y,x2:end.x,y2:end.y,class:`ne-edge${uncertain?' ne-edge-uncertain':''}${overlay}`,tabindex:0,role:'button','aria-label':`Link ${text(hostName(payload,edge.source))} to ${b?text(hostName(payload,edge.target)):'external or undisclosed peer'}; ${edge.members.length} members; ${text(edge.status)}; ${text(edge.freshness)}`});
+    const select=()=>{details.replaceChildren();details.appendChild(el('h4',`${edge.members.length>1?'LAG member links':'Observed physical link'} · ${text(edge.status)}; confidence ${text(edge.confidence)}`));table(details,[{label:'Local host',value:e=>hostName(payload,e.source)},{label:'Local interface',value:e=>e.source_uid},{label:'Peer',value:e=>hostName(payload,e.target)||'Undisclosed'},{label:'Peer interface',value:e=>e.target_uid},{label:'VLANs on both ends',value:e=>e.vlan?(e.vlan.common||'None'):'Unknown'},{label:'Native VLAN',value:e=>e.vlan?`${text(e.vlan.source_pvid)} / ${text(e.vlan.target_pvid)}`:'Unknown'},{label:'STP state',value:e=>e.stp?`${text(e.stp.source?.state)} / ${text(e.stp.target?.state)}`:'Unknown'},{label:'Freshness',value:e=>e.freshness}],edge.members,'Individual observed members');};
     path.addEventListener('click',select);path.addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select();}});svg.appendChild(path);
     if(!b){externalCount++;svg.appendChild(svgEl('circle',{cx:end.x,cy:end.y,r:6,class:'ne-external'}));}
     if(edge.members.length>1)svg.appendChild(svgEl('text',{x:(start.x+end.x)/2,y:(start.y+end.y)/2-5,class:'ne-svg-label'},`LAG ×${edge.members.length}`));
+    if(mode.value==='stp'&&a&&b)for(const m of edge.members)for(const side of ['source','target'])if(['blocking','discarding'].includes(m.stp?.[side]?.state)){
+     const near=byId.get(id(m[side])),far=near===a?b:a;if(near)svg.appendChild(svgEl('text',{x:near.x+(far.x-near.x)*.25,y:near.y+(far.y-near.y)*.25,class:'ne-svg-label ne-stp-block-mark'},'⊘'));
+    }
    }
    for(const host of arranged){
     const matching=!search.value||text(host.name).toLowerCase().includes(search.value.toLowerCase());
-    const group=svgEl('g',{transform:`translate(${host.x},${host.y})`,tabindex:0,role:'button','aria-label':`${text(host.name)}${host.out_of_subnet?'; outside management subnet':''}`,class:`ne-node${matching?'':' ne-muted'}${host.out_of_subnet?' ne-node-warning':''}`});
-    group.appendChild(svgEl('rect',{x:-90,y:-25,width:180,height:50,rx:6}));group.appendChild(svgEl('text',{'text-anchor':'middle',y:4},text(host.name).slice(0,26)));group.appendChild(svgEl('title',{},text(host.name)));
+    const carries=mode.value==='vlan'&&asRows(host.vlans).some(v=>Number(v.vlan_id)===vlan),isRoot=mode.value==='stp'&&roots.has(id(host.hostid));
+    const group=svgEl('g',{transform:`translate(${host.x},${host.y})`,tabindex:0,role:'button','aria-label':`${text(host.name)}${host.out_of_subnet?'; outside management subnet':''}${carries?`; has VLAN ${vlan}`:''}${isRoot?'; spanning-tree root':''}${host.snmp_available===false?'; SNMP unreachable':''}`,class:`ne-node${matching?'':' ne-muted'}${host.out_of_subnet?' ne-node-warning':''}${carries?' ne-node-vlan':''}${isRoot?' ne-node-root':''}${host.snmp_available===false?' ne-node-unreachable':''}`});
+    group.appendChild(svgEl('rect',{x:-90,y:-25,width:180,height:50,rx:6}));group.appendChild(svgEl('text',{'text-anchor':'middle',y:4},`${isRoot?'★ ':''}${text(host.name)}`.slice(0,26)));group.appendChild(svgEl('title',{},text(host.name)));
     const select=()=>{details.replaceChildren();details.appendChild(el('h4',text(host.name)));details.appendChild(peerLink(payload,{hostid:host.hostid},'Topology',broadcast));if(host.out_of_subnet)notice(details,'Advertised management addressing is outside the selected subnet.','warning');if(host.addressing?.addresses)notice(details,host.addressing.addresses.map(a=>`${a.address}: ${a.state}`).join('; '));broadcast(host.hostid);};
     group.addEventListener('click',select);group.addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();select();}});svg.appendChild(group);
    }
@@ -303,7 +442,7 @@
    if(hosts.length>300)notice(graph,'The visible topology is capped at 300 nodes. Narrow the scope.','warning');
    if(externalCount)notice(graph,`${externalCount} unresolved endpoint observations. External, restricted and ambiguous peers use undisclosed placeholders.`);
   }
-  search.addEventListener('input',draw);draw();
+  search.addEventListener('input',draw);for(const control of [mode,vlanPick,tracePick])control.addEventListener('change',draw);draw();
   const tabular=el('details');tabular.appendChild(el('summary',`Accessible link table (${edges.length})`));
   table(tabular,[{label:'Device',value:e=>hostName(payload,e.source)},{label:'Local port',value:e=>e.source_uid},{label:'Peer',value:e=>e.target?hostName(payload,e.target):'Undisclosed peer'},{label:'Peer port',value:e=>e.target_uid},{label:'Resolution',value:e=>e.status},{label:'Confidence',value:e=>e.confidence},{label:'Freshness',value:e=>e.freshness}],edges,'Observed physical topology');root.appendChild(tabular);capabilities(root,payload,payload.scope?.hostid);
  }
@@ -344,7 +483,7 @@
   const handlers={ports:renderPorts,topology:renderTopology,detail:renderDetail,quality:renderQuality,findings:renderFindings};
   if(handlers[kind])handlers[kind](root,payload,broadcast,state);
  }
- const runtime={render,speed,portState,isPhysical,groupPorts,graphLayout,groupedEdges,safeNavigation,fragmentContext,peerUrl,findingsCsv};
+ const runtime={render,speed,portState,isPhysical,vlanSet,vlanRole,edgeVlanState,vlanTrace,stpClass,groupPorts,graphLayout,groupedEdges,safeNavigation,fragmentContext,peerUrl,findingsCsv};
  global.NEWidgetRuntime=runtime;
  if(typeof module!=='undefined'&&module.exports)module.exports=runtime;
 })(typeof window!=='undefined'?window:globalThis);
