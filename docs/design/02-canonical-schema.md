@@ -135,7 +135,7 @@ Role and state are separate enums (spec §29). A derived role is labelled as suc
 |---|---|
 | device | read time |
 | LAG ID, LAG name | `uid`, `if_index`, `name` |
-| mode | `mode` (new): `lacp`, `static`, `pagp`, `unknown` |
+| mode | `mode` (new): `lacp` (dot3adAgg row with a partner), `static` (ifType 161 with active ifStackTable members and no dot3adAgg row), `pagp` (reserved for vendor profiles; none emit it yet), `unknown` (no partner, or no members) |
 | member interfaces | `member_interface_uids[]` plus `members[]` (new) with `selected`, `collecting`, `distributing` |
 | operational state | `oper_status` |
 | peer relationship | `actor_system_id`, `partner_system_id`; links grouped at read time from LLDP on member ports |

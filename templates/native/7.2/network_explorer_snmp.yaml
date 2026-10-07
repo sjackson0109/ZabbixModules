@@ -5410,8 +5410,10 @@ zabbix_export:
           };
 
           // IEEE8023-LAG-MIB + IF-MIB ifStackTable walk -> canonical "lag" rows.
-          // LACP aggregators come from dot3adAgg tables; ifType 161 interfaces with
-          // ifStack members but no LACP rows are reported with mode "unknown".
+          // LACP aggregators come from dot3adAgg tables. An ifType 161 interface that
+          // has active ifStack members but no LACP rows is a static bundle; one with no
+          // members at all stays "unknown". An LACP aggregator with no attached ports
+          // falls back to its ifStack members, so an idle LACP bundle still lists them.
 
           var LAG = {
               actor: '1.2.840.10006.300.43.1.1.1.1.4',
@@ -5423,6 +5425,11 @@ zabbix_export:
               actorState: '1.2.840.10006.300.43.1.2.1.1.21'
           };
           var IF_OPER_LAG = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
+
+          function lagMode(source, partner, memberCount) {
+              if (source === 'lacp') { return partner !== null && partner !== '00:00:00:00:00:00' ? 'lacp' : 'unknown'; }
+              return memberCount ? 'static' : 'unknown';
+          }
 
           function normaliseLag(walk, env) {
               var t = {}, key;
@@ -5451,12 +5458,16 @@ zabbix_export:
                   }
                   (members[agg] = members[agg] || []).push(k);
               }
+              var stacked = {};
               for (k in stack) {
                   if (!stack.hasOwnProperty(k)) { continue; }
                   var pair = k.split('.');
-                  if (pair.length === 2 && aggs[pair[0]] === 'unknown' && pair[1] !== '0' && NE.int(stack[k]) === 1) {
-                      (members[pair[0]] = members[pair[0]] || []).push(pair[1]);
+                  if (pair.length === 2 && aggs[pair[0]] && pair[1] !== '0' && NE.int(stack[k]) === 1) {
+                      (stacked[pair[0]] = stacked[pair[0]] || []).push(pair[1]);
                   }
+              }
+              for (k in stacked) {
+                  if (stacked.hasOwnProperty(k) && !members[k]) { members[k] = stacked[k]; }
               }
               if (!hasLacp && !Object.keys(aggs).length) {
                   if (!NE.has(walk, NE.IF.type)) { throw {unsupported: 'The agent returned neither LAG nor interface type tables.'}; }
@@ -5491,7 +5502,7 @@ zabbix_export:
                   rows.push({
                       uid: uid, name: NE.text(names[a] || descrs[a] || null), if_index: list[i],
                       member_interface_uids: memberUids, members: detail,
-                      mode: aggs[a] === 'lacp' && partner !== null && partner !== '00:00:00:00:00:00' ? 'lacp' : 'unknown',
+                      mode: lagMode(aggs[a], partner, memberUids.length),
                       oper_status: IF_OPER_LAG[NE.int(opers[a] || null)] || null,
                       actor_system_id: NE.mac(t.actor[a] || null),
                       partner_system_id: partner === '00:00:00:00:00:00' ? null : partner

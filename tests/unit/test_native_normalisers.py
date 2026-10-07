@@ -143,6 +143,39 @@ def test_lacp_bundle():
     assert all(m["selected"] and m["distributing"] for m in lag["members"])
 
 
+def test_static_bundle_from_ifstack_beside_lacp(validator):
+    envelope = run("ne.raw.lag", WALKS / "sw-dist-02.snmprec")
+    validator.validate(envelope)
+    lags = {row["name"]: row for row in envelope["data"]}
+    assert (lags["Po10"]["mode"], lags["Po20"]["mode"]) == ("lacp", "static")
+    assert lags["Po20"]["member_interface_uids"] == [uid("Te0/4"), uid("Te0/5")]
+    assert lags["Po20"]["partner_system_id"] is None
+    assert all(m["selected"] is None and m["distributing"] is None for m in lags["Po20"]["members"])
+
+
+def test_static_bundle_across_stack_members(validator):
+    envelope = run("ne.raw.lag", WALKS / "sw-stack-01.snmprec")
+    validator.validate(envelope)
+    assert envelope["status"] == "ok"
+    (lag,) = envelope["data"]
+    assert (lag["name"], lag["mode"], lag["if_index"]) == ("Po1", "static", 5001)
+    assert lag["member_interface_uids"] == [uid("Te1/1/1"), uid("Te2/1/1")]
+
+
+def test_aggregator_without_members_is_unknown_not_static(tmp_path):
+    path = walk_file(tmp_path, "ne.raw.lag", WALKS / "sw-stack-01.snmprec",
+                     lambda text: "\n".join(l for l in text.splitlines() if not l.startswith(".1.3.6.1.2.1.31.1.2.1.3.")))
+    (lag,) = run("ne.raw.lag", path)["data"]
+    assert (lag["mode"], lag["member_interface_uids"]) == ("unknown", [])
+
+
+def test_idle_lacp_aggregator_lists_ifstack_members(tmp_path):
+    path = walk_file(tmp_path, "ne.raw.lag", CORE,
+                     lambda text: "\n".join(l for l in text.splitlines() if not l.startswith(".1.2.840.10006.300.43.1.2.1.1.13.")))
+    (lag,) = run("ne.raw.lag", path)["data"]
+    assert (lag["mode"], lag["member_interface_uids"]) == ("lacp", [uid("Te1/0/1"), uid("Te1/0/2")])
+
+
 def test_switch_without_lag_reports_complete_empty(validator):
     envelope = run("ne.raw.lag", ACCESS)
     assert (envelope["status"], envelope["data"]) == ("ok", [])
