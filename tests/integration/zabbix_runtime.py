@@ -253,6 +253,8 @@ def run(version: str, require_frontend: bool = True) -> dict:
         page = frontend(admin_browser, config, "host.dashboard.view", {"hostid": hostids["ne-lab-a"]})
         assert_that("Network Explorer LAB" in page, "Host inherited dashboard does not render.")
         result["checks"].append("host-dashboard-page-renders")
+        assert_that("action=networkexplorer.view" in page, "Monitoring menu has no Network Explorer entry for a permitted user.")
+        result["checks"].append("menu-entry-for-permitted-user")
         for module in ["neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings"]:
             response = json.loads(frontend(admin_browser, config, f"widget.{module}.view", {
                 "name": "Runtime test", "fields": {"override_hostid": [hostids["ne-lab-a"]]}, "templateid": template["templateid"],
