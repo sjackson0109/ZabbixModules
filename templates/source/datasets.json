@@ -1,0 +1,69 @@
+{
+  "comment": "Single source for the native SNMP producers: the template generator and the Node tests both read this file. Each raw walk includes the join columns its normaliser needs.",
+  "datasets": [
+    {
+      "dataset": "device", "template": "Base", "script": "device.js", "call": "normaliseDevice(w, e)",
+      "adapter": "standard-device", "raw_key": "ne.raw.system", "attempt_key": "ne.device.attempt",
+      "snapshot_keys": ["ne.device.snapshot"], "interval_macro": "{$NE.DEVICE.INTERVAL}", "interval": "1h", "stale": "3h",
+      "walk": ["1.3.6.1.2.1.1", "1.3.6.1.2.1.47.1.1.1.1.5", "1.3.6.1.2.1.47.1.1.1.1.7", "1.3.6.1.2.1.47.1.1.1.1.10",
+               "1.3.6.1.2.1.47.1.1.1.1.11", "1.3.6.1.2.1.47.1.1.1.1.13", "1.0.8802.1.1.2.1.3.1", "1.0.8802.1.1.2.1.3.2",
+               "1.0.8802.1.1.2.1.3.8.1.3"]
+    },
+    {
+      "dataset": "interfaces", "template": "Interfaces", "script": "interfaces.js", "call": "normaliseInterfaces(w, e)",
+      "adapter": "standard-if-state", "raw_key": "ne.raw.if.state", "attempt_key": "ne.interfaces.attempt",
+      "snapshot_keys": ["ne.interfaces.state"], "interval_macro": "{$NE.IF.STATE.INTERVAL}", "interval": "1m", "stale": "5m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.1", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.5", "1.3.6.1.2.1.2.2.1.7",
+               "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.2.2.1.9", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.15",
+               "1.3.6.1.2.1.10.7.2.1.19"]
+    },
+    {
+      "dataset": "interfaces", "variant": "inventory", "template": "Interfaces", "script": "interfaces.js", "call": "normaliseInterfaces(w, e)",
+      "adapter": "standard-if-inventory", "raw_key": "ne.raw.if.inventory", "attempt_key": "ne.interfaces.inventory.attempt",
+      "snapshot_keys": ["ne.interfaces.inventory"], "interval_macro": "{$NE.IF.INVENTORY.INTERVAL}", "interval": "1h", "stale": "3h",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.1", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.3", "1.3.6.1.2.1.2.2.1.4",
+               "1.3.6.1.2.1.2.2.1.5", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.2.2.1.9",
+               "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.15", "1.3.6.1.2.1.31.1.1.1.17", "1.3.6.1.2.1.31.1.1.1.18",
+               "1.3.6.1.2.1.31.1.2.1.3", "1.3.6.1.2.1.10.7.2.1.19"]
+    },
+    {
+      "dataset": "port_capability", "template": "Port Capability", "script": "port_capability.js", "call": "normalisePortCapability(w, e)",
+      "adapter": "standard-mau", "raw_key": "ne.raw.if.capability", "attempt_key": "ne.port_capability.attempt",
+      "snapshot_keys": ["ne.port_capability.snapshot"], "interval_macro": "{$NE.PORT_CAPABILITY.INTERVAL}", "interval": "15m", "stale": "45m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.26.2.1.1.3",
+               "1.3.6.1.2.1.26.2.1.1.13", "1.3.6.1.2.1.26.5.1.1.1", "1.3.6.1.2.1.26.5.1.1.10", "1.3.6.1.2.1.26.5.1.1.11"]
+    },
+    {
+      "dataset": "lldp", "template": "LLDP", "script": "lldp.js", "call": "normaliseLldp(w, e, '{$NE.LLDP.REDACT_REMOTE}' === '1')",
+      "adapter": "standard-lldp", "raw_key": "ne.raw.lldp", "attempt_key": "ne.lldp.attempt",
+      "snapshot_keys": ["ne.lldp.snapshot"], "interval_macro": "{$NE.LLDP.INTERVAL}", "interval": "5m", "stale": "15m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18",
+               "1.0.8802.1.1.2.1.3.7.1", "1.0.8802.1.1.2.1.4.1.1", "1.0.8802.1.1.2.1.4.2.1.3",
+               "1.0.8802.1.1.2.1.5.4623.1.3.1.1", "1.0.8802.1.1.2.1.5.4623.1.3.3.1", "1.0.8802.1.1.2.1.5.32962.1.3.1.1.1"]
+    },
+    {
+      "dataset": "vlan", "template": "VLAN", "script": "vlan.js", "call": "normaliseVlan(w, e)",
+      "adapter": "standard-q-bridge", "raw_key": "ne.raw.vlan", "attempt_key": "ne.vlan.attempt",
+      "snapshot_keys": ["ne.vlan.snapshot"], "interval_macro": "{$NE.VLAN.INTERVAL}", "interval": "10m", "stale": "30m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.17.1.4.1.2",
+               "1.3.6.1.2.1.17.7.1.4.3.1", "1.3.6.1.2.1.17.7.1.4.2.1.4", "1.3.6.1.2.1.17.7.1.4.2.1.5",
+               "1.3.6.1.2.1.17.7.1.4.2.1.6", "1.3.6.1.2.1.17.7.1.4.5.1.1", "1.3.6.1.2.1.17.7.1.4.5.1.2"]
+    },
+    {
+      "dataset": "stp", "template": "STP", "script": "stp.js", "call": "normaliseStp(w, e)",
+      "adapter": "standard-bridge-rstp", "raw_key": "ne.raw.stp", "attempt_key": "ne.stp.attempt",
+      "snapshot_keys": ["ne.stp.snapshot"], "interval_macro": "{$NE.STP.INTERVAL}", "interval": "2m", "stale": "6m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.17.1.1",
+               "1.3.6.1.2.1.17.1.4.1.2", "1.3.6.1.2.1.17.2"]
+    },
+    {
+      "dataset": "lag", "template": "LAG", "script": "lag.js", "call": "normaliseLag(w, e)",
+      "adapter": "standard-ieee8023-lag", "raw_key": "ne.raw.lag", "attempt_key": "ne.lag.attempt",
+      "snapshot_keys": ["ne.lag.snapshot"], "interval_macro": "{$NE.LAG.INTERVAL}", "interval": "5m", "stale": "15m",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.3", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1",
+               "1.3.6.1.2.1.31.1.2.1.3", "1.2.840.10006.300.43.1.1.1.1.4", "1.2.840.10006.300.43.1.1.1.1.5",
+               "1.2.840.10006.300.43.1.1.1.1.8", "1.2.840.10006.300.43.1.2.1.1.12", "1.2.840.10006.300.43.1.2.1.1.13",
+               "1.2.840.10006.300.43.1.2.1.1.17", "1.2.840.10006.300.43.1.2.1.1.21"]
+    }
+  ]
+}
