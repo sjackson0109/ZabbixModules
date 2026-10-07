@@ -427,3 +427,25 @@ def test_api_error_messages_are_classified():
                                                    "data": "Not authorised."}})
     with pytest.raises(inv.ApiError):
         inv.unwrap_response("host.get", {"error": {"code": -32500, "message": "Application error."}})
+
+
+def test_existing_output_files_are_made_private(tmp_path):
+    hosts, summary = tmp_path / "hosts.csv", tmp_path / "summary.csv"
+    for path in (hosts, summary):
+        path.write_text("stale")
+        os.chmod(path, 0o644)
+    code, hosts, summary = run(tmp_path, api_fixture())
+    assert code == inv.EXIT_OK
+    for path in (hosts, summary):
+        assert path.stat().st_mode & 0o777 == 0o600
+        assert "stale" not in path.read_text()
+
+
+def test_unwritable_output_is_usage_error_without_traceback(tmp_path, capsys):
+    fixture = write_fixture(tmp_path, api_fixture())
+    missing = tmp_path / "no-such-dir"
+    code = inv.main(["--fixture", str(fixture), "--hosts-out", str(missing / "hosts.csv"),
+                     "--summary-out", str(missing / "summary.csv")])
+    assert code == inv.EXIT_USAGE
+    err = capsys.readouterr().err
+    assert "Traceback" not in err and "could not be written" in err

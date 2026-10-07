@@ -85,6 +85,16 @@ The tool can also read them from environment variables: `NE_SNMP_COMMUNITY`, or
 private `snmp.conf`, so they never appear in the process list, the output or
 the manifest. Any credential text in error messages is replaced by `***`.
 
+SNMPv3 protocols: `auth_protocol` is one of `MD5`, `SHA`, `SHA-224`, `SHA-256`,
+`SHA-384` or `SHA-512`, and `priv_protocol` is one of `DES`, `AES`, `AES-192` or
+`AES-256`. This is wider than the collector, which accepts only the SHA family
+and AES128. The difference is deliberate. A capture is a one-off, read-only walk
+of a device as it is configured today, and the devices you most need to capture
+are often legacy ones that only offer MD5 or DES. The collector keeps
+credentials and polls on every run, so it enforces a stronger floor. Prefer SHA
+and AES whenever the device supports them. If a device only offers MD5 or DES,
+the collector cannot poll it over SNMPv3 until its SNMPv3 user is reconfigured.
+
 ```sh
 python3 tools/inventory/capture_walk.py --host 10.0.0.10 --label cisco-c2960x-15.2-7-E8 \
     --credentials ~/.snmp-ro.json --out-dir captures \
