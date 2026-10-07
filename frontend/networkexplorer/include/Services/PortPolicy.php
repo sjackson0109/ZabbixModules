@@ -35,6 +35,8 @@ final class PortPolicy {
         if (!$adminUp || !$operUp) {
             return $result;
         }
+        // A link can be both slow and mismatched (Appendix A: 100M half against a full-duplex 1G partner).
+        $result['duplex_mismatch'] = ($interface['duplex'] ?? null) === 'half' && ($interface['peer_duplex'] ?? null) === 'full';
         if ($expected !== null && $actual !== null && $actual < $expected) {
             // A snapshot holds a single speed observation and no persistence evidence;
             // the native trigger, not this view, decides whether it is sustained.
@@ -44,9 +46,8 @@ final class PortPolicy {
                     .'; persistence is unconfirmed.']);
         }
         if (($interface['duplex'] ?? null) === 'half') {
-            $mismatch = ($interface['peer_duplex'] ?? null) === 'full';
-            return array_replace($result, ['state'=>'duplex_observation', 'duplex_mismatch'=>$mismatch,
-                'reason'=>$mismatch ? 'Half duplex against a full-duplex peer (from LLDP).'
+            return array_replace($result, ['state'=>'duplex_observation',
+                'reason'=>$result['duplex_mismatch'] ? 'Half duplex against a full-duplex peer (from LLDP).'
                     : 'Half duplex observed; mismatch requires peer or policy evidence.']);
         }
         return array_replace($result, ['state'=>'normal', 'reason'=>$expected === null

@@ -16,7 +16,7 @@ final class Export extends Base {
             $service = new ReportService();
             $rows = $service->rows($network, $report);
             $content = $format === 'csv' ? $service->csv($service->contextualRows($network, $report)) : json_encode([
-                'schema_version'=>'1.0','generated_at'=>$network['generated_at'], 'report'=>$report,
+                'schema_version'=>$network['schema_version'],'generated_at'=>$network['generated_at'], 'report'=>$report,
                 'scope'=>$network['scope'],'coverage'=>$network['quality'],'rows'=>$rows
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
             $data = ['content'=>$content, 'content_type'=>$format === 'csv' ? 'text/csv' : 'application/json',

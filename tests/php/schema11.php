@@ -98,7 +98,7 @@ use Modules\NetworkExplorer\Services\VlanService;
     $host = static fn(string $id, int $available) => ['hostid'=>$id,'host'=>'sw-'.$id,'name'=>'Switch '.$id,
         'tags'=>[['tag'=>'ne.domain','value'=>'d-a']],
         'interfaces'=>[['type'=>2,'useip'=>1,'ip'=>'192.0.2.'.$id,'available'=>$available]], 'macros'=>[]];
-    $gateway->hostRows = [$host('1', 1), $host('2', 1), $host('3', 2)];
+    $gateway->hostRows = [$host('1', 1), $host('2', 1), $host('3', 2), $host('4', 1)];
     $port = static fn(string $uid, string $name, int $speed, string $duplex = 'full') => ['uid'=>$uid,'if_index'=>1,
         'name'=>$name,'physical'=>true,'admin_status'=>'up','oper_status'=>'up','speed_bps'=>$speed,'duplex'=>$duplex];
     $lldp = static fn(string $local, string $remote, array $extra = []) => ['local_interface_uid'=>$local,
@@ -163,6 +163,9 @@ use Modules\NetworkExplorer\Services\VlanService;
     $assert(($rules['stp_root_disagreement'] ?? 0) === 1, 'A switch that sees a different root is flagged.');
     $assert(($rules['stp_topology_change'] ?? 0) === 1, 'A recent topology change is reported.');
 
+    $assert(($rules['snmp_unreachable'] ?? 0) === 1 && !isset($rules['collection_interfaces']),
+        'An unreachable agent is one finding, not one per dataset.');
+    $assert(!isset($hosts['4']), 'A host without Network Explorer items is not part of the network view.');
     $assert($hosts['3']['snmp_available'] === false && $hosts['1']['snmp_available'] === true, 'SNMP availability is exposed.');
     $q = array_column(array_filter($network['quality'], static fn($r) => $r['hostid'] === '3'),null,'dataset');
     $assert($q['interfaces']['status'] === 'failed' && in_array('agent_unreachable',$q['interfaces']['errors'],true),
@@ -170,6 +173,16 @@ use Modules\NetworkExplorer\Services\VlanService;
     $assert($q['interfaces']['attempted_at'] === '2026-10-06T12:00:30Z', 'The inventory attempt counts as an interfaces attempt.');
     $assert(!isset($q['vlan']) && isset($q['stp']), 'Optional datasets are reported only where the host collects them.');
     $assert(!str_contains(json_encode($network), 'macros'), 'Host macros never reach the browser.');
+
+    // Native state walks carry inventory attributes as null; the inventory values survive the merge.
+    $split = new FixtureGateway();
+    $split->add('1','ne.interfaces.inventory',[$envelope('interfaces',[array_replace($port('if-x','Gi1',1000000000),
+        ['alias'=>'Uplink','type'=>6,'mtu'=>1500])])]);
+    $split->add('1','ne.interfaces.state',[$envelope('interfaces',[array_replace($port('if-x','Gi1',100000000),
+        ['alias'=>null,'type'=>null,'physical'=>null,'mtu'=>null])])]);
+    $row = (new DatasetReader($split,$now))->read(['1'=>['hostid'=>'1']])['datasets']['1']['interfaces']['data'][0];
+    $assert($row['physical'] === true && $row['alias'] === 'Uplink' && $row['mtu'] === 1500 && $row['speed_bps'] === 100000000,
+        'State rows refresh operational fields without erasing inventory attributes.');
 
     echo "Schema 1.1, VLAN, STP and expected-speed checks passed ($checks checks).\n";
 })();

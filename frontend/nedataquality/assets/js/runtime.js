@@ -216,6 +216,7 @@
   node.appendChild(body); root.appendChild(node);
   return node;
  }
+ function interfaceName(payload, hostid, uid) { return uid ? asRows(payload.interfaces).find(p => id(p.hostid) === id(hostid) && id(p.uid) === id(uid))?.name ?? uid : null; }
  function hostName(payload, hostid) { return asRows(payload.hosts).find(h => id(h.hostid) === id(hostid))?.name ?? hostid; }
  function observations(root, payload, hostid) {
   const quality = asRows(payload.quality).filter(q => !hostid || id(q.hostid) === id(hostid));
@@ -409,7 +410,8 @@
      for(const stop of trace.stops)notice(overlayNote,`VLAN ${vlan} stops at ${text(hostName(payload,stop.hostid))} port ${text(asRows(payload.interfaces).find(p=>id(p.hostid)===stop.hostid&&id(p.uid)===id(stop.uid))?.name??stop.uid)}: physical link yes, VLAN ${vlan} not permitted.`,'warning');
     }
    }
-   if(mode.value==='stp')notice(overlayNote,roots.size?'Root bridge marked ★. Root-port links are highlighted; ⊘ marks a blocking port end.':'No visible switch reports itself as the spanning-tree root.');
+   if(mode.value==='stp'){const seen=[...new Set(hosts.flatMap(h=>asRows(h.stp).filter(b=>Number(b.instance)===0).map(b=>b.root_bridge_id)))].filter(Boolean);
+    notice(overlayNote,roots.size?'Root bridge marked ★. Root-port links are highlighted; ⊘ marks a blocking port end.':seen.length?`The spanning-tree root (bridge ${seen.join(', ')}) is not a visible switch. Root-port links are highlighted; ⊘ marks a blocking port end.`:'No spanning-tree data has been collected for the visible switches.');}
    const arranged=graphLayout(hosts,edges,positions),byId=new Map(arranged.map(h=>[id(h.hostid),h]));for(const h of arranged)positions.set(id(h.hostid),{x:h.x,y:h.y});
    const width=Math.max(500,...arranged.map(h=>h.x+120)),height=Math.max(180,...arranged.map(h=>h.y+75));
    const svg=svgEl('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':`Physical topology, ${arranged.length} permitted devices`});
@@ -463,14 +465,14 @@
   table(root,[{label:'Host',value:q=>hostName(payload,q.hostid)},{label:'Dataset',value:q=>q.dataset},{label:'Outcome',value:q=>q.status},{label:'Freshness',value:q=>q.freshness},{label:'Capability',value:q=>q.capability?.state??q.capability},{label:'Observed',value:q=>q.observed_at},{label:'Attempted',value:q=>q.attempted_at},{label:'Completeness',value:q=>q.complete===true?'Complete':q.complete===false?'Partial':'Unknown'},{label:'Diagnostics',value:q=>asRows(q.errors).map(e=>typeof e==='string'?e:e.code??e.message).join('; ')||q.reason||(q.status==='ok'?'None reported':'Unknown')}],rows,'Dataset quality and coverage');
  }
  function csvCell(value){const raw=id(value);const safe=/^(?:\s*[=+\-@]|[\t\r\n])/.test(raw)?"'"+raw:raw;return '"'+safe.replaceAll('"','""')+'"';}
- function findingsCsv(rows,payload){const header=['Host','Severity','Rule','Finding','Interface','Evidence'];return '\ufeff'+[header.map(csvCell).join(','),...rows.map(f=>[hostName(payload,f.hostid),f.severity,f.rule,f.title,f.interface_uid,f.reason??f.description].map(csvCell).join(','))].join('\r\n');}
+ function findingsCsv(rows,payload){const header=['Host','Severity','Rule','Finding','Interface','Evidence'];return '\ufeff'+[header.map(csvCell).join(','),...rows.map(f=>[hostName(payload,f.hostid),f.severity,f.rule,f.title,interfaceName(payload,f.hostid,f.interface_uid),f.reason??f.description].map(csvCell).join(','))].join('\r\n');}
  function download(filename,content,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),link=el('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),0);}
  function renderFindings(root,payload,broadcast){
   const rows=asRows(payload.findings),toolbar=el('div',undefined,'ne-toolbar'),search=el('input');search.type='search';search.placeholder='Filter findings';search.setAttribute('aria-label','Filter findings');toolbar.appendChild(search);root.appendChild(toolbar);
   const results=el('div');root.appendChild(results);let visible=rows;
   function draw(){visible=rows.filter(row=>[row.title,row.rule,row.reason,hostName(payload,row.hostid)].join(' ').toLowerCase().includes(search.value.toLowerCase()));results.replaceChildren();
    if(!visible.length){notice(results,rows.length?'No findings match the filter.':'No findings were produced for the available observations. Review dataset quality for missing coverage.');return;}
-   table(results,[{label:'Host',value:f=>button(text(hostName(payload,f.hostid)),()=>broadcast(f.hostid),'ne-link-button')},{label:'Severity',value:f=>f.severity},{label:'Rule',value:f=>f.rule},{label:'Finding',value:f=>f.title},{label:'Interface',value:f=>f.interface_uid},{label:'Evidence / limitation',value:f=>f.reason??f.description}],visible,'Current-state findings');
+   table(results,[{label:'Host',value:f=>button(text(hostName(payload,f.hostid)),()=>broadcast(f.hostid),'ne-link-button')},{label:'Severity',value:f=>f.severity},{label:'Rule',value:f=>f.rule},{label:'Finding',value:f=>f.title},{label:'Interface',value:f=>interfaceName(payload,f.hostid,f.interface_uid)},{label:'Evidence / limitation',value:f=>f.reason??f.description}],visible,'Current-state findings');
   }
   toolbar.appendChild(button('Export filtered CSV',()=>download('network-explorer-findings.csv',findingsCsv(visible,payload),'text/csv;charset=utf-8')));
   toolbar.appendChild(button('Export filtered JSON',()=>download('network-explorer-findings.json',JSON.stringify({generated_at:new Date().toISOString(),scope:payload.scope,findings:visible},null,2),'application/json')));

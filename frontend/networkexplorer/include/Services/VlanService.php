@@ -60,8 +60,9 @@ final class VlanService {
      * Adds a `vlan` summary to each edge whose two ends both report membership, and returns findings.
      * @param array $ports [hostid][uid] => port() view
      * @param array $lldp  [hostid][uid] => LLDP row, for peers without VLAN data of their own
+     * @param array $labels [hostid][uid] => "host port", for finding text
      */
-    public static function link(array &$edges, array $ports, array $lldp): array {
+    public static function link(array &$edges, array $ports, array $lldp, array $labels = []): array {
         $findings = [];
         $covered = [];
         foreach ($edges as &$edge) {
@@ -77,14 +78,22 @@ final class VlanService {
                 'common'=>self::compress(array_values(array_intersect($carriedA, $carriedB))),
                 'source_only'=>self::compress(array_values(array_diff($carriedA, $carriedB))),
                 'target_only'=>self::compress(array_values(array_diff($carriedB, $carriedA)))];
+            $nameA = $labels[$edge['source']][$edge['source_uid']] ?? 'one end';
+            $nameB = $labels[$edge['target']][$edge['target_uid']] ?? 'the other end';
             if ($a['pvid'] !== null && $b['pvid'] !== null && $a['pvid'] !== $b['pvid']) {
                 $findings[] = self::finding('native_vlan_mismatch', 'warning', $edge, 'Native VLAN differs across a link.',
-                    'Native VLAN '.$a['pvid'].' on one end and '.$b['pvid'].' on the other; untagged traffic changes VLAN.');
+                    'Native VLAN '.$a['pvid'].' on '.$nameA.' and '.$b['pvid'].' on '.$nameB.'; untagged traffic changes VLAN.');
             }
             if ($edge['vlan']['source_only'] !== '' || $edge['vlan']['target_only'] !== '') {
+                $parts = [];
+                foreach ([[$edge['vlan']['source_only'], $nameA, $nameB], [$edge['vlan']['target_only'], $nameB, $nameA]]
+                        as [$only, $has, $lacks]) {
+                    if ($only !== '') {
+                        $parts[] = 'VLAN '.self::cap($only).' is carried by '.$has.' but not permitted on '.$lacks;
+                    }
+                }
                 $findings[] = self::finding('vlan_not_carried', 'info', $edge, 'A VLAN stops at this link.',
-                    'Only one end carries VLAN '.self::cap(implode(',', array_filter([$edge['vlan']['source_only'],
-                    $edge['vlan']['target_only']]))).'.');
+                    implode('; ', $parts).'.');
             }
         }
         unset($edge);
