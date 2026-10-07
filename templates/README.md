@@ -1,5 +1,19 @@
 # Network Explorer template work
 
+## Native SNMP templates (generic standard MIB)
+
+`native/<version>/network_explorer_snmp.yaml` holds the first native templates: `Network Explorer - Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG` and the profile `Network Explorer - Profile - Generic standard MIB`, which links them all. Link only the profile to a switch with an SNMP interface. They use standard MIBs only and have been tested against simulated switches, not yet against real devices ([evidence](../lab/VERIFICATION.md)).
+
+They are generated from `source/datasets.json` and `source/js/`. Do not edit the YAML by hand:
+
+```sh
+python templates/generate_snmp.py          # regenerate
+python templates/generate_snmp.py --check  # fail if stale
+node tests/js/run_normaliser.cjs ne.raw.lldp tests/fixtures/walks/sw-core-01.snmprec   # run one normaliser
+```
+
+## Earlier specification and LAB replay
+
 The production deliverable at this stage is an implementation specification. No vendor/model has been qualified: live SNMP access, firmware inventory and representative walks are unavailable. Production SNMP templates will be implemented in separate family-specific work after those inputs are supplied.
 
 Start with [the shared contract](specifications/CONTRACT.md), [discovery](specifications/DISCOVERY.md), and the [family handoff index](specifications/FAMILY_HANDOFFS.md). [The machine-readable contract](contract.json) defines ownership, item keys, macro policy and candidate OIDs. Candidate OIDs identify standard objects to investigate; they do not promise that a particular device exposes them.
