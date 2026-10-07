@@ -192,6 +192,18 @@ use Modules\NetworkExplorer\Services\VlanService;
         'STP counters must be integers.');
     $rejects(fn() => $decode($envelope('stp', [array_replace($bridge, ['protocol'=>'spanning'])])), 'invalid_stp',
         'STP protocol is one of the schema values.');
+    $lag = ['uid'=>'po1','name'=>'Po1','if_index'=>100,'member_interface_uids'=>['if-a','if-b'],'oper_status'=>'up',
+        'actor_system_id'=>null,'partner_system_id'=>null,'mode'=>'lacp',
+        'members'=>[['uid'=>'if-a','selected'=>true,'collecting'=>true,'distributing'=>null,'partner_port'=>3]]];
+    $assert(count($decode($envelope('lag', [$lag]))['data']) === 1, 'A well-formed LAG row with member state is accepted.');
+    foreach ([['members'=>[['uid'=>'<a>','selected'=>true,'collecting'=>true,'distributing'=>true]]],
+            ['members'=>[['uid'=>'if-a','selected'=>'yes','collecting'=>true,'distributing'=>true]]],
+            ['members'=>[['uid'=>'if-a','selected'=>true,'collecting'=>true,'distributing'=>true,'partner_port'=>-1]]],
+            ['members'=>'if-a'], ['mode'=>'bonded'], ['member_interface_uids'=>array_fill(0, 4097, 'if-a')]]
+            as $change) {
+        $rejects(fn() => $decode($envelope('lag', [array_replace($lag, $change)])), 'invalid_lag',
+            'LAG members and mode follow the schema: '.json_encode(array_keys($change)));
+    }
 
     // A VLAN row whose interface is unresolved must never attach to an LLDP edge with an unmapped local port.
     $orphan = VlanService::port(['kind'=>'port','interface_uid'=>null,'mode'=>'trunk','pvid'=>99,'tagged'=>'99',

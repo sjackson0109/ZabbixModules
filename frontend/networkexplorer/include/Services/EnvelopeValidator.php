@@ -6,6 +6,8 @@ namespace Modules\NetworkExplorer\Services;
 final class EnvelopeValidator {
     public const MAX_BYTES = 2097152;
     public const MAX_ROWS = 20000;
+    /** The schema's bound on LAG member lists. */
+    private const MAX_LAG_MEMBERS = 4096;
     /** 1.1 adds port_capability, vlan and stp; existing dataset rows are unchanged. */
     public const SCHEMAS = ['1.0'=>['device','interfaces','lldp','lag'],
         '1.1'=>['device','interfaces','lldp','lag','port_capability','vlan','stp']];
@@ -157,11 +159,7 @@ final class EnvelopeValidator {
             }
             if ($dataset === 'lag') {
                 self::nullableString($row, 'name');
-                foreach ($row['member_interface_uids'] as $uid) {
-                    if (!self::validUid($uid)) {
-                        throw new \InvalidArgumentException('invalid_lag');
-                    }
-                }
+                self::lag($row);
             }
             if ($dataset === 'port_capability') {
                 self::interfaceRef($row, 'uid');
@@ -240,6 +238,31 @@ final class EnvelopeValidator {
 
     public static function validUid($uid): bool {
         return is_string($uid) && (bool) preg_match('/^[A-Za-z0-9_.:-]{1,128}$/D', $uid);
+    }
+
+    /** LAG membership and per-member LACP state, as TopologyService reads them. */
+    private static function lag(array $row): void {
+        $members = $row['members'] ?? [];
+        if (count($row['member_interface_uids']) > self::MAX_LAG_MEMBERS
+                || array_filter($row['member_interface_uids'], static fn($uid) => !self::validUid($uid))
+                || !in_array($row['mode'] ?? null, [null, 'lacp', 'static', 'pagp', 'unknown'], true)
+                || !is_array($members) || count($members) > self::MAX_LAG_MEMBERS) {
+            throw new \InvalidArgumentException('invalid_lag');
+        }
+        foreach ($members as $member) {
+            if (!is_array($member) || !self::validUid($member['uid'] ?? null)) {
+                throw new \InvalidArgumentException('invalid_lag');
+            }
+            foreach (['selected', 'collecting', 'distributing', 'lacp_active'] as $flag) {
+                if (($member[$flag] ?? null) !== null && !is_bool($member[$flag])) {
+                    throw new \InvalidArgumentException('invalid_lag');
+                }
+            }
+            $port = $member['partner_port'] ?? null;
+            if ($port !== null && (!is_int($port) || $port < 0)) {
+                throw new \InvalidArgumentException('invalid_lag');
+            }
+        }
     }
 
     private static function nullableString(array $row, string $field): void {
