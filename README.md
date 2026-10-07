@@ -24,7 +24,7 @@ scripts/setup-dev.sh
 scripts/test-dev.sh
 ```
 
-Set `NE_PYTHON` to a preferred interpreter during setup and `NE_VENV` to use an external virtual environment. See [installation and operations](docs/operations/INSTALL.md) for manual deployment. No apt repository or external frontend CDN is required.
+Set `NE_PYTHON` to a preferred interpreter during setup and `NE_VENV` to use an external virtual environment. See the [deployment guide](docs/operations/DEPLOYMENT_GUIDE.md) for step-by-step installation (Docker frontends, multi-proxy estates, upgrade and rollback) and [installation and operations](docs/operations/INSTALL.md) for the short reference. No apt repository or external frontend CDN is required.
 
 ## Template development
 
