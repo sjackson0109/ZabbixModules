@@ -18,6 +18,7 @@ Status: initial alpha implementation, reviewed 7 October 2026. This is a working
 - PHP: 64 dataset/policy/report/navigation checks and 28 topology/subnet checks passed.
 - JavaScript: seven algorithm/manifest/export checks passed; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks passed.
 - Real Zabbix 7.0.20, 7.2.7 and 7.4.3 labs exercise module registration, replay ingestion, LLD, native graphs, inherited dashboards, ordinary-user permissions, API/report behaviour and malformed/failing collection preservation. See [runtime evidence](../../lab/VERIFICATION.md).
+- Ports are placed by stack member, slot and position from ENTITY-MIB, with media (copper, SFP, SFP+) from the MAU tables; the Port panel shows stack members as tabs and takes its state colours from the widget form.
 - The spec's acceptance walkthrough (amber port, peer navigation, off-subnet switch, VLAN journey, STP root and blocking port, LAG as one link, a restricted viewer, a stopped agent) passes in Chromium against four simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`).
 - Live browser tests exercised inherited dashboards, host/item broadcasts and peer-interface highlighting. These are synthetic lab hosts, not customer switches.
 
