@@ -32,7 +32,7 @@ The step change from today is the integration layer. It currently replays envelo
 | LLDP peer matching | Exists | `test_lldp_uses_subtypes_and_compound_indices_not_localnum_ifindex`, PHP identity checks (chassis, address, domain isolation) |
 | STP state normalisation | Planned | State enum mapping, derived roles (root, designated, alternate), bridge ID formatting, topology-change counter reset after reboot |
 | LAG detection | Exists | `test_standard_lag_member_evidence`, `test_unknown_lag_partner_and_dangling_aggregator_evidence` |
-| | Planned | Static LAG from ifStackTable; LACP member selected/distributing bits |
+| | Exists (synthetic) | Static LAG from ifStackTable beside LACP and across stack members, aggregator with no members stays `unknown`, idle LACP aggregator falls back to ifStack, LACP selected/distributing bits (`test_static_bundle_*`, `test_aggregator_without_members_is_unknown_not_static`, `test_idle_lacp_aggregator_lists_ifstack_members`, `test_lacp_bundle`); LACP or Static shown on links and port details in the lab walkthrough |
 | Inventory tools | Planned in this branch | Secret stripping, capability classification, CSV escaping, walk parser and sanitiser |
 | Canonical schema 1.1 | Exists in this branch | `tests/unit/test_proposed_schema.py` |
 

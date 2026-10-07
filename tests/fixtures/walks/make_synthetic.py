@@ -11,13 +11,15 @@ tools/inventory/capture_walk.py produces for real devices:
                against a 1G-capable partner (the spec's Appendix A journey).
   sw-access-17 48 copper ports; port 48 is the far end of sw-core-01 port 23.
   sw-dist-02   RSTP root; LACP Po10 (Te0/1-2) is the far end of sw-core-01 Po1,
-               Te0/3 links to sw-dist-01.
+               Te0/3 links to sw-dist-01, and static Po20 (Te0/4-5) is the far
+               end of sw-stack-01 Po1.
   sw-dist-01   Management address 10.102.5.10, outside the lab's 10.101.0.0/16;
                Gi0/1 is the far end of sw-core-01 port 24, Te0/2 links to
                sw-dist-02. Its lower bridge priority makes sw-core-01 port 24
                the blocking alternate port of the core/dist triangle.
-  sw-stack-01  Two-member stack, each with 24 copper and 2 SFP+ ports; Te1/1/1
-               links to sw-dist-02 Te0/4. ENTITY-MIB places every port by member,
+  sw-stack-01  Two-member stack, each with 24 copper and 2 SFP+ ports; static
+               Po1 (Te1/1/1 and Te2/1/1, one port per member) links to sw-dist-02.
+               Neither end publishes LACP rows for it, only ifStackTable. ENTITY-MIB places every port by member,
                slot and position, as it does on sw-core-01 and sw-access-17. The
                distribution switches publish no port entities, so their ports stay
                unplaced.
@@ -354,34 +356,40 @@ def access() -> Agent:
 def dist02() -> Agent:
     a = Agent()
     system(a, "sw-dist-02", "Synthetic switch OS 1.2.3, distribution", DIST2_MAC, "10.101.0.2", "SYN-8X", "SYNDIST0002")
-    a.int("1.3.6.1.2.1.2.1.0", 5)
-    for ix in (1, 2, 3, 4):
+    a.int("1.3.6.1.2.1.2.1.0", 7)
+    for ix in (1, 2, 3, 4, 5):
         interface(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}", high_speed=SPEED_10G,
                   mac_addr=f"00:11:22:a2:00:{ix:02x}",
-                  alias={1: "Po10 member", 2: "Po10 member", 3: "To dist-01", 4: "To stack-01"}[ix])
+                  alias={1: "Po10 member", 2: "Po10 member", 3: "To dist-01", 4: "Po20 member", 5: "Po20 member"}[ix])
         mau(a, ix, 33, [33], None, None)
         lldp_local(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}")
     interface(a, 1010, "Po10", "Port-channel10", if_type=161, high_speed=20000, duplex=None, connector=2,
               mac_addr=DIST2_MAC, alias="To core-01")
     for member in (1, 2):
         a.int(f"1.3.6.1.2.1.31.1.2.1.3.1010.{member}", 1)
+    # Static Po20: ifStack only, no dot3ad rows.
+    interface(a, 1020, "Po20", "Port-channel20", if_type=161, high_speed=20000, duplex=None, connector=2,
+              mac_addr=DIST2_MAC, alias="To stack-01")
+    for member in (4, 5):
+        a.int(f"1.3.6.1.2.1.31.1.2.1.3.1020.{member}", 1)
     a.hex("1.3.6.1.2.1.17.1.1.0", mac(DIST2_MAC))
     a.int("1.3.6.1.2.1.17.1.4.1.2.3", 3)
-    a.int("1.3.6.1.2.1.17.1.4.1.2.4", 4)
     a.int("1.3.6.1.2.1.17.1.4.1.2.10", 1010)
+    a.int("1.3.6.1.2.1.17.1.4.1.2.20", 1020)
     for port_num, peer in ((1, "Te1/0/1"), (2, "Te1/0/2")):
         lldp_remote(a, port_num, 1, chassis=CORE_MAC, port=peer, port_desc="Po1 member", sys_name="sw-core-01",
                     address="10.101.1.10", oper_mau=33, aggregated_port=1001, pvid=1)
     lldp_remote(a, 3, 1, chassis=DIST1_MAC, port="Te0/2", port_desc="To dist-02", sys_name="sw-dist-01",
                 address="10.102.5.10", oper_mau=33, pvid=1)
-    lldp_remote(a, 4, 1, chassis=STACK_MAC, port="Te1/1/1", port_desc="To dist-02", sys_name="sw-stack-01",
-                address="10.101.3.1", oper_mau=33, pvid=1)
-    # Bridge ports: 3 is Te0/3, 4 is Te0/4, 10 is Po10. All are trunks with native VLAN 1.
+    for port_num, peer in ((4, "Te1/1/1"), (5, "Te2/1/1")):
+        lldp_remote(a, port_num, 1, chassis=STACK_MAC, port=peer, port_desc="Po1 member", sys_name="sw-stack-01",
+                    address="10.101.3.1", oper_mau=33, aggregated_port=5001, pvid=1)
+    # Bridge ports: 3 is Te0/3, 10 is Po10, 20 is Po20. All are trunks with native VLAN 1.
     vlans(a, {
-        1: ("default", [3, 4, 10], [3, 4, 10], []),
-        49: ("Wireless APs", [3, 4, 10], [], []),
-        50: ("Voice", [3, 4, 10], [], []),
-    }, {3: 1, 4: 1, 10: 1}, size=2)
+        1: ("default", [3, 10, 20], [3, 10, 20], []),
+        49: ("Wireless APs", [3, 10, 20], [], []),
+        50: ("Voice", [3, 10, 20], [], []),
+    }, {3: 1, 10: 1, 20: 1}, size=3)
     # RSTP root: every port is designated and forwarding.
     a.int("1.3.6.1.2.1.17.2.1.0", 3)
     a.int("1.3.6.1.2.1.17.2.2.0", 4096)
@@ -391,7 +399,7 @@ def dist02() -> Agent:
     a.int("1.3.6.1.2.1.17.2.6.0", 0)
     a.int("1.3.6.1.2.1.17.2.7.0", 0)
     a.int("1.3.6.1.2.1.17.2.16.0", 2)
-    for port, cost in ((3, 2000), (4, 2000), (10, 1000)):
+    for port, cost in ((3, 2000), (10, 1000), (20, 1000)):
         stp_port(a, port, 5, cost, ROOT_BRIDGE, port)
     # LACP Po10 to sw-core-01 Po1.
     a.hex("1.2.840.10006.300.43.1.1.1.1.4.1010", mac(DIST2_MAC))
@@ -449,7 +457,7 @@ def stack() -> Agent:
     a = Agent()
     system(a, "sw-stack-01", "Synthetic switch OS 1.2.3, 2-member stack", STACK_MAC, "10.101.3.1", "SYN-24T-2X",
            "SYNSTK0001", units=2)
-    a.int("1.3.6.1.2.1.2.1.0", 52)
+    a.int("1.3.6.1.2.1.2.1.0", 53)
     a.hex("1.3.6.1.2.1.17.1.1.0", mac(STACK_MAC))
     up = {1: (1, 2, 3, 4, 5, 6), 2: (1, 2, 3, 4)}
     access49 = {1: (1, 2, 3), 2: (1, 2)}
@@ -467,27 +475,36 @@ def stack() -> Agent:
             bridge[bp] = (ix, name, oper, p in access49[unit])
         for n in (1, 2):
             ix, bp, name = 1000 * unit + 50 + n, 26 * (unit - 1) + 24 + n, f"Te{unit}/1/{n}"
-            oper = 1 if (unit, n) == (1, 1) else 2
+            oper = 1 if n == 1 else 2
             interface(a, ix, name, f"TenGigabitEthernet{unit}/1/{n}", oper=oper, high_speed=SPEED_10G,
-                      mac_addr=f"00:11:22:5{unit}:01:{n:02x}", alias="To dist-02" if oper == 1 else "")
+                      mac_addr=f"00:11:22:5{unit}:01:{n:02x}", alias="Po1 member" if oper == 1 else "")
             # An empty SFP+ cage reports no operating MAU; its supported types still say SFP+.
             mau(a, ix, 33 if oper == 1 else None, [33], None, None)
             port_entity(a, 10000 * unit + 100 + n, 10 * unit + 1, n, ix, name)
             bridge[bp] = (ix, name, oper, False)
+    # Static Po1 bundles Te1/1/1 and Te2/1/1 across both members; it, not its members, is bridge port 60.
+    interface(a, 5001, "Po1", "Port-channel1", if_type=161, high_speed=20000, duplex=None, connector=2,
+              mac_addr=STACK_MAC, alias="To dist-02")
+    for member in (1051, 2051):
+        a.int(f"1.3.6.1.2.1.31.1.2.1.3.5001.{member}", 1)
+    members = [bp for bp, row in bridge.items() if row[0] in (1051, 2051)]
     for bp, (ix, name, _, _) in bridge.items():
-        a.int(f"1.3.6.1.2.1.17.1.4.1.2.{bp}", ix)
+        if bp not in members:
+            a.int(f"1.3.6.1.2.1.17.1.4.1.2.{bp}", ix)
         lldp_local(a, bp, name, name.replace("Gi", "GigabitEthernet").replace("Te", "TenGigabitEthernet"))
-    lldp_remote(a, 25, 1, chassis=DIST2_MAC, port="Te0/4", port_desc="To stack-01", sys_name="sw-dist-02",
-                address="10.101.0.2", oper_mau=33, pvid=1)
-    # Bridge port 25 (Te1/1/1) trunks 49 and 50 with native VLAN 1; access ports are in 49 or 1.
+    a.int("1.3.6.1.2.1.17.1.4.1.2.60", 5001)
+    for bp, peer in zip(members, ("Te0/4", "Te0/5")):
+        lldp_remote(a, bp, 1, chassis=DIST2_MAC, port=peer, port_desc="Po20 member", sys_name="sw-dist-02",
+                    address="10.101.0.2", oper_mau=33, aggregated_port=1020, pvid=1)
+    # Bridge port 60 (Po1) trunks 49 and 50 with native VLAN 1; access ports are in 49 or 1.
     ap = [bp for bp, row in bridge.items() if row[3]]
-    rest = [bp for bp, row in bridge.items() if not row[3] and bp != 25]
+    rest = [bp for bp, row in bridge.items() if not row[3] and bp not in members]
     vlans(a, {
-        1: ("default", rest + [25], rest + [25], []),
-        49: ("Wireless APs", ap + [25], ap, []),
-        50: ("Voice", [25], [], []),
-    }, {**{bp: 1 for bp in rest + [25]}, **{bp: 49 for bp in ap}}, size=8)
-    # RSTP: root (dist-02) through Te1/1/1; up copper ports are designated edge ports.
+        1: ("default", rest + [60], rest + [60], []),
+        49: ("Wireless APs", ap + [60], ap, []),
+        50: ("Voice", [60], [], []),
+    }, {**{bp: 1 for bp in rest + [60]}, **{bp: 49 for bp in ap}}, size=8)
+    # RSTP: root (dist-02) through Po1; up copper ports are designated edge ports.
     own = (32768).to_bytes(2, "big") + mac(STACK_MAC)
     a.int("1.3.6.1.2.1.17.2.1.0", 3)
     a.int("1.3.6.1.2.1.17.2.2.0", 32768)
@@ -495,12 +512,12 @@ def stack() -> Agent:
     a.int("1.3.6.1.2.1.17.2.4.0", 2)
     a.hex("1.3.6.1.2.1.17.2.5.0", ROOT_BRIDGE)
     a.int("1.3.6.1.2.1.17.2.6.0", 2000)
-    a.int("1.3.6.1.2.1.17.2.7.0", 25)
+    a.int("1.3.6.1.2.1.17.2.7.0", 60)
     a.int("1.3.6.1.2.1.17.2.16.0", 2)
     for bp, (_, _, oper, _) in bridge.items():
-        if oper == 1 and bp != 25:
+        if oper == 1 and bp not in members:
             stp_port(a, bp, 5, 20000, own, bp, edge=True)
-    stp_port(a, 25, 5, 2000, ROOT_BRIDGE, 4)
+    stp_port(a, 60, 5, 1000, ROOT_BRIDGE, 20)
     return a
 
 

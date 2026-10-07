@@ -88,3 +88,9 @@ The lab adds sw-stack-01, a two-member stack (24 copper and 2 SFP+ ports per mem
 A Port panel configured with custom normal and down colours drew its ports in those colours, and its edit form showed working colour pickers on all three versions (7.0 and 7.2 use the jQuery picker; 7.4 its own).
 
 The first 7.0 run found that stack positions never reached Zabbix: the generator folded a long script line inside a regex, and Zabbix's YAML import adds a space at each escaped fold. Scripts are now written as literal blocks, and a unit test rejects folded or quoted multi-line scalars.
+
+## Static LAGs from ifStackTable (7 October 2026)
+
+sw-stack-01 now reaches sw-dist-02 over a static bundle: Po1 on the stack holds Te1/1/1 and Te2/1/1 (one port on each member), and Po20 on sw-dist-02 holds Te0/4 and Te0/5. Neither end publishes dot3adAgg rows for it, only ifType 161 and ifStackTable, while sw-dist-02's LACP Po10 stays beside it. The LAG normaliser reports such a bundle as `static`; an aggregator with no active members stays `unknown`.
+
+On 7.0.20, 7.2.7 and 7.4.3, all five switches polled with no unsupported items and the acceptance walkthrough passed nine steps plus the stopped-agent step, with no browser errors. The topology labels the two bundles "LAG ×2 · LACP" and "LAG ×2 · Static", expanding them shows seven member links, and selecting Te2/1/1 on the stack's Port panel reads "LAG Po1 · Static · 2 observed members." The port detail previously printed an undefined `protocol` field for every LAG; it now shows the mode.
