@@ -10,7 +10,7 @@ import tarfile
 import io
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.0-alpha.1"
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 EXCLUDED = {"__pycache__", ".pytest_cache", ".venv", ".lab", "node_modules", ".git", "build", "dist"}
 
 
@@ -56,12 +56,14 @@ def main():
     packages = {
         "frontend": [ROOT / "frontend"],
         "collector": [ROOT / "collector", ROOT / "schemas"],
+        "templates": [ROOT / "templates/native", ROOT / "schemas", ROOT / "dashboards"],
         "template-specifications": [ROOT / "templates/specifications", ROOT / "templates/contract.json",
             ROOT / "templates/profiles", ROOT / "schemas", ROOT / "dashboards"],
     }
     records = [archive(args.output / f"network-explorer-{name}-{VERSION}.tar", paths) for name, paths in packages.items()]
-    manifest = {"version": VERSION, "stage": "alpha", "packages": records,
-                "note": "Vendor templates require later model qualification. Lab replay templates are test-only."}
+    manifest = {"version": VERSION, "stage": "pre-release" if "-" in VERSION else "release", "packages": records,
+                "note": "The standard-MIB templates are generic; vendor/model qualification is separate. "
+                        "Lab replay templates are test-only and are not packaged."}
     (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (args.output / "SHA256SUMS").write_text("".join(f"{r['sha256']}  {r['file']}\n" for r in records))
     print(json.dumps(manifest, indent=2))

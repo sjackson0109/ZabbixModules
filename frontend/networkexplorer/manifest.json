@@ -3,7 +3,7 @@
   "id": "networkexplorer",
   "name": "Network Explorer",
   "namespace": "NetworkExplorer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "author": "Network Explorer contributors",
   "description": "Permission-aware network investigation, dataset services and current-state exports.",
