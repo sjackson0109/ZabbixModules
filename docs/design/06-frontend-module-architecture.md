@@ -34,6 +34,10 @@ Browser widget ──▶ widget view action (PHP, current user session)
 
 This answers open decision 14: the frontend reads **dedicated structured items** (the canonical snapshots) through the user's own session. It does not query SNMP or call the API with a privileged token (spec §30, §37). Every request re-authorises; there is no shared cache across users.
 
+Every widget refresh runs a full `NetworkService::build()` for its scope. That is deliberate for 1.0. The work is bounded by `Limits` (300 hosts, 50,000 items, 64 MiB of history), and the 300-switch synthetic fixture builds in about 1.5 s and renders in under 0.2 s (`tests/perf`). A cache would have to be keyed per user and per scope to keep permissions exact, and would show stale state after a link change. Revisit this with a short per-user scope cache, or a single-host read for the Port Panel, if a real estate measures slower than the refresh interval.
+
+Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interface_uid`, `edge_id`, `severity`, `rule`, `title`, `reason`) and one ID, a SHA-256 over rule, host, interface and link, so an ID stays stable across refreshes.
+
 ## Changes needed
 
 ### Port Panel
@@ -67,7 +71,7 @@ Unchanged and already tested: the peer link opens the peer's host dashboard with
 
 ### Maintainability
 
-`runtime.js` and `widget.css` are identical across all five widgets. Move the single source to `frontend/shared/` and have `scripts/package.py` copy it into each widget at build time. The existing test that checks the copies match stays as a packaging check.
+`runtime.js` and `widget.css` have one source in `src/widget/`. Zabbix serves a module's assets only from its own directory, so `scripts/sync_widget_assets.py` copies them into each widget; the copies are committed, and the dev checks, CI and a Node test fail if any copy drifts. Edit the source, then run the script.
 
 ## Native widgets reused
 

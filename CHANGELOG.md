@@ -7,11 +7,26 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ### Added
 - Continuous integration for the Python, Node and PHP checks, on PHP 8.0 and 8.3 and Python 3.10 and 3.12.
 - A `templates` release package with the native standard-MIB templates, schemas and dashboard recipes.
-- A single `VERSION` file, with a test that keeps every module manifest and the collector in step.
+- A single `VERSION` file, with a test that keeps every module manifest, the collector and the template normalisers in step.
+- A Duktape compile check for every JavaScript step in the native and LAB templates.
+- 25G, 40G and 100G media types in the MAU capability table.
+- Validation of LAG member state and mode.
 
 ### Changed
 - Schema 1.1 moved from `schemas/proposed/` to `schemas/`; it is the current schema, and 1.0 is still accepted.
 - The collector names the exception class on stderr when a collection fails unexpectedly, and checks timestamps without optional packages.
+- Widgets show a message instead of reading data when the Network Explorer module is disabled; the menu entry appears only for users who can open the page.
+- The widget runtime and stylesheet have one source in `src/widget/`; topology search dims nodes instead of redrawing, and SVG colours follow the dark theme.
+- Every finding has the same fields and one stable ID scheme.
+- A normaliser error now produces a failed envelope instead of no envelope.
+- The LAB replay templates discard failed collections the same way as the native templates.
+- The restart trigger ignores the 497-day `sysUpTime` wrap.
+- Collector runtime dependencies are pinned by hash.
+
+### Fixed
+- A VLAN row without an interface no longer attaches to LLDP links with an unmapped local port.
+- The CSV formula guard also applies to text that is not valid UTF-8.
+- A failed inventory read is no longer reported as stale inventory.
 
 ## 1.0.0 scope
 
