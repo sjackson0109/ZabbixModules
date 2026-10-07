@@ -83,6 +83,7 @@ def test_dashboard_template_is_current_and_holds_only_the_dashboard(version):
     assert "items" not in template and "templates" not in template
     kinds = {w["type"] for page in template["dashboards"][0]["pages"] for w in page["widgets"]}
     assert kinds == {"neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings"}
+    assert template["dashboards"][0]["auto_start"] == "NO"  # pages are tabs, not a slideshow
 
 
 def test_uuids_are_unique_v4_and_keys_unique_per_template():

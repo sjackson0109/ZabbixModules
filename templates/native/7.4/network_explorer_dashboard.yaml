@@ -20,6 +20,7 @@ zabbix_export:
     dashboards:
     - uuid: 752b6b17ee1746bbaffe6768129b9dbc
       name: Network Explorer
+      auto_start: 'NO'
       pages:
       - name: Ports
         widgets:

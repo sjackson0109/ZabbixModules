@@ -44,7 +44,7 @@
 .ne-widget .ne-edge-uncertain { stroke-dasharray: 6 4; }
 .ne-widget .ne-edge:focus { stroke: #387ac4; stroke-width: 5; }
 .ne-widget .ne-external { fill: #a2adb7; }
-.ne-widget .ne-svg-label { fill: #607080; font-size: 12px; }
+.ne-widget .ne-svg-label { fill: #607080; font-size: 12px; text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
 .ne-widget .ne-muted { opacity: .3; }
 @media(max-width:800px) { .ne-widget .ne-port-grid { grid-template-columns: repeat(6,minmax(45px,1fr)); } }
 @media print { .ne-widget { max-height: none; overflow: visible; }.ne-widget .ne-toolbar { display: none; }.ne-widget .ne-graph { overflow: visible; } }

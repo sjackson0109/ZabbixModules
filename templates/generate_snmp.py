@@ -316,7 +316,8 @@ def build_dashboard(version: str) -> dict:
                 "vendor": {"name": "Network Explorer", "version": VERSION},
                 "groups": [{"name": GROUP}],
                 "tags": [{"tag": "component", "value": "network-explorer"}],
-                "dashboards": [{"uuid": uid("dashboard:" + DASHBOARD), "name": "Network Explorer", "pages": pages}]}
+                "dashboards": [{"uuid": uid("dashboard:" + DASHBOARD), "name": "Network Explorer",
+                                "auto_start": "NO", "pages": pages}]}
     return {"zabbix_export": {"version": version, "template_groups": [{"uuid": uid("group:" + GROUP), "name": GROUP}],
                               "templates": [template]}}
 
