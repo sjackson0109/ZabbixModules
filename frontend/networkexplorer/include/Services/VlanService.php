@@ -66,8 +66,12 @@ final class VlanService {
         $findings = [];
         $covered = [];
         foreach ($edges as &$edge) {
-            $a = $ports[$edge['source'] ?? ''][$edge['source_uid'] ?? ''] ?? null;
-            $b = $ports[$edge['target'] ?? ''][$edge['target_uid'] ?? ''] ?? null;
+            // An end whose local port is unresolved has no VLAN membership to compare.
+            if (!is_string($edge['source_uid'] ?? null) || !is_string($edge['target_uid'] ?? null)) {
+                continue;
+            }
+            $a = $ports[$edge['source']][$edge['source_uid']] ?? null;
+            $b = $ports[$edge['target']][$edge['target_uid']] ?? null;
             if ($a === null || $b === null) {
                 continue;
             }

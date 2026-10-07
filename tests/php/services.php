@@ -212,6 +212,7 @@ final class FixtureGateway implements DataGateway {
     $reports = new ReportService();
     $csv = $reports->csv([['name'=>' =HYPERLINK("https://example.test")','detail'=>"line1\nline2",'negative'=>'-1']]);
     $assert(str_contains($csv,"' =HYPERLINK") && str_contains($csv,"'-1"), 'CSV formula and whitespace injection defended.');
+    $assert(str_contains($reports->csv([['name'=>"=1+1\xff"]]), "'=1+1"), 'CSV formulas are escaped even in invalid UTF-8.');
     $stream = fopen('php://temp','w+'); fwrite($stream,$csv); rewind($stream); fgetcsv($stream,0,',','"','');
     $row = fgetcsv($stream,0,',','"',''); fclose($stream);
     $assert($row[1] === "line1\nline2", 'CSV preserves multiline data correctly.');
