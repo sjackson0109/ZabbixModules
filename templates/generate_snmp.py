@@ -9,12 +9,15 @@ composes it, so the code tested in Node is the code Zabbix runs.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
+import sys
 import uuid
 
-import yaml
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _common  # noqa: E402
+from _common import (COLLECTION_STATUS, IF_STATUS, IF_STATUS_CONVERT, IF_STATUS_MAP, STATUS_MAP,  # noqa: E402
+                     VERSION, dump, interface_scalar, js, read_text, widget, write_outputs)
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "source"
@@ -22,14 +25,11 @@ GROUP = "Templates/Network Explorer"
 PREFIX = "Network Explorer - "
 PROFILE = PREFIX + "Profile - Generic standard MIB"
 DASHBOARD = PREFIX + "Host dashboard"
-VERSION = "0.2.0"
 FAILED = "__NE_COLLECTION_FAILED__"
-DISCARD = "__NE_DISCARD__"
 SCHEMA = "1.1"
 NAMESPACE = uuid.UUID("5b0f8e0a-6f0e-4a55-9d0c-2a7f3c1e9b44")
-STATUS_MAP = "Network Explorer collection status"
-IF_STATUS_MAP = "Network Explorer interface status"
-IF_STATUS = {"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}
+# sysUpTime is a 32-bit TimeTicks counter (1/100 s), so the uptime in seconds wraps after 2**32 / 100 s (~497 days).
+UPTIME_WRAP_S = 2**32 // 100
 TEMPLATE_DESCRIPTION = {
     "Base": "Device identity, chassis and stack members (SNMPv2-MIB, ENTITY-MIB, LLDP local system).",
     "Interfaces": "Interface inventory and state (IF-MIB, ifXTable, EtherLike) with interface discovery.",
@@ -42,18 +42,16 @@ TEMPLATE_DESCRIPTION = {
 
 
 def uid(name: str) -> str:
-    # Zabbix imports require v4-shaped UUIDs. Hashing keeps ownership reproducible.
-    digest = hashlib.sha256(NAMESPACE.bytes + name.encode("utf-8")).digest()[:16]
-    return uuid.UUID(bytes=digest, version=4).hex
+    return _common.uid(NAMESPACE, name)
 
 
 def manifest() -> list[dict]:
-    return json.loads((SOURCE / "datasets.json").read_text())["datasets"]
+    return json.loads(read_text(SOURCE / "datasets.json"))["datasets"]
 
 
 def compose(entry: dict) -> str:
     """Same composition as tests/js/run_normaliser.cjs."""
-    read = lambda name: (SOURCE / "js" / name).read_text()  # noqa: E731
+    read = lambda name: read_text(SOURCE / "js" / name)  # noqa: E731
     return "\n".join([read("lib.js"), read(entry["script"]),
                       f"return JSON.stringify(NE.run('{entry['dataset']}', '{entry['adapter']}', value, "
                       f"function (w, e) {{ return {entry['call']}; }}));"])
@@ -67,19 +65,8 @@ def stale_macro(entry: dict) -> str:
     return entry["interval_macro"].replace(".INTERVAL}", ".STALE}")
 
 
-def js(script: str, discard: bool = False) -> list[dict]:
-    """A JavaScript step. Zabbix offers no custom on-fail for JavaScript (an import silently drops it), so a
-    discarding gate returns a sentinel that the following regular-expression step discards."""
-    if not discard:
-        return [{"type": "JAVASCRIPT", "parameters": [script]}]
-    wrapped = ("try { return (function (value) {\n" + script + "\n})(value); } catch (error) { return '" + DISCARD + "'; }")
-    return [{"type": "JAVASCRIPT", "parameters": [wrapped]},
-            {"type": "NOT_MATCHES_REGEX", "parameters": ["^" + DISCARD + "$"], "error_handler": "DISCARD_VALUE"}]
-
-
 def tags(dataset: str) -> list[dict]:
-    return [{"tag": "component", "value": "network-explorer"}, {"tag": "dataset", "value": dataset},
-            {"tag": "data_source", "value": "native-snmp"}]
+    return _common.tags(dataset, "native-snmp")
 
 
 def dependent(key: str, name: str, dataset: str, master: str, script: str, *, value_type: str = "TEXT",
@@ -97,17 +84,7 @@ def dependent(key: str, name: str, dataset: str, master: str, script: str, *, va
 
 def gate(dataset: str, then: str = "return value;") -> str:
     """Throws (and the item discards the value) unless the envelope is a complete observation."""
-    identity = ""
-    if dataset == "interfaces":
-        identity = ("var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];"
-                    "if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||"
-                    "Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||"
-                    "r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';"
-                    "seen[r.uid]=true;} ")
-    return (f"var e=JSON.parse(value); if(e.schema_version!=='{SCHEMA}'||e.dataset!=='{dataset}'||e.status!=='ok'||"
-            "e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; "
-            "if(typeof e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; "
-            + identity + then)
+    return _common.gate(SCHEMA, dataset, then)
 
 
 def raw_item(entry: dict) -> dict:
@@ -132,8 +109,7 @@ def producer_items(entry: dict, template: str) -> list[dict]:
         items.append(dependent(key, f"Last complete snapshot: {name}", dataset, attempt, gate(dataset), discard=True,
                                description="Updated only by complete, successful observations."))
     status = dependent(f"ne.collection.status[{name}]", f"Collection status: {name}", dataset, attempt,
-                       "var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; "
-                       "if(m[s]===undefined) throw 'Unknown status'; return m[s];",
+                       COLLECTION_STATUS,
                        value_type="UNSIGNED", history="31d", trends="0", valuemap={"name": STATUS_MAP})
     success = dependent(f"ne.collection.success[{name}]", f"Last complete observation: {name}", dataset, attempt,
                         gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
@@ -151,27 +127,25 @@ def producer_items(entry: dict, template: str) -> list[dict]:
 
 
 def interface_discovery(template: str) -> dict:
-    def scalar(field: str, unknown: str, convert: str = "") -> str:
-        # An unknown fact is a value (so the item stays supported); only an absent interface is discarded.
-        return ("var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['"
-                + field + "']; if(v===null||v===undefined) return " + unknown + ";" + convert
-                + " return v;}} throw 'Interface absent; retain last observed value';")
-
-    status = "var m=" + json.dumps(IF_STATUS) + "; v=m[v]===undefined?4:m[v];"
+    # An unknown fact is a value (so the item stays supported); only an absent interface is discarded.
     prototypes = []
     for field, key, label, value_type, unknown, convert in (
-        ("oper_status", "ne.if.oper", "operational status", "UNSIGNED", "4", status),
-        ("admin_status", "ne.if.admin", "administrative status", "UNSIGNED", "4", status),
+        ("oper_status", "ne.if.oper", "operational status", "UNSIGNED", "4", IF_STATUS_CONVERT),
+        ("admin_status", "ne.if.admin", "administrative status", "UNSIGNED", "4", IF_STATUS_CONVERT),
         ("speed_bps", "ne.if.speed", "negotiated speed (0 = unknown)", "UNSIGNED", "0", ""),
         ("duplex", "ne.if.duplex", "duplex", "CHAR", "'unknown'", ""),
     ):
-        extra = {"trends": "0"} if value_type == "UNSIGNED" else {}
         if field.endswith("status"):
-            extra["valuemap"] = {"name": IF_STATUS_MAP}
-        if field == "speed_bps":
+            # Enumerations: trends of a status code are meaningless.
+            extra = {"trends": "0", "valuemap": {"name": IF_STATUS_MAP}}
+        elif field == "speed_bps":
+            # Speed keeps the default trends on purpose: long-term min/max/avg of negotiated speed is useful history.
             extra = {"units": "bps"}
+        else:
+            extra = {}  # CHAR: dependent() already disables trends.
         prototype = dependent(key + "[{#IFUID}]", "{#IFNAME}: " + label, "interfaces", "ne.interfaces.state",
-                              scalar(field, unknown, convert), value_type=value_type, discard=True, history="31d", **extra)
+                              interface_scalar(field, unknown, convert), value_type=value_type, discard=True,
+                              history="31d", **extra)
         prototype["tags"].append({"tag": "interface", "value": "{#IFNAME}"})
         prototypes.append(prototype)
     oper, admin, speed = (f"/{template}/{k}[{{#IFUID}}]" for k in ("ne.if.oper", "ne.if.admin", "ne.if.speed"))
@@ -209,8 +183,13 @@ def extras(short: str, template: str) -> list[dict]:
         item = dependent("ne.device.uptime", "Device uptime", "device", "ne.device.snapshot",
                          "var d=JSON.parse(value).data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; return d.uptime_s;",
                          value_type="UNSIGNED", discard=True, history="31d", trends="0", units="uptime")
-        item["triggers"] = [{"uuid": uid("trigger:rebooted"), "expression": f"last(/{template}/ne.device.uptime)<600",
+        uptime = f"/{template}/ne.device.uptime"
+        # A sysUpTime wrap also drops uptime below 600 s; only a previous value well below the wrap point (by more
+        # than a day of hourly polls) shows a restart.
+        item["triggers"] = [{"uuid": uid("trigger:rebooted"),
+                             "expression": f"last({uptime})<600 and last({uptime},#2)<{UPTIME_WRAP_S - 86400}",
                              "name": "Network Explorer: device restarted", "priority": "INFO",
+                             "description": "Not raised when the 32-bit sysUpTime counter wraps (about every 497 days).",
                              "manual_close": "YES", "tags": tags("device")}]
         return [item]
     if short == "STP":
@@ -286,31 +265,8 @@ def build(version: str) -> dict:
                               "templates": templates}}
 
 
-class _Dumper(yaml.SafeDumper):
-    """Never folds a scalar. Zabbix's YAML import adds a space at every escaped line fold, which corrupted any script
-    line folded inside a string or regex literal. Multi-line text (scripts) is written as literal blocks instead."""
-
-
-def _represent_str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|" if "\n" in data else None)
-
-
-_Dumper.add_representer(str, _represent_str)
-
-
-def dump(document: dict) -> str:
-    return yaml.dump(document, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=1_000_000)
-
-
 def render(version: str) -> str:
     return dump(build(version))
-
-
-def widget(kind: str, name: str, x: int, y: int, width: int, height: int, fields: list[dict] | None = None) -> dict:
-    result = {"type": kind, "name": name, "x": str(x), "y": str(y), "width": str(width), "height": str(height)}
-    if fields:
-        result["fields"] = fields
-    return result
 
 
 def build_dashboard(version: str) -> dict:
@@ -346,16 +302,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if generated files differ.")
     args = parser.parse_args()
+    outputs = {}
     for version in ("7.0", "7.2", "7.4"):
-        for name, output in (("network_explorer_snmp.yaml", render(version)),
-                             ("network_explorer_dashboard.yaml", render_dashboard(version))):
-            target = ROOT / "native" / version / name
-            if args.check:
-                if not target.exists() or target.read_text() != output:
-                    raise SystemExit(f"Generated file differs: {target}")
-            else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(output)
+        outputs[ROOT / "native" / version / "network_explorer_snmp.yaml"] = render(version)
+        outputs[ROOT / "native" / version / "network_explorer_dashboard.yaml"] = render_dashboard(version)
+    write_outputs(outputs, args.check)
 
 
 if __name__ == "__main__":

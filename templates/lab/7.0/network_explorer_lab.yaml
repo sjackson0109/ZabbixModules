@@ -7,11 +7,10 @@ zabbix_export:
   - uuid: 5c7af0902e784cddac868a2737ec1d69
     template: Network Explorer LAB replay
     name: Network Explorer LAB replay
-    description: LAB ONLY. Zabbix sender/trapper fixture replay for Network Explorer contract testing. No SNMP polling;
-      never link to production network hosts. Registered custom widgets are required for dashboards.
+    description: LAB ONLY. Zabbix sender/trapper fixture replay for Network Explorer contract testing. No SNMP polling; never link to production network hosts. Registered custom widgets are required for dashboards.
     vendor:
       name: Network Explorer
-      version: 0.1.0-lab
+      version: 1.0.0-lab
     groups:
     - name: Templates/Network Explorer/Lab
     items:
@@ -33,11 +32,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||!Array.isArray(e.data)||typeof
-          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
-          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
-          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
-          value;
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||!Array.isArray(e.data)||typeof e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return value;
     - uuid: 1c8b5139316647ae9c538cf933db7c85
       name: 'LAB device: last complete successful snapshot'
       type: DEPENDENT
@@ -58,9 +53,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; return value;
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
     - uuid: a34d38d9326240b489adcff2aaa9df17
       name: 'LAB device: last attempt status'
@@ -82,7 +81,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
       valuemap:
         name: Network Explorer collection status
     - uuid: 32e6ad433e7e482c903b93ae78c11931
@@ -105,10 +104,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
-          observed_at'; return Math.floor(t/1000);
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
       units: unixtime
       triggers:
@@ -142,11 +144,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||!Array.isArray(e.data)||typeof
-          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
-          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
-          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
-          value;
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||!Array.isArray(e.data)||typeof e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return value;
     - uuid: fb83bca2f0294f4194682b15fe2b702b
       name: 'LAB interfaces: last complete successful snapshot'
       type: DEPENDENT
@@ -167,12 +165,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
-          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
-          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
-          identity';seen[r.uid]=true;}return value;
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return value;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
     - uuid: 2ba213f9d429462188e5d762f5d540a0
       name: 'LAB interfaces: last complete successful snapshot'
@@ -194,12 +193,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
-          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
-          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
-          identity';seen[r.uid]=true;}return value;
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return value;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
     - uuid: 0ccada189c7044d38afd4a754e125a24
       name: 'LAB interfaces: last attempt status'
@@ -221,7 +221,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
       valuemap:
         name: Network Explorer collection status
     - uuid: 5276b4e5db2a484d8c34fda5553bef34
@@ -244,13 +244,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
-          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
-          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
-          identity';seen[r.uid]=true;}var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid observed_at';
-          return Math.floor(t/1000);
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
       units: unixtime
       triggers:
@@ -284,11 +284,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||!Array.isArray(e.data)||typeof
-          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
-          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
-          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
-          value;
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||!Array.isArray(e.data)||typeof e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return value;
     - uuid: 32f4af195ddf4828859c3c42beee6cf4
       name: 'LAB lldp: last complete successful snapshot'
       type: DEPENDENT
@@ -309,9 +305,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; return value;
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
     - uuid: c660eb40cccb450f8febd25cd6442607
       name: 'LAB lldp: last attempt status'
@@ -333,7 +333,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
       valuemap:
         name: Network Explorer collection status
     - uuid: 05f8e15ac32149f3b8f1e07412895e03
@@ -356,10 +356,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
-          observed_at'; return Math.floor(t/1000);
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
       units: unixtime
       triggers:
@@ -393,11 +396,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||!Array.isArray(e.data)||typeof
-          e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof
-          e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof
-          e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return
-          value;
+        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||!Array.isArray(e.data)||typeof e.complete!=='boolean'||['ok','partial','failed','unsupported'].indexOf(e.status)<0||typeof e.generation_id!=='string'||!e.generation_id||typeof e.attempted_at!=='string'||!isFinite(Date.parse(e.attempted_at))||!e.source||!e.capability||!Array.isArray(e.errors)||(e.status==='ok'&&(e.complete!==true||typeof e.observed_at!=='string'||!isFinite(Date.parse(e.observed_at))))) throw 'Invalid replay envelope'; return value;
     - uuid: 301cc436292640f997f83affbac2219f
       name: 'LAB lag: last complete successful snapshot'
       type: DEPENDENT
@@ -418,9 +417,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; return value;
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
     - uuid: 9dd88378ca894e49a06218559b73fd0d
       name: 'LAB lag: last attempt status'
@@ -442,7 +445,7 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var s=JSON.parse(value).status; return {ok:0,partial:1,failed:2,unsupported:3}[s];
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
       valuemap:
         name: Network Explorer collection status
     - uuid: 13522a4e72ec4fb4b5b8792fb96225b5
@@ -465,10 +468,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at); if(!isFinite(t)) throw 'Invalid
-          observed_at'; return Math.floor(t/1000);
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
       units: unixtime
       triggers:
@@ -498,13 +504,13 @@ zabbix_export:
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data))
-          throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at)))
-          throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof
-          r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof
-          r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface
-          identity';seen[r.uid]=true;}var rows=e.data.map(function(r){var x=JSON.parse(JSON.stringify(r));x.name=x.name||x.description||x.uid;return
-          x;});return JSON.stringify(rows);
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.0'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var rows=e.data.map(function(r){var x=JSON.parse(JSON.stringify(r));x.name=x.name||x.description||x.uid;return x;});return JSON.stringify(rows);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
       lld_macro_paths:
       - lld_macro: '{#IFUID}'
@@ -536,10 +542,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid===''{#IFUID}''){var v=a[i][''oper_status''];if(v===null||v===undefined){throw
-            ''Unknown scalar'';}if(typeof v===''string''){var m={"up": 1, "down": 2, "testing": 3, "unknown": 4,
-            "dormant": 5, "not_present": 6, "lower_layer_down": 7};if(m[v]===undefined) throw ''Unknown status enum'';v=m[v];}return
-            v;}} throw ''Interface absent; retain last observed value'';'
+          - |-
+            try { return (function (value) {
+            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['oper_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
+            })(value); } catch (error) { return '__NE_DISCARD__'; }
+        - type: NOT_MATCHES_REGEX
+          parameters:
+          - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
       - uuid: 4ffd33b5e51f4b51923ec0eb853cb16d
         name: 'LAB {#IFNAME}: administrative status'
@@ -563,10 +572,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - 'var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid===''{#IFUID}''){var v=a[i][''admin_status''];if(v===null||v===undefined){throw
-            ''Unknown scalar'';}if(typeof v===''string''){var m={"up": 1, "down": 2, "testing": 3, "unknown": 4,
-            "dormant": 5, "not_present": 6, "lower_layer_down": 7};if(m[v]===undefined) throw ''Unknown status enum'';v=m[v];}return
-            v;}} throw ''Interface absent; retain last observed value'';'
+          - |-
+            try { return (function (value) {
+            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['admin_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
+            })(value); } catch (error) { return '__NE_DISCARD__'; }
+        - type: NOT_MATCHES_REGEX
+          parameters:
+          - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
       - uuid: c07f6517cd504fe6bf1213e47ae15da2
         name: 'LAB {#IFNAME}: negotiated speed'
@@ -590,8 +602,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['speed_bps'];if(v===null||v===undefined){throw
-            'Unknown scalar';}return v;}} throw 'Interface absent; retain last observed value';
+          - |-
+            try { return (function (value) {
+            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['speed_bps']; if(v===null||v===undefined){throw 'Unknown scalar';} return v;}} throw 'Interface absent; retain last observed value';
+            })(value); } catch (error) { return '__NE_DISCARD__'; }
+        - type: NOT_MATCHES_REGEX
+          parameters:
+          - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
         units: bps
       - uuid: de31d7fb494d45688f449181b9a87c2a
@@ -616,8 +633,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['expected_speed_bps'];if(v===null||v===undefined){return
-            0;}return v;}} throw 'Interface absent; retain last observed value';
+          - |-
+            try { return (function (value) {
+            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['expected_speed_bps']; if(v===null||v===undefined){return 0;} return v;}} throw 'Interface absent; retain last observed value';
+            })(value); } catch (error) { return '__NE_DISCARD__'; }
+        - type: NOT_MATCHES_REGEX
+          parameters:
+          - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
         units: bps
       - uuid: decfc39d960c4cbda776972abd810118
@@ -640,8 +662,13 @@ zabbix_export:
         preprocessing:
         - type: JAVASCRIPT
           parameters:
-          - var e=JSON.parse(value),a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['duplex'];if(v===null||v===undefined){throw
-            'Unknown scalar';}return v;}} throw 'Interface absent; retain last observed value';
+          - |-
+            try { return (function (value) {
+            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['duplex']; if(v===null||v===undefined){throw 'Unknown scalar';} return v;}} throw 'Interface absent; retain last observed value';
+            })(value); } catch (error) { return '__NE_DISCARD__'; }
+        - type: NOT_MATCHES_REGEX
+          parameters:
+          - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
       graph_prototypes:
       - uuid: 4e239483671d47ce9c4972d0909b7170

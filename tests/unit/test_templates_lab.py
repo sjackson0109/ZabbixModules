@@ -1,9 +1,11 @@
 """Meaningful replay-template contract checks independent of a Zabbix daemon."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import uuid
@@ -17,16 +19,39 @@ LAB = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LAB)
 
 
-def evaluate(script: str, value: dict, interface_uid: str = "if-test") -> dict:
+def evaluate(script: str, value: dict | str, interface_uid: str = "if-test") -> dict:
     if shutil.which("node") is None:
         pytest.skip("Node is needed to exercise generated JavaScript preprocessing")
     script = script.replace("{#IFUID}", interface_uid)
     runner = ("const fs=require('fs');const input=JSON.parse(fs.readFileSync(0,'utf8'));"
-              "try{console.log(JSON.stringify({ok:true,value:new Function('value',input.script)(JSON.stringify(input.value))}));}"
+              "try{console.log(JSON.stringify({ok:true,value:new Function('value',input.script)(typeof input.value==='string'?input.value:JSON.stringify(input.value))}));}"
               "catch(e){console.log(JSON.stringify({ok:false,error:String(e)}));}")
     result = subprocess.run(["node", "-e", runner], input=json.dumps({"script": script, "value": value}),
                             text=True, capture_output=True, check=True, timeout=10)
     return json.loads(result.stdout)
+
+
+def apply(steps: list[dict], value: dict | str, interface_uid: str = "if-test") -> str | None:
+    """Runs a generated preprocessing chain; None means the value was discarded."""
+    current = value if isinstance(value, str) else json.dumps(value)
+    for step in steps:
+        if step["type"] == "JAVASCRIPT":
+            outcome = evaluate(step["parameters"][0], current, interface_uid)
+            assert outcome["ok"], "a JavaScript step threw; Zabbix would mark the item not supported"
+            current = str(outcome["value"])
+        elif step["type"] == "NOT_MATCHES_REGEX":
+            if re.search(step["parameters"][0], current):
+                assert step["error_handler"] == "DISCARD_VALUE"
+                return None
+        else:
+            raise AssertionError(step["type"])
+    return current
+
+
+def all_items(version: str = "7.0") -> list[dict]:
+    template = LAB.build(version)["zabbix_export"]["templates"][0]
+    rules = template["discovery_rules"]
+    return template["items"] + rules + [p for rule in rules for p in rule["item_prototypes"]]
 
 
 def envelope(status: str = "ok", complete: bool = True, data: list | None = None) -> dict:
@@ -59,9 +84,34 @@ def test_partial_failed_or_unsupported_cannot_overwrite_retained_snapshot(status
     outcome = evaluate(LAB.gate("interfaces"), envelope(status, complete, []))
     assert not outcome["ok"]
     source = LAB.build("7.0")["zabbix_export"]["templates"][0]
-    snapshot = next(i for i in source["items"] if i["key"] == "ne.interfaces.inventory")
-    assert snapshot["preprocessing"][0]["error_handler"] == "DISCARD_VALUE"
+    items = {i["key"]: i for i in all_items()}
+    for key in ("ne.interfaces.inventory", "ne.interfaces.state", "ne.collection.success[interfaces]",
+                "ne.interfaces.discovery"):
+        assert apply(items[key]["preprocessing"], envelope(status, complete, [])) is None, key
     assert source["discovery_rules"][0]["master_item"]["key"] == "ne.interfaces.inventory"
+
+
+def test_javascript_steps_never_rely_on_custom_on_fail():
+    # Zabbix silently drops error handlers on JavaScript steps at import; discarding goes through a sentinel.
+    for item in all_items():
+        steps = item.get("preprocessing", [])
+        for index, step in enumerate(steps):
+            if step["type"] == "JAVASCRIPT":
+                assert "error_handler" not in step, item["key"]
+                if "__NE_DISCARD__" in step["parameters"][0]:
+                    assert steps[index + 1] == {"type": "NOT_MATCHES_REGEX", "parameters": ["^__NE_DISCARD__$"],
+                                                "error_handler": "DISCARD_VALUE"}, item["key"]
+
+
+def test_complete_snapshot_reaches_discovery_and_scalars_through_the_generated_chain():
+    items = {i["key"]: i for i in all_items()}
+    value = envelope()
+    assert json.loads(apply(items["ne.interfaces.inventory"]["preprocessing"], value)) == value
+    assert json.loads(apply(items["ne.interfaces.discovery"]["preprocessing"], value))[0]["uid"] == "if-test"
+    epoch = int(datetime(2026, 10, 6, 12, tzinfo=timezone.utc).timestamp())
+    assert apply(items["ne.collection.success[interfaces]"]["preprocessing"], value) == str(epoch)
+    assert apply(items["ne.if.oper[{#IFUID}]"]["preprocessing"], value) == "1"
+    assert apply(items["ne.if.speed[{#IFUID}]"]["preprocessing"], value, "if-absent") is None
 
 
 def test_complete_empty_inventory_is_distinct_from_a_failed_empty_attempt():
@@ -85,6 +135,11 @@ def test_status_mapping_and_unknown_speed_do_not_invent_health():
     assert not evaluate(LAB.scalar("speed_bps"), value)["ok"]
     value["data"][0]["oper_status"] = "lower_layer_down"
     assert evaluate(LAB.scalar("oper_status"), value)["value"] == 7
+    # As in the native template, an unknown or unrecognised status is "unknown" (4), not an error.
+    value["data"][0]["oper_status"] = "no-such-state"
+    assert evaluate(LAB.scalar("oper_status"), value)["value"] == 4
+    value["data"][0]["oper_status"] = None
+    assert evaluate(LAB.scalar("oper_status"), value)["value"] == 4
 
 
 def test_absent_interface_does_not_emit_fake_zero():
@@ -105,9 +160,34 @@ def test_missing_ifname_uses_description_for_discovery_display_only():
     source = envelope()
     source["data"][0]["name"] = None
     source["data"][0]["description"] = "Port One"
-    script = definition["discovery_rules"][0]["preprocessing"][0]["parameters"][0]
-    result = evaluate(script, source)
-    assert json.loads(result["value"])[0]["name"] == "Port One"
+    result = apply(definition["discovery_rules"][0]["preprocessing"], source)
+    assert json.loads(result)[0]["name"] == "Port One"
+
+
+@pytest.mark.parametrize("version", ["7.0", "7.2", "7.4"])
+def test_scripts_are_literal_blocks_never_folded(version):
+    # Zabbix's YAML import inserts a space at each escaped line fold, which corrupts scripts.
+    text = (ROOT / "templates/lab" / version / "network_explorer_lab.yaml").read_text(encoding="utf-8")
+    assert text == LAB.render(version)
+    assert not any(line.endswith("\\") for line in text.splitlines())
+    for token in yaml.scan(text):
+        if isinstance(token, yaml.ScalarToken) and "\n" in token.value:
+            assert token.style == "|", token.value[:60]
+
+
+def test_vendor_version_follows_the_release():
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    template = LAB.build("7.0")["zabbix_export"]["templates"][0]
+    assert template["vendor"]["version"] == version + "-lab"
+
+
+def test_lab_javascript_is_ecmascript_5_for_duktape():
+    import dukpy  # pinned in requirements-dev.txt; a Duktape build, unlike later QuickJS-based releases
+    for version in ("7.0", "7.2", "7.4"):
+        for item in all_items(version):
+            for step in item.get("preprocessing", []):
+                if step["type"] == "JAVASCRIPT":
+                    dukpy.evaljs("new Function('value', dukpy['script']); true", script=step["parameters"][0])
 
 
 def test_profiles_have_no_unearned_model_support_claims():

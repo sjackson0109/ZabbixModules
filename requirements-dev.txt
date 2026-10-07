@@ -2,6 +2,8 @@
 attrs==26.1.0
 cffi==2.1.1
 cryptography==50.0.1
+# 0.5.x embeds Duktape (Zabbix's JavaScript engine); 0.6.0 switched to QuickJS, which accepts ES2015+.
+dukpy==0.5.1
 iniconfig==2.3.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1

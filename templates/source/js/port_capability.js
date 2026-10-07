@@ -44,9 +44,10 @@ function normalisePortCapability(walk, env) {
         var arc = NE.mauArc(get('type')), mau = arc !== null ? NE.MAU[arc] || null : null;
         var admin = NE.int(get('autoNegAdmin'));
         var typeBits = get('typeListBits'), adv = get('capAdvertised'), rec = get('capReceived');
-        // Media: the operating MAU's, otherwise the one media every supported MAU type shares.
+        // Media: the operating MAU's (which may be unknown), otherwise the one
+        // media every supported MAU type shares.
         var media = mau ? mau[2] : null;
-        if (media === null && typeBits) {
+        if (mau === null && typeBits) {
             var arcs = NE.bitsSet(NE.bytes(typeBits));
             for (var m = 0; m < arcs.length; m++) {
                 var kind = NE.MAU[arcs[m]] ? NE.MAU[arcs[m]][2] : null;
