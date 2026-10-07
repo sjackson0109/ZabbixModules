@@ -3,7 +3,7 @@
 | Schema | File | Status |
 |---|---|---|
 | 1.1 | [`envelope-1.1.schema.json`](envelope-1.1.schema.json), [examples](examples/) | Current. Emitted by the native SNMP templates. Adds `vlan`, `stp` and `port_capability`, and optional fields on the 1.0 datasets. |
-| 1.0 | [`envelope.schema.json`](envelope.schema.json) | Still accepted by the frontend. Emitted by the Python collector, which packages an identical copy checked by the test suite. |
+| 1.0 | [`envelope.schema.json`](envelope.schema.json) | Still accepted by the frontend. Emitted by the Python collector, a frozen fallback that stays on 1.0; it packages an identical copy checked by the test suite. |
 
 Both are JSON Schema 2020-12. 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable. [The design note](../docs/design/02-canonical-schema.md) explains each field.
 

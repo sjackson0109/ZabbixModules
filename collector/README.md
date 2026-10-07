@@ -6,6 +6,13 @@ datasets. Synthetic fixtures and localhost SNMP tests exercise the contract;
 they do not qualify a vendor, model or firmware. Customer template development
 and captured-walk qualification remain separate work.
 
+**Status: frozen fallback.** The native SNMP templates are the primary producer.
+The collector stays on envelope schema 1.0 and receives security and correctness
+fixes only. It does not collect VLAN, STP or port capability data, ifStack-based
+static LAGs, or per-member LACP state, so a host it feeds shows no VLAN or STP
+overlay and no derived expected speed. Use it only where native SNMP items can't
+reach a device.
+
 Python 3.10 is the minimum. Python 3.14 is the primary runtime. Installation is
 manual copy-out; a Zabbix external check does not inherit the credentials of its
 host's SNMP interface. Never pass communities, usernames or passphrases as item
