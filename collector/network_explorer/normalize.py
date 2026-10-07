@@ -237,9 +237,9 @@ def lag(evidence: Evidence, interface_rows: list[dict], redact_remote: bool = Tr
                     members.append(member["uid"])
                 else:
                     evidence.error("lag_member_unresolved", "A LAG member does not resolve to an IF-MIB interface.")
+        # dot3adAggAggregateOrIndividual is a TruthValue: 1 (true) is an aggregate, 2 (false) an
+        # individual link. Anything not classified as an aggregate needs members or ifType 161.
         if integer(tables["individual"].get(index)) != 1 and not members and interface["type"] != 161:
-            # An IEEE table row explicitly classified individual is not enough
-            # to assert an aggregation group; retain only corroborated groups.
             continue
         partner = mac(tables["partner"].get(index))
         if partner == "00:00:00:00:00:00":
