@@ -59,8 +59,9 @@ const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.lengt
    assert.equal(await topo.locator('svg .ne-edge-stp-blocked').count(),1);assert.equal(await topo.locator('svg .ne-stp-block-mark').count(),1);step('STP: root sw-dist-02, one blocking port');
    // 7: LAG.
    await topo.getByRole('combobox',{name:'Overlay'}).selectOption('physical');
-   assert.equal(await topo.locator('svg .ne-edge').count(),5);assert.ok((await topo.locator('svg').textContent()).includes('LAG ×2'));
-   await topo.getByRole('button',{name:'Expand LAG member links'}).click();assert.equal(await topo.locator('svg .ne-edge').count(),6);step('Po1/Po10 is one logical link with two members');
+   const labels=await topo.locator('svg').textContent();
+   assert.equal(await topo.locator('svg .ne-edge').count(),5);assert.ok(labels.includes('LAG ×2 · LACP')&&labels.includes('LAG ×2 · Static'));
+   await topo.getByRole('button',{name:'Expand LAG member links'}).click();assert.equal(await topo.locator('svg .ne-edge').count(),7);step('Po1/Po10 (LACP) and the stack uplink (static) are each one logical link with two members');
    // 8: a stack shows its members as tabs, with ports placed by ENTITY-MIB.
    await page.goto(`${url}/zabbix.php?action=host.dashboard.view&hostid=${hosts['sw-stack-01']}`);
    const stack=page.locator('.dashboard-widget-neportpanel');await stack.locator('.ne-port').first().waitFor({timeout:60000});
@@ -69,8 +70,11 @@ const steps=[];const step=(name)=>{steps.push(name);console.log('ok',steps.lengt
    await stack.getByRole('tab',{name:'Member 2'}).click();assert.ok((await stack.locator('.ne-port').first().innerText()).includes('Gi2/0/1'));
    await stack.getByRole('combobox',{name:'Physical layout'}).selectOption('mixed');
    assert.ok((await stack.innerText()).includes('Member 2 · slot 1 · SFP+'));step('sw-stack-01 shows two member tabs; SFP+ cages grouped apart');
+   // 9: a static bundle known only from ifStackTable, spanning both stack members.
+   await stack.locator('.ne-port',{hasText:'Te2/1/1'}).click();
+   assert.ok((await stack.innerText()).includes('LAG Po1 · Static · 2 observed members.'));step('sw-stack-01 Po1 is a static LAG over Te1/1/1 and Te2/1/1');
    assert.deepEqual(errors,[]);
-   // 9: permissions.
+   // 10: permissions.
    const restricted=await login(browser,viewer.username,viewer.password);
    await restricted.page.goto(`${url}/zabbix.php?action=dashboard.view&dashboardid=${fleet}`);
    const rtopo=restricted.page.locator('.dashboard-widget-netopology');await rtopo.locator('svg .ne-node').first().waitFor({timeout:60000});
