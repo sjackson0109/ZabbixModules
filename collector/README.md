@@ -24,8 +24,12 @@ python3 -m venv /opt/network-explorer/venv
 ```
 
 Copy `packaging/devices.example.json` to an administrator-controlled location
-outside the frontend/web root. Fill bindings locally, set ownership to the
-collector service account (or a readable root-owned file), and mode `0600`.
+outside the frontend/web root. Fill bindings locally, then make the file owned
+by the account that runs the collector (for an external check, the Zabbix
+server or proxy service account, usually `zabbix`) with mode `0600` or `0400`.
+The collector refuses a file with any group or world permission bits. A
+root-owned file is accepted only when the collector itself runs as root, which
+an external check does not, so do not leave the file owned by root.
 The example strings are placeholders, not operational credentials. JSON is
 non-executable, symlinks are refused, and destinations must occur in the local
 device allowlist.
