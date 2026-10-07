@@ -1,14 +1,16 @@
 # Zabbix Network Explorer
 
-A custom Zabbix frontend package for physical port investigation, LLDP topology, LAG relationships and network data quality. Targets Zabbix 7.0–7.4 and Python 3.10+ for the optional collector.
+A Zabbix frontend package and native SNMP templates for physical port investigation, LLDP topology, VLAN membership and propagation, STP state, LAG relationships and network data quality. Targets Zabbix 7.0–7.4, and Python 3.10+ for the optional collector. The release version is in [`VERSION`](VERSION); changes are in the [changelog](CHANGELOG.md).
 
-This is an initial build against synthetic data. Vendor/model monitoring templates are **specifications**, to be developed and qualified later when inventory and SNMP walks are available. No live switch compatibility is claimed. VLAN and STP remain subsequent-release scope.
+The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB, Q-BRIDGE-MIB, BRIDGE-MIB, MAU-MIB, ENTITY-MIB). They are tested against simulated switches on Zabbix 7.0, 7.2 and 7.4; no vendor or model has been qualified on real hardware yet.
 
 ## What is included
 
 - A Network Explorer page and permission-aware PHP dataset, identity, topology, policy, navigation and report services.
 - Five dashboard widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings.
-- Versioned canonical JSON Schema, conservative standard-MIB normalisers, fixture replay and a bounded Python SNMP transport.
+- Versioned canonical JSON Schema (1.1, with 1.0 still accepted).
+- Native standard-MIB SNMP templates and an inherited host dashboard for Zabbix 7.0, 7.2 and 7.4.
+- An optional bounded Python SNMP collector with fixture replay.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
 - LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; portable fleet dashboard recipes.
 - Disposable integration labs, regression tests and deterministic copy-out packages.
