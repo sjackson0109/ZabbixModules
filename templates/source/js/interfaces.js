@@ -6,6 +6,44 @@ var IF_ADMIN = {1: 'up', 2: 'down', 3: 'testing'};
 var IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
 var IF_LOGICAL_TYPES = {24: true, 53: true, 131: true, 135: true, 136: true, 161: true};
 
+// ENTITY-MIB classes: chassis 3, module 9, port 10, stack 11.
+var ENT_CHASSIS = 3, ENT_MODULE = 9, ENT_PORT = 10, ENT_STACK = 11;
+
+// ifIndex -> {member, slot, port} from entAliasMappingTable and the containment tree.
+// Ports with no mapping, or whose tree does not reach a chassis, are left unplaced.
+function entityPositions(t) {
+    var out = {}, chassisCount = 0, key;
+    for (key in t.entClass) {
+        if (t.entClass.hasOwnProperty(key) && NE.int(t.entClass[key]) === ENT_CHASSIS) { chassisCount++; }
+    }
+    for (key in t.entAlias) {
+        if (!t.entAlias.hasOwnProperty(key)) { continue; }
+        var target = /^\.?1\.3\.6\.1\.2\.1\.2\.2\.1\.1\.([0-9]+)$/.exec(t.entAlias[key].value);
+        var ent = key.split('.')[0];
+        if (!target || NE.int(t.entClass[ent] || null) !== ENT_PORT) { continue; }
+        var slot = null, member = null, node = ent, depth = 0;
+        while (depth++ < 16) {
+            var parent = NE.int(t.entContained[node] || null);
+            if (parent === null || parent === 0) { break; }
+            node = String(parent);
+            var cls = NE.int(t.entClass[node] || null);
+            if (cls === ENT_MODULE && slot === null) { slot = NE.int(t.entRelPos[node] || null); }
+            if (cls === ENT_CHASSIS) {
+                var above = NE.int(t.entContained[node] || null);
+                if (above !== null && NE.int(t.entClass[String(above)] || null) === ENT_STACK) {
+                    member = NE.int(t.entRelPos[node] || null);
+                }
+                else if (chassisCount === 1) { member = 1; }
+                break;
+            }
+        }
+        if (member !== null && !out.hasOwnProperty(target[1])) {
+            out[target[1]] = {member: member, slot: slot, port: NE.int(t.entRelPos[ent] || null)};
+        }
+    }
+    return out;
+}
+
 function normaliseInterfaces(walk, env) {
     var t = {}, key;
     for (key in NE.IF) {
@@ -14,6 +52,7 @@ function normaliseInterfaces(walk, env) {
     var uids = NE.interfaceIndex(walk, env);
     var uptime = NE.int(NE.scalar(walk, NE.UPTIME));
     var observed = Date.parse(env.attempted_at);
+    var positions = entityPositions(t);
     var parents = {};
     for (key in t.stack) {
         if (!t.stack.hasOwnProperty(key)) { continue; }
@@ -56,7 +95,9 @@ function normaliseInterfaces(walk, env) {
             admin_status: IF_ADMIN[admin] || null, oper_status: IF_OPER[oper] || null,
             speed_bps: bps, duplex: duplex === 2 ? 'half' : (duplex === 3 ? 'full' : null),
             mtu: NE.int(t.mtu[k] || null), mac_address: NE.mac(t.mac[k] || null),
-            last_change: lastChange, stack_parent_uid: parent
+            last_change: lastChange, stack_parent_uid: parent,
+            member: positions[k] ? positions[k].member : null, slot: positions[k] ? positions[k].slot : null,
+            port: positions[k] ? positions[k].port : null
         });
     }
     var expected = NE.int(NE.scalar(walk, NE.IF.number));

@@ -32,7 +32,7 @@ DASHBOARD = "Network Explorer - Host dashboard"
 GROUP = "Network Explorer lab"
 # sw-dist-01 sits in its own group so a restricted viewer can be denied it.
 HIDDEN_GROUP = "Network Explorer lab restricted"
-SWITCHES = ("sw-core-01", "sw-access-17", "sw-dist-02", "sw-dist-01")
+SWITCHES = ("sw-core-01", "sw-access-17", "sw-dist-02", "sw-dist-01", "sw-stack-01")
 VIEWER = "ne-lab-viewer"
 # Demonstrates both interface triggers: Gi1/0/24 is monitored, Gi1/0/23 should run at 1G but runs at 100M.
 CORE_MACROS = [{"macro": "{$NE.IF.MONITOR:\"Gi1/0/24\"}", "value": "1"},

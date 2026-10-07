@@ -62,8 +62,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -471,8 +473,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -619,40 +623,60 @@ zabbix_export:
           \ state walk\n// (status and speed columns only); columns absent from a walk become null.\n\nvar IF_ADMIN\
           \ = {1: 'up', 2: 'down', 3: 'testing'};\nvar IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown',\
           \ 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};\nvar IF_LOGICAL_TYPES = {24: true, 53: true,\
-          \ 131: true, 135: true, 136: true, 161: true};\n\nfunction normaliseInterfaces(walk, env) {\n    var t\
-          \ = {}, key;\n    for (key in NE.IF) {\n        if (NE.IF.hasOwnProperty(key)) { t[key] = NE.table(walk,\
-          \ NE.IF[key]); }\n    }\n    var uids = NE.interfaceIndex(walk, env);\n    var uptime = NE.int(NE.scalar(walk,\
-          \ NE.UPTIME));\n    var observed = Date.parse(env.attempted_at);\n    var parents = {};\n    for (key\
-          \ in t.stack) {\n        if (!t.stack.hasOwnProperty(key)) { continue; }\n        var pair = key.split('.');\n\
-          \        if (pair.length === 2 && pair[0] !== '0' && pair[1] !== '0' && NE.int(t.stack[key]) === 1) {\n\
-          \            parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];\n        }\n    }\n\
-          \    var rows = [], indexes = [];\n    for (key in uids) {\n        if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key))\
-          \ { indexes.push(parseInt(key, 10)); }\n    }\n    indexes.sort(function (a, b) { return a - b; });\n\
-          \    for (var i = 0; i < indexes.length; i++) {\n        var k = String(indexes[i]), uid = uids[k];\n\
-          \        if (uid === null) { continue; }\n        var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k]\
-          \ || null);\n        var type = NE.int(t.type[k] || null);\n        if (!t.descr[k] || !IF_ADMIN[admin]\
-          \ || !IF_OPER[oper]) {\n            NE.error(env, 'missing_interface_fields', 'An interface lacks ifDescr,\
-          \ ifAdminStatus or ifOperStatus.');\n        }\n        var high = NE.int(t.highSpeed[k] || null), speed\
-          \ = NE.int(t.speed[k] || null), bps = null;\n        if (high !== null && high > 0) { bps = high * 1000000;\
-          \ }\n        else if (speed !== null && speed > 0 && speed < 4294967295) { bps = speed; }\n        var\
-          \ connector = NE.int(t.connector[k] || null), physical = null;\n        if (connector === 1) { physical\
-          \ = true; }\n        else if (connector === 2) { physical = false; }\n        else if (type === 6) { physical\
-          \ = true; }\n        else if (type !== null && IF_LOGICAL_TYPES[type]) { physical = false; }\n       \
-          \ var duplex = NE.int(t.duplex[k] || null);\n        var lastChange = null, ticks = NE.int(t.lastChange[k]\
-          \ || null);\n        if (ticks !== null && ticks > 0 && uptime !== null && ticks <= uptime) {\n      \
-          \      lastChange = new Date(observed - (uptime - ticks) * 10).toISOString();\n        }\n        var\
-          \ parent = parents[k] ? uids[parents[k]] || null : null;\n        rows.push({\n            uid: uid, if_index:\
-          \ indexes[i],\n            name: NE.text(t.name[k] || null), description: NE.text(t.descr[k] || null),\n\
-          \            alias: NE.text(t.alias[k] || null), type: type, physical: physical,\n            admin_status:\
-          \ IF_ADMIN[admin] || null, oper_status: IF_OPER[oper] || null,\n            speed_bps: bps, duplex: duplex\
-          \ === 2 ? 'half' : (duplex === 3 ? 'full' : null),\n            mtu: NE.int(t.mtu[k] || null), mac_address:\
-          \ NE.mac(t.mac[k] || null),\n            last_change: lastChange, stack_parent_uid: parent\n        });\n\
-          \    }\n    var expected = NE.int(NE.scalar(walk, NE.IF.number));\n    if (expected !== null && expected\
-          \ !== indexes.length) {\n        NE.error(env, 'interface_count_mismatch', 'ifNumber does not match the\
-          \ number of interface rows walked.');\n    }\n    if (!indexes.length && expected === null) {\n      \
-          \  throw {unsupported: 'The agent returned no IF-MIB interface table.'};\n    }\n    return rows;\n}\n\
-          \nreturn JSON.stringify(NE.run('interfaces', 'standard-if-state', value, function (w, e) { return normaliseInterfaces(w,\
-          \ e); }));"
+          \ 131: true, 135: true, 136: true, 161: true};\n\n// ENTITY-MIB classes: chassis 3, module 9, port 10,\
+          \ stack 11.\nvar ENT_CHASSIS = 3, ENT_MODULE = 9, ENT_PORT = 10, ENT_STACK = 11;\n\n// ifIndex -> {member,\
+          \ slot, port} from entAliasMappingTable and the containment tree.\n// Ports with no mapping, or whose\
+          \ tree does not reach a chassis, are left unplaced.\nfunction entityPositions(t) {\n    var out = {},\
+          \ chassisCount = 0, key;\n    for (key in t.entClass) {\n        if (t.entClass.hasOwnProperty(key) &&\
+          \ NE.int(t.entClass[key]) === ENT_CHASSIS) { chassisCount++; }\n    }\n    for (key in t.entAlias) {\n\
+          \        if (!t.entAlias.hasOwnProperty(key)) { continue; }\n        var target = /^\\.?1\\.3\\.6\\.1\\\
+          .2\\.1\\.2\\.2\\.1\\.1\\.([0-9]+)$/.exec(t.entAlias[key].value);\n        var ent = key.split('.')[0];\n\
+          \        if (!target || NE.int(t.entClass[ent] || null) !== ENT_PORT) { continue; }\n        var slot\
+          \ = null, member = null, node = ent, depth = 0;\n        while (depth++ < 16) {\n            var parent\
+          \ = NE.int(t.entContained[node] || null);\n            if (parent === null || parent === 0) { break; }\n\
+          \            node = String(parent);\n            var cls = NE.int(t.entClass[node] || null);\n       \
+          \     if (cls === ENT_MODULE && slot === null) { slot = NE.int(t.entRelPos[node] || null); }\n       \
+          \     if (cls === ENT_CHASSIS) {\n                var above = NE.int(t.entContained[node] || null);\n\
+          \                if (above !== null && NE.int(t.entClass[String(above)] || null) === ENT_STACK) {\n  \
+          \                  member = NE.int(t.entRelPos[node] || null);\n                }\n                else\
+          \ if (chassisCount === 1) { member = 1; }\n                break;\n            }\n        }\n        if\
+          \ (member !== null && !out.hasOwnProperty(target[1])) {\n            out[target[1]] = {member: member,\
+          \ slot: slot, port: NE.int(t.entRelPos[ent] || null)};\n        }\n    }\n    return out;\n}\n\nfunction\
+          \ normaliseInterfaces(walk, env) {\n    var t = {}, key;\n    for (key in NE.IF) {\n        if (NE.IF.hasOwnProperty(key))\
+          \ { t[key] = NE.table(walk, NE.IF[key]); }\n    }\n    var uids = NE.interfaceIndex(walk, env);\n    var\
+          \ uptime = NE.int(NE.scalar(walk, NE.UPTIME));\n    var observed = Date.parse(env.attempted_at);\n   \
+          \ var positions = entityPositions(t);\n    var parents = {};\n    for (key in t.stack) {\n        if (!t.stack.hasOwnProperty(key))\
+          \ { continue; }\n        var pair = key.split('.');\n        if (pair.length === 2 && pair[0] !== '0'\
+          \ && pair[1] !== '0' && NE.int(t.stack[key]) === 1) {\n            parents[pair[1]] = parents.hasOwnProperty(pair[1])\
+          \ ? null : pair[0];\n        }\n    }\n    var rows = [], indexes = [];\n    for (key in uids) {\n   \
+          \     if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }\n   \
+          \ }\n    indexes.sort(function (a, b) { return a - b; });\n    for (var i = 0; i < indexes.length; i++)\
+          \ {\n        var k = String(indexes[i]), uid = uids[k];\n        if (uid === null) { continue; }\n   \
+          \     var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);\n        var type = NE.int(t.type[k]\
+          \ || null);\n        if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {\n            NE.error(env,\
+          \ 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus.');\n       \
+          \ }\n        var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;\n\
+          \        if (high !== null && high > 0) { bps = high * 1000000; }\n        else if (speed !== null &&\
+          \ speed > 0 && speed < 4294967295) { bps = speed; }\n        var connector = NE.int(t.connector[k] ||\
+          \ null), physical = null;\n        if (connector === 1) { physical = true; }\n        else if (connector\
+          \ === 2) { physical = false; }\n        else if (type === 6) { physical = true; }\n        else if (type\
+          \ !== null && IF_LOGICAL_TYPES[type]) { physical = false; }\n        var duplex = NE.int(t.duplex[k] ||\
+          \ null);\n        var lastChange = null, ticks = NE.int(t.lastChange[k] || null);\n        if (ticks !==\
+          \ null && ticks > 0 && uptime !== null && ticks <= uptime) {\n            lastChange = new Date(observed\
+          \ - (uptime - ticks) * 10).toISOString();\n        }\n        var parent = parents[k] ? uids[parents[k]]\
+          \ || null : null;\n        rows.push({\n            uid: uid, if_index: indexes[i],\n            name:\
+          \ NE.text(t.name[k] || null), description: NE.text(t.descr[k] || null),\n            alias: NE.text(t.alias[k]\
+          \ || null), type: type, physical: physical,\n            admin_status: IF_ADMIN[admin] || null, oper_status:\
+          \ IF_OPER[oper] || null,\n            speed_bps: bps, duplex: duplex === 2 ? 'half' : (duplex === 3 ?\
+          \ 'full' : null),\n            mtu: NE.int(t.mtu[k] || null), mac_address: NE.mac(t.mac[k] || null),\n\
+          \            last_change: lastChange, stack_parent_uid: parent,\n            member: positions[k] ? positions[k].member\
+          \ : null, slot: positions[k] ? positions[k].slot : null,\n            port: positions[k] ? positions[k].port\
+          \ : null\n        });\n    }\n    var expected = NE.int(NE.scalar(walk, NE.IF.number));\n    if (expected\
+          \ !== null && expected !== indexes.length) {\n        NE.error(env, 'interface_count_mismatch', 'ifNumber\
+          \ does not match the number of interface rows walked.');\n    }\n    if (!indexes.length && expected ===\
+          \ null) {\n        throw {unsupported: 'The agent returned no IF-MIB interface table.'};\n    }\n    return\
+          \ rows;\n}\n\nreturn JSON.stringify(NE.run('interfaces', 'standard-if-state', value, function (w, e) {\
+          \ return normaliseInterfaces(w, e); }));"
       tags:
       - tag: component
         value: network-explorer
@@ -771,7 +795,7 @@ zabbix_export:
     - uuid: 1ae65883f595453bb81ae78ea3013f88
       name: 'Raw SNMP walk: interfaces.inventory'
       type: SNMP_AGENT
-      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.1,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.2.2.1.3,1.3.6.1.2.1.2.2.1.4,1.3.6.1.2.1.2.2.1.5,1.3.6.1.2.1.2.2.1.6,1.3.6.1.2.1.2.2.1.7,1.3.6.1.2.1.2.2.1.8,1.3.6.1.2.1.2.2.1.9,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.31.1.1.1.15,1.3.6.1.2.1.31.1.1.1.17,1.3.6.1.2.1.31.1.1.1.18,1.3.6.1.2.1.31.1.2.1.3,1.3.6.1.2.1.10.7.2.1.19]
+      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.1,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.2.2.1.3,1.3.6.1.2.1.2.2.1.4,1.3.6.1.2.1.2.2.1.5,1.3.6.1.2.1.2.2.1.6,1.3.6.1.2.1.2.2.1.7,1.3.6.1.2.1.2.2.1.8,1.3.6.1.2.1.2.2.1.9,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.31.1.1.1.15,1.3.6.1.2.1.31.1.1.1.17,1.3.6.1.2.1.31.1.1.1.18,1.3.6.1.2.1.31.1.2.1.3,1.3.6.1.2.1.10.7.2.1.19,1.3.6.1.2.1.47.1.1.1.1.4,1.3.6.1.2.1.47.1.1.1.1.5,1.3.6.1.2.1.47.1.1.1.1.6,1.3.6.1.2.1.47.1.3.2.1.2]
       key: ne.raw.if.inventory
       delay: '{$NE.IF.INVENTORY.INTERVAL}'
       history: '0'
@@ -814,8 +838,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -962,40 +988,60 @@ zabbix_export:
           \ state walk\n// (status and speed columns only); columns absent from a walk become null.\n\nvar IF_ADMIN\
           \ = {1: 'up', 2: 'down', 3: 'testing'};\nvar IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown',\
           \ 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};\nvar IF_LOGICAL_TYPES = {24: true, 53: true,\
-          \ 131: true, 135: true, 136: true, 161: true};\n\nfunction normaliseInterfaces(walk, env) {\n    var t\
-          \ = {}, key;\n    for (key in NE.IF) {\n        if (NE.IF.hasOwnProperty(key)) { t[key] = NE.table(walk,\
-          \ NE.IF[key]); }\n    }\n    var uids = NE.interfaceIndex(walk, env);\n    var uptime = NE.int(NE.scalar(walk,\
-          \ NE.UPTIME));\n    var observed = Date.parse(env.attempted_at);\n    var parents = {};\n    for (key\
-          \ in t.stack) {\n        if (!t.stack.hasOwnProperty(key)) { continue; }\n        var pair = key.split('.');\n\
-          \        if (pair.length === 2 && pair[0] !== '0' && pair[1] !== '0' && NE.int(t.stack[key]) === 1) {\n\
-          \            parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];\n        }\n    }\n\
-          \    var rows = [], indexes = [];\n    for (key in uids) {\n        if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key))\
-          \ { indexes.push(parseInt(key, 10)); }\n    }\n    indexes.sort(function (a, b) { return a - b; });\n\
-          \    for (var i = 0; i < indexes.length; i++) {\n        var k = String(indexes[i]), uid = uids[k];\n\
-          \        if (uid === null) { continue; }\n        var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k]\
-          \ || null);\n        var type = NE.int(t.type[k] || null);\n        if (!t.descr[k] || !IF_ADMIN[admin]\
-          \ || !IF_OPER[oper]) {\n            NE.error(env, 'missing_interface_fields', 'An interface lacks ifDescr,\
-          \ ifAdminStatus or ifOperStatus.');\n        }\n        var high = NE.int(t.highSpeed[k] || null), speed\
-          \ = NE.int(t.speed[k] || null), bps = null;\n        if (high !== null && high > 0) { bps = high * 1000000;\
-          \ }\n        else if (speed !== null && speed > 0 && speed < 4294967295) { bps = speed; }\n        var\
-          \ connector = NE.int(t.connector[k] || null), physical = null;\n        if (connector === 1) { physical\
-          \ = true; }\n        else if (connector === 2) { physical = false; }\n        else if (type === 6) { physical\
-          \ = true; }\n        else if (type !== null && IF_LOGICAL_TYPES[type]) { physical = false; }\n       \
-          \ var duplex = NE.int(t.duplex[k] || null);\n        var lastChange = null, ticks = NE.int(t.lastChange[k]\
-          \ || null);\n        if (ticks !== null && ticks > 0 && uptime !== null && ticks <= uptime) {\n      \
-          \      lastChange = new Date(observed - (uptime - ticks) * 10).toISOString();\n        }\n        var\
-          \ parent = parents[k] ? uids[parents[k]] || null : null;\n        rows.push({\n            uid: uid, if_index:\
-          \ indexes[i],\n            name: NE.text(t.name[k] || null), description: NE.text(t.descr[k] || null),\n\
-          \            alias: NE.text(t.alias[k] || null), type: type, physical: physical,\n            admin_status:\
-          \ IF_ADMIN[admin] || null, oper_status: IF_OPER[oper] || null,\n            speed_bps: bps, duplex: duplex\
-          \ === 2 ? 'half' : (duplex === 3 ? 'full' : null),\n            mtu: NE.int(t.mtu[k] || null), mac_address:\
-          \ NE.mac(t.mac[k] || null),\n            last_change: lastChange, stack_parent_uid: parent\n        });\n\
-          \    }\n    var expected = NE.int(NE.scalar(walk, NE.IF.number));\n    if (expected !== null && expected\
-          \ !== indexes.length) {\n        NE.error(env, 'interface_count_mismatch', 'ifNumber does not match the\
-          \ number of interface rows walked.');\n    }\n    if (!indexes.length && expected === null) {\n      \
-          \  throw {unsupported: 'The agent returned no IF-MIB interface table.'};\n    }\n    return rows;\n}\n\
-          \nreturn JSON.stringify(NE.run('interfaces', 'standard-if-inventory', value, function (w, e) { return\
-          \ normaliseInterfaces(w, e); }));"
+          \ 131: true, 135: true, 136: true, 161: true};\n\n// ENTITY-MIB classes: chassis 3, module 9, port 10,\
+          \ stack 11.\nvar ENT_CHASSIS = 3, ENT_MODULE = 9, ENT_PORT = 10, ENT_STACK = 11;\n\n// ifIndex -> {member,\
+          \ slot, port} from entAliasMappingTable and the containment tree.\n// Ports with no mapping, or whose\
+          \ tree does not reach a chassis, are left unplaced.\nfunction entityPositions(t) {\n    var out = {},\
+          \ chassisCount = 0, key;\n    for (key in t.entClass) {\n        if (t.entClass.hasOwnProperty(key) &&\
+          \ NE.int(t.entClass[key]) === ENT_CHASSIS) { chassisCount++; }\n    }\n    for (key in t.entAlias) {\n\
+          \        if (!t.entAlias.hasOwnProperty(key)) { continue; }\n        var target = /^\\.?1\\.3\\.6\\.1\\\
+          .2\\.1\\.2\\.2\\.1\\.1\\.([0-9]+)$/.exec(t.entAlias[key].value);\n        var ent = key.split('.')[0];\n\
+          \        if (!target || NE.int(t.entClass[ent] || null) !== ENT_PORT) { continue; }\n        var slot\
+          \ = null, member = null, node = ent, depth = 0;\n        while (depth++ < 16) {\n            var parent\
+          \ = NE.int(t.entContained[node] || null);\n            if (parent === null || parent === 0) { break; }\n\
+          \            node = String(parent);\n            var cls = NE.int(t.entClass[node] || null);\n       \
+          \     if (cls === ENT_MODULE && slot === null) { slot = NE.int(t.entRelPos[node] || null); }\n       \
+          \     if (cls === ENT_CHASSIS) {\n                var above = NE.int(t.entContained[node] || null);\n\
+          \                if (above !== null && NE.int(t.entClass[String(above)] || null) === ENT_STACK) {\n  \
+          \                  member = NE.int(t.entRelPos[node] || null);\n                }\n                else\
+          \ if (chassisCount === 1) { member = 1; }\n                break;\n            }\n        }\n        if\
+          \ (member !== null && !out.hasOwnProperty(target[1])) {\n            out[target[1]] = {member: member,\
+          \ slot: slot, port: NE.int(t.entRelPos[ent] || null)};\n        }\n    }\n    return out;\n}\n\nfunction\
+          \ normaliseInterfaces(walk, env) {\n    var t = {}, key;\n    for (key in NE.IF) {\n        if (NE.IF.hasOwnProperty(key))\
+          \ { t[key] = NE.table(walk, NE.IF[key]); }\n    }\n    var uids = NE.interfaceIndex(walk, env);\n    var\
+          \ uptime = NE.int(NE.scalar(walk, NE.UPTIME));\n    var observed = Date.parse(env.attempted_at);\n   \
+          \ var positions = entityPositions(t);\n    var parents = {};\n    for (key in t.stack) {\n        if (!t.stack.hasOwnProperty(key))\
+          \ { continue; }\n        var pair = key.split('.');\n        if (pair.length === 2 && pair[0] !== '0'\
+          \ && pair[1] !== '0' && NE.int(t.stack[key]) === 1) {\n            parents[pair[1]] = parents.hasOwnProperty(pair[1])\
+          \ ? null : pair[0];\n        }\n    }\n    var rows = [], indexes = [];\n    for (key in uids) {\n   \
+          \     if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }\n   \
+          \ }\n    indexes.sort(function (a, b) { return a - b; });\n    for (var i = 0; i < indexes.length; i++)\
+          \ {\n        var k = String(indexes[i]), uid = uids[k];\n        if (uid === null) { continue; }\n   \
+          \     var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);\n        var type = NE.int(t.type[k]\
+          \ || null);\n        if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {\n            NE.error(env,\
+          \ 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus.');\n       \
+          \ }\n        var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;\n\
+          \        if (high !== null && high > 0) { bps = high * 1000000; }\n        else if (speed !== null &&\
+          \ speed > 0 && speed < 4294967295) { bps = speed; }\n        var connector = NE.int(t.connector[k] ||\
+          \ null), physical = null;\n        if (connector === 1) { physical = true; }\n        else if (connector\
+          \ === 2) { physical = false; }\n        else if (type === 6) { physical = true; }\n        else if (type\
+          \ !== null && IF_LOGICAL_TYPES[type]) { physical = false; }\n        var duplex = NE.int(t.duplex[k] ||\
+          \ null);\n        var lastChange = null, ticks = NE.int(t.lastChange[k] || null);\n        if (ticks !==\
+          \ null && ticks > 0 && uptime !== null && ticks <= uptime) {\n            lastChange = new Date(observed\
+          \ - (uptime - ticks) * 10).toISOString();\n        }\n        var parent = parents[k] ? uids[parents[k]]\
+          \ || null : null;\n        rows.push({\n            uid: uid, if_index: indexes[i],\n            name:\
+          \ NE.text(t.name[k] || null), description: NE.text(t.descr[k] || null),\n            alias: NE.text(t.alias[k]\
+          \ || null), type: type, physical: physical,\n            admin_status: IF_ADMIN[admin] || null, oper_status:\
+          \ IF_OPER[oper] || null,\n            speed_bps: bps, duplex: duplex === 2 ? 'half' : (duplex === 3 ?\
+          \ 'full' : null),\n            mtu: NE.int(t.mtu[k] || null), mac_address: NE.mac(t.mac[k] || null),\n\
+          \            last_change: lastChange, stack_parent_uid: parent,\n            member: positions[k] ? positions[k].member\
+          \ : null, slot: positions[k] ? positions[k].slot : null,\n            port: positions[k] ? positions[k].port\
+          \ : null\n        });\n    }\n    var expected = NE.int(NE.scalar(walk, NE.IF.number));\n    if (expected\
+          \ !== null && expected !== indexes.length) {\n        NE.error(env, 'interface_count_mismatch', 'ifNumber\
+          \ does not match the number of interface rows walked.');\n    }\n    if (!indexes.length && expected ===\
+          \ null) {\n        throw {unsupported: 'The agent returned no IF-MIB interface table.'};\n    }\n    return\
+          \ rows;\n}\n\nreturn JSON.stringify(NE.run('interfaces', 'standard-if-inventory', value, function (w,\
+          \ e) { return normaliseInterfaces(w, e); }));"
       tags:
       - tag: component
         value: network-explorer
@@ -1427,8 +1473,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -1590,13 +1638,18 @@ zabbix_export:
           \  var get = function (col) { return t[col][ix] ? t[col][ix].entry : null; };\n        var arc = NE.mauArc(get('type')),\
           \ mau = arc !== null ? NE.MAU[arc] || null : null;\n        var admin = NE.int(get('autoNegAdmin'));\n\
           \        var typeBits = get('typeListBits'), adv = get('capAdvertised'), rec = get('capReceived');\n \
-          \       rows.push({\n            uid: uid, if_index: list[i],\n            autoneg_enabled: admin ===\
-          \ 1 ? true : (admin === 2 ? false : null),\n            oper_mau_type: get('type') ? get('type').value.replace(/^\\\
+          \       // Media: the operating MAU's, otherwise the one media every supported MAU type shares.\n    \
+          \    var media = mau ? mau[2] : null;\n        if (media === null && typeBits) {\n            var arcs\
+          \ = NE.bitsSet(NE.bytes(typeBits));\n            for (var m = 0; m < arcs.length; m++) {\n           \
+          \     var kind = NE.MAU[arcs[m]] ? NE.MAU[arcs[m]][2] : null;\n                if (kind === null || (media\
+          \ !== null && kind !== media)) { media = null; break; }\n                media = kind;\n            }\n\
+          \        }\n        rows.push({\n            uid: uid, if_index: list[i],\n            autoneg_enabled:\
+          \ admin === 1 ? true : (admin === 2 ? false : null),\n            oper_mau_type: get('type') ? get('type').value.replace(/^\\\
           ./, '') : null,\n            oper_speed_bps: mau ? mau[0] : null, oper_duplex: mau ? mau[1] : null,\n\
           \            supported_speeds_bps: typeBits ? NE.speedsFromBits(NE.bitsSet(NE.bytes(typeBits)), 'mau')\
           \ : null,\n            advertised_speeds_bps: adv ? NE.speedsFromBits(NE.bitsSet(NE.bytes(adv)), 'autoneg')\
           \ : null,\n            partner_advertised_speeds_bps: rec ? NE.speedsFromBits(NE.bitsSet(NE.bytes(rec)),\
-          \ 'autoneg') : null\n        });\n    }\n    return rows;\n}\n\nreturn JSON.stringify(NE.run('port_capability',\
+          \ 'autoneg') : null,\n            media: media\n        });\n    }\n    return rows;\n}\n\nreturn JSON.stringify(NE.run('port_capability',\
           \ 'standard-mau', value, function (w, e) { return normalisePortCapability(w, e); }));"
       tags:
       - tag: component
@@ -1787,8 +1840,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -2192,8 +2247,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -2585,8 +2642,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\
@@ -3039,8 +3098,10 @@ zabbix_export:
           \    mtu: '1.3.6.1.2.1.2.2.1.4',\n    speed: '1.3.6.1.2.1.2.2.1.5',\n    mac: '1.3.6.1.2.1.2.2.1.6',\n\
           \    admin: '1.3.6.1.2.1.2.2.1.7',\n    oper: '1.3.6.1.2.1.2.2.1.8',\n    lastChange: '1.3.6.1.2.1.2.2.1.9',\n\
           \    name: '1.3.6.1.2.1.31.1.1.1.1',\n    highSpeed: '1.3.6.1.2.1.31.1.1.1.15',\n    connector: '1.3.6.1.2.1.31.1.1.1.17',\n\
-          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19'\n\
-          };\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
+          \    alias: '1.3.6.1.2.1.31.1.1.1.18',\n    stack: '1.3.6.1.2.1.31.1.2.1.3',\n    duplex: '1.3.6.1.2.1.10.7.2.1.19',\n\
+          \    // ENTITY-MIB: physical position of each port (stack member, slot, port).\n    entContained: '1.3.6.1.2.1.47.1.1.1.1.4',\n\
+          \    entClass: '1.3.6.1.2.1.47.1.1.1.1.5',\n    entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',\n    entAlias:\
+          \ '1.3.6.1.2.1.47.1.3.2.1.2'\n};\nNE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';\n\n// ----------------------------------------------------------------\
           \ parsing\n\n// Parses Zabbix walk[] output: one \"OID = TYPE: value\" entry per line, numeric\n// OIDs\
           \ and enums, quoted STRING values (which may span lines), and unquoted\n// Hex-STRING values (which net-snmp\
           \ may wrap onto continuation lines).\nNE.parseWalk = function (text) {\n    var rows = {}, order = [],\

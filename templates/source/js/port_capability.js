@@ -44,6 +44,16 @@ function normalisePortCapability(walk, env) {
         var arc = NE.mauArc(get('type')), mau = arc !== null ? NE.MAU[arc] || null : null;
         var admin = NE.int(get('autoNegAdmin'));
         var typeBits = get('typeListBits'), adv = get('capAdvertised'), rec = get('capReceived');
+        // Media: the operating MAU's, otherwise the one media every supported MAU type shares.
+        var media = mau ? mau[2] : null;
+        if (media === null && typeBits) {
+            var arcs = NE.bitsSet(NE.bytes(typeBits));
+            for (var m = 0; m < arcs.length; m++) {
+                var kind = NE.MAU[arcs[m]] ? NE.MAU[arcs[m]][2] : null;
+                if (kind === null || (media !== null && kind !== media)) { media = null; break; }
+                media = kind;
+            }
+        }
         rows.push({
             uid: uid, if_index: list[i],
             autoneg_enabled: admin === 1 ? true : (admin === 2 ? false : null),
@@ -51,7 +61,8 @@ function normalisePortCapability(walk, env) {
             oper_speed_bps: mau ? mau[0] : null, oper_duplex: mau ? mau[1] : null,
             supported_speeds_bps: typeBits ? NE.speedsFromBits(NE.bitsSet(NE.bytes(typeBits)), 'mau') : null,
             advertised_speeds_bps: adv ? NE.speedsFromBits(NE.bitsSet(NE.bytes(adv)), 'autoneg') : null,
-            partner_advertised_speeds_bps: rec ? NE.speedsFromBits(NE.bitsSet(NE.bytes(rec)), 'autoneg') : null
+            partner_advertised_speeds_bps: rec ? NE.speedsFromBits(NE.bitsSet(NE.bytes(rec)), 'autoneg') : null,
+            media: media
         });
     }
     return rows;

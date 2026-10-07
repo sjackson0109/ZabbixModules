@@ -16,10 +16,15 @@
 .ne-widget .ne-port span { display: block; }
 .ne-widget .ne-port-number { font-weight: bold; overflow-wrap: anywhere; }
 .ne-widget .ne-port-status,.ne-widget .ne-port-speed { font-size: 10px; margin-top: 3px; }
-.ne-widget button.ne-state-up { border-color: #287e3f; background: rgba(40,126,63,.10); }
-.ne-widget button.ne-state-down { border-color: #b04444; background: rgba(176,68,68,.10); }
-.ne-widget button.ne-state-degraded { border-color: #b37312; background: rgba(179,115,18,.13); }
-.ne-widget button.ne-state-disabled { border-style: dashed; opacity: .75; }
+.ne-widget button.ne-state-up { border-color: var(--ne-colour-normal, #287e3f); background: color-mix(in srgb, var(--ne-colour-normal, #287e3f) 10%, transparent); }
+.ne-widget button.ne-state-down { border-color: var(--ne-colour-down, #b04444); background: color-mix(in srgb, var(--ne-colour-down, #b04444) 10%, transparent); }
+.ne-widget button.ne-state-degraded { border-color: var(--ne-colour-degraded, #b37312); background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 13%, transparent); }
+.ne-widget button.ne-state-disabled { border-color: var(--ne-colour-disabled, #607080); border-style: dashed; opacity: .75; }
+.ne-widget button.ne-state-unknown { border-color: var(--ne-colour-unknown, #3a4752); background: color-mix(in srgb, var(--ne-colour-unknown, #3a4752) 8%, transparent); }
+.ne-widget .ne-member-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
+.ne-widget .ne-member-tabs[hidden] { display: none; }
+.ne-widget button.ne-member-tab { border: 1px solid #909ba5; border-bottom-width: 3px; border-radius: 4px 4px 0 0; padding: 4px 12px; background: transparent; color: inherit; }
+.ne-widget button.ne-member-tab[aria-selected=true] { border-bottom-color: #387ac4; font-weight: bold; }
 .ne-widget button.ne-port[aria-pressed=true] { outline: 3px solid #387ac4; outline-offset: 2px; }
 .ne-widget button:focus-visible,.ne-widget a:focus-visible { outline: 3px solid #387ac4; outline-offset: 2px; }
 .ne-widget .ne-drawer { margin: 10px 0; border-top: 1px solid #909ba5; padding-top: 8px; }
@@ -49,7 +54,7 @@
 @media(max-width:800px) { .ne-widget .ne-port-grid { grid-template-columns: repeat(6,minmax(45px,1fr)); } }
 @media print { .ne-widget { max-height: none; overflow: visible; }.ne-widget .ne-toolbar { display: none; }.ne-widget .ne-graph { overflow: visible; } }
 
-.ne-widget button.ne-state-speed_observation,.ne-widget button.ne-state-duplex_observation { border-color: #b37312; border-style: dashed; background: rgba(179,115,18,.07); }
+.ne-widget button.ne-state-speed_observation,.ne-widget button.ne-state-duplex_observation { border-color: var(--ne-colour-degraded, #b37312); border-style: dashed; background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 7%, transparent); }
 
 .ne-widget button.ne-vlan-access,.ne-widget button.ne-vlan-native { border-color: #287e3f; background: rgba(40,126,63,.14); }
 .ne-widget button.ne-vlan-tagged { border-color: #2676b9; background: rgba(38,118,185,.12); }
