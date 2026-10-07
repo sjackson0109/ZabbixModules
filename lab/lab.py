@@ -64,7 +64,9 @@ def api_request(url: str, method: str, params: object, token: str | None = None)
     request = urllib.request.Request(url + "/api_jsonrpc.php", data, headers)
     # The lab is deliberately loopback-only; ignore external HTTP proxy configuration.
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with opener.open(request, timeout=10) as response:
+    # Template imports run inside one request and can take longer than ordinary calls on a busy host.
+    timeout = 120 if method == "configuration.import" else 10
+    with opener.open(request, timeout=timeout) as response:
         result = json.load(response)
     if "error" in result:
         raise RuntimeError(f"{method}: {result['error']}")

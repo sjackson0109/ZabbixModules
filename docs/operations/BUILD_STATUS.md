@@ -18,6 +18,7 @@ Status: initial alpha implementation, reviewed 7 October 2026. This is a working
 - PHP: 64 dataset/policy/report/navigation checks and 28 topology/subnet checks passed.
 - JavaScript: seven algorithm/manifest/export checks passed; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks passed.
 - Real Zabbix 7.0.20, 7.2.7 and 7.4.3 labs exercise module registration, replay ingestion, LLD, native graphs, inherited dashboards, ordinary-user permissions, API/report behaviour and malformed/failing collection preservation. See [runtime evidence](../../lab/VERIFICATION.md).
+- The spec's acceptance walkthrough (amber port, peer navigation, off-subnet switch, VLAN journey, STP root and blocking port, LAG as one link, a restricted viewer, a stopped agent) passes in Chromium against four simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`).
 - Live browser tests exercised inherited dashboards, host/item broadcasts and peer-interface highlighting. These are synthetic lab hosts, not customer switches.
 
 ## Continue locally
@@ -39,6 +40,6 @@ Browser scripts require the externally installed Playwright test dependency and 
 
 Use [the family handoff index](../../templates/specifications/FAMILY_HANDOFFS.md), [shared contract](../../templates/specifications/CONTRACT.md) and authoritative [schema](../../schemas/envelope.schema.json). Obtain sanitised model/firmware inventory and numeric-OID walks before implementing or claiming support for a family profile. Preserve existing monitoring coverage and qualify each producer against the module contracts.
 
-Production vendor templates remain specifications; the generic standard-MIB native templates and the frontend read VLAN, STP and port capability (schema 1.1). Snapshot partitioning, coherent topology history, automatic duplicate-address conflict reporting, scheduled PDFs and business service provisioning are later scope. Full 300-switch/15,000-port production performance is not established. Candidate host retrieval currently applies a 301-host cap before domain filtering; larger mixed estates can therefore have incomplete peer coverage, with truncation reported.
+Production vendor templates remain specifications; the generic standard-MIB native templates and the frontend read VLAN, STP and port capability (schema 1.1). Snapshot partitioning, coherent topology history, automatic duplicate-address conflict reporting, scheduled PDFs and business service provisioning are later scope. At the spec's 300-switch/15,000-port scale, synthetic data builds in under 3 s and renders in under 0.5 s; production performance, including Zabbix API and history latency, is not established. Candidate host retrieval currently applies a 301-host cap before domain filtering; larger mixed estates can therefore have incomplete peer coverage, with truncation reported.
 
 No production host enrolment, private network scan, vendor qualification or customer credential access was performed.

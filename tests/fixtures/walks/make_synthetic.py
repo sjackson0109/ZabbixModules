@@ -10,6 +10,12 @@ tools/inventory/capture_walk.py produces for real devices:
                without 49 on port 4, port 23 negotiated at 100M half duplex
                against a 1G-capable partner (the spec's Appendix A journey).
   sw-access-17 48 copper ports; port 48 is the far end of sw-core-01 port 23.
+  sw-dist-02   RSTP root; LACP Po10 (Te0/1-2) is the far end of sw-core-01 Po1,
+               Te0/3 links to sw-dist-01.
+  sw-dist-01   Management address 10.102.5.10, outside the lab's 10.101.0.0/16;
+               Gi0/1 is the far end of sw-core-01 port 24, Te0/2 links to
+               sw-dist-02. Its lower bridge priority makes sw-core-01 port 24
+               the blocking alternate port of the core/dist triangle.
 
 Run with --check to verify the committed files are current.
 """
@@ -258,7 +264,7 @@ def core() -> Agent:
     a.int("1.3.6.1.2.1.17.2.16.0", 2)
     for port in (1, 2, 3, 4, 7, 8, 23):
         stp_port(a, port, 5, 20000, own, port, edge=port in (1, 2, 7, 8))
-    stp_port(a, 24, 2, 20000, (32768).to_bytes(2, "big") + mac(DIST1_MAC), 1)
+    stp_port(a, 24, 2, 20000, (8192).to_bytes(2, "big") + mac(DIST1_MAC), 1)
     stp_port(a, 27, 5, 1000, ROOT_BRIDGE, 10)
     # LACP Po1 to dist-02.
     a.hex("1.2.840.10006.300.43.1.1.1.1.4.1001", mac(CORE_MAC))
@@ -308,11 +314,102 @@ def access() -> Agent:
     return a
 
 
+def dist02() -> Agent:
+    a = Agent()
+    system(a, "sw-dist-02", "Synthetic switch OS 1.2.3, distribution", DIST2_MAC, "10.101.0.2", "SYN-8X", "SYNDIST0002")
+    a.int("1.3.6.1.2.1.2.1.0", 4)
+    for ix in (1, 2, 3):
+        interface(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}", high_speed=SPEED_10G,
+                  mac_addr=f"00:11:22:a2:00:{ix:02x}", alias="Po10 member" if ix < 3 else "To dist-01")
+        mau(a, ix, 33, [33], None, None)
+        lldp_local(a, ix, f"Te0/{ix}", f"TenGigabitEthernet0/{ix}")
+    interface(a, 1010, "Po10", "Port-channel10", if_type=161, high_speed=20000, duplex=None, connector=2,
+              mac_addr=DIST2_MAC, alias="To core-01")
+    for member in (1, 2):
+        a.int(f"1.3.6.1.2.1.31.1.2.1.3.1010.{member}", 1)
+    a.hex("1.3.6.1.2.1.17.1.1.0", mac(DIST2_MAC))
+    a.int("1.3.6.1.2.1.17.1.4.1.2.3", 3)
+    a.int("1.3.6.1.2.1.17.1.4.1.2.10", 1010)
+    for port_num, peer in ((1, "Te1/0/1"), (2, "Te1/0/2")):
+        lldp_remote(a, port_num, 1, chassis=CORE_MAC, port=peer, port_desc="Po1 member", sys_name="sw-core-01",
+                    address="10.101.1.10", oper_mau=33, aggregated_port=1001, pvid=1)
+    lldp_remote(a, 3, 1, chassis=DIST1_MAC, port="Te0/2", port_desc="To dist-02", sys_name="sw-dist-01",
+                address="10.102.5.10", oper_mau=33, pvid=1)
+    # Bridge ports: 3 is Te0/3, 10 is Po10. Both are trunks with native VLAN 1.
+    vlans(a, {
+        1: ("default", [3, 10], [3, 10], []),
+        49: ("Wireless APs", [3, 10], [], []),
+        50: ("Voice", [3, 10], [], []),
+    }, {3: 1, 10: 1}, size=2)
+    # RSTP root: every port is designated and forwarding.
+    a.int("1.3.6.1.2.1.17.2.1.0", 3)
+    a.int("1.3.6.1.2.1.17.2.2.0", 4096)
+    a.ticks("1.3.6.1.2.1.17.2.3.0", 720_000)
+    a.int("1.3.6.1.2.1.17.2.4.0", 7)
+    a.hex("1.3.6.1.2.1.17.2.5.0", ROOT_BRIDGE)
+    a.int("1.3.6.1.2.1.17.2.6.0", 0)
+    a.int("1.3.6.1.2.1.17.2.7.0", 0)
+    a.int("1.3.6.1.2.1.17.2.16.0", 2)
+    for port, cost in ((3, 2000), (10, 1000)):
+        stp_port(a, port, 5, cost, ROOT_BRIDGE, port)
+    # LACP Po10 to sw-core-01 Po1.
+    a.hex("1.2.840.10006.300.43.1.1.1.1.4.1010", mac(DIST2_MAC))
+    a.int("1.2.840.10006.300.43.1.1.1.1.5.1010", 1)
+    a.hex("1.2.840.10006.300.43.1.1.1.1.8.1010", mac(CORE_MAC))
+    for member, partner_port in ((1, 25), (2, 26)):
+        a.int(f"1.2.840.10006.300.43.1.2.1.1.12.{member}", 1010)
+        a.int(f"1.2.840.10006.300.43.1.2.1.1.13.{member}", 1010)
+        a.int(f"1.2.840.10006.300.43.1.2.1.1.17.{member}", partner_port)
+        a.hex(f"1.2.840.10006.300.43.1.2.1.1.21.{member}", bytes([0xBC]))
+    return a
+
+
+def dist01() -> Agent:
+    a = Agent()
+    system(a, "sw-dist-01", "Synthetic switch OS 1.2.3, distribution", DIST1_MAC, "10.102.5.10", "SYN-8X", "SYNDIST0001")
+    a.int("1.3.6.1.2.1.2.1.0", 2)
+    interface(a, 1, "Gi0/1", "GigabitEthernet0/1", mac_addr="00:11:22:a1:00:01", alias="To core-01")
+    mau(a, 1, 30, MAU_COPPER_SUPPORTED, AUTONEG_10_100_1000, AUTONEG_10_100_1000)
+    interface(a, 2, "Te0/2", "TenGigabitEthernet0/2", high_speed=SPEED_10G, mac_addr="00:11:22:a1:00:02",
+              alias="To dist-02")
+    mau(a, 2, 33, [33], None, None)
+    for ix, name in ((1, "Gi0/1"), (2, "Te0/2")):
+        lldp_local(a, ix, name, ("GigabitEthernet0/" if ix == 1 else "TenGigabitEthernet0/") + str(ix))
+    a.hex("1.3.6.1.2.1.17.1.1.0", mac(DIST1_MAC))
+    for port in (1, 2):
+        a.int(f"1.3.6.1.2.1.17.1.4.1.2.{port}", port)
+    lldp_remote(a, 1, 1, chassis=CORE_MAC, port="Gi1/0/24", port_desc="Uplink to dist-01", sys_name="sw-core-01",
+                address="10.101.1.10", oper_mau=30, advertised=AUTONEG_10_100_1000, pvid=1)
+    lldp_remote(a, 2, 1, chassis=DIST2_MAC, port="Te0/3", port_desc="To dist-01", sys_name="sw-dist-02",
+                address="10.101.0.2", oper_mau=33, pvid=1)
+    # Gi0/1 is access VLAN 1 (as sw-core-01 port 24); Te0/2 trunks 49 and 50 with native VLAN 1.
+    vlans(a, {
+        1: ("default", [1, 2], [1, 2], []),
+        49: ("Wireless APs", [2], [], []),
+        50: ("Voice", [2], [], []),
+    }, {1: 1, 2: 1}, size=1)
+    # RSTP: root port Te0/2 (cost 2000); priority 8192 beats sw-core-01 on the shared segment, so Gi0/1 is
+    # designated and sw-core-01 port 24 is the alternate.
+    own = (8192).to_bytes(2, "big") + mac(DIST1_MAC)
+    a.int("1.3.6.1.2.1.17.2.1.0", 3)
+    a.int("1.3.6.1.2.1.17.2.2.0", 8192)
+    a.ticks("1.3.6.1.2.1.17.2.3.0", 720_000)
+    a.int("1.3.6.1.2.1.17.2.4.0", 5)
+    a.hex("1.3.6.1.2.1.17.2.5.0", ROOT_BRIDGE)
+    a.int("1.3.6.1.2.1.17.2.6.0", 2000)
+    a.int("1.3.6.1.2.1.17.2.7.0", 2)
+    a.int("1.3.6.1.2.1.17.2.16.0", 2)
+    stp_port(a, 1, 5, 20000, own, 1)
+    stp_port(a, 2, 5, 2000, ROOT_BRIDGE, 3)
+    return a
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    for name, agent in (("sw-core-01", core()), ("sw-access-17", access())):
+    for name, agent in (("sw-core-01", core()), ("sw-access-17", access()), ("sw-dist-02", dist02()),
+                        ("sw-dist-01", dist01())):
         target = HERE / f"{name}.snmprec"
         text = agent.render()
         if args.check:
