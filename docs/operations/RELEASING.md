@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are cut from the default branch (`work`) by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the full CI suite, builds the packages and publishes a GitHub release. Nothing is published unless every step passes.
+Releases are cut from the default branch (`work`), either from the Actions tab or by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the full CI suite, builds the packages and publishes a GitHub release. Nothing is published unless every step passes.
 
 ## 1. Prepare the version
 
@@ -17,7 +17,9 @@ A version with a suffix, such as `1.3.0-rc.1`, is published as a pre-release.
 
 ## 2. Tag
 
-From the merged commit on `work`:
+**From GitHub (no local clone needed):** Actions → Release → Run workflow, branch `work`, version `1.2.0`. The workflow runs every check below on the head of `work`, then creates the annotated `v1.2.0` tag as Simon Jackson and publishes. It refuses a version whose tag already exists.
+
+**Or from a clone**, on the merged commit of `work`:
 
 ```sh
 git checkout work && git pull
