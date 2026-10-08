@@ -1,16 +1,25 @@
 name: Release
 
-# Push a vX.Y.Z tag on a commit of the default branch to publish a GitHub release.
-# See docs/operations/RELEASING.md.
+# Publish a GitHub release either by pushing a vX.Y.Z tag on a commit of the default
+# branch, or by running this workflow on the default branch with the version (Actions >
+# Release > Run workflow), which tags the branch head itself. See docs/operations/RELEASING.md.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, matching the VERSION file (for example 1.2.0)"
+        required: true
 
 permissions:
   contents: read
 
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -24,14 +33,20 @@ jobs:
         with:
           python-version: "3.12"
       - name: Tag matches VERSION, components and changelog
-        run: python scripts/release.py check "$GITHUB_REF_NAME"
+        run: python scripts/release.py check "$TAG"
       - name: Tagged commit is on the default branch
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           git fetch --no-tags origin "$DEFAULT_BRANCH"
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH" \
-            || { echo "::error::$GITHUB_REF_NAME is not on $DEFAULT_BRANCH"; exit 1; }
+            || { echo "::error::$TAG is not on $DEFAULT_BRANCH"; exit 1; }
+      - name: Tag is new (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists; release a new version or delete the tag first"; exit 1
+          fi
 
   checks:
     needs: verify
@@ -59,21 +74,28 @@ jobs:
           cd dist && sha256sum -c SHA256SUMS
       - name: Release notes
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           {
             python scripts/release.py notes "$version"
             echo
             echo "## Install"
             echo
-            echo "Download the archives below and check them with \`sha256sum -c SHA256SUMS\`. Install the frontend and template packages together, following [INSTALL.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/operations/INSTALL.md) or the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/operations/DEPLOYMENT_GUIDE.md)."
+            echo "Download the archives below and check them with \`sha256sum -c SHA256SUMS\`. Install the frontend and template packages together, following [INSTALL.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/INSTALL.md) or the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/DEPLOYMENT_GUIDE.md)."
           } > dist/RELEASE_NOTES.md
+      - name: Tag (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "Simon Jackson"
+          git config user.email "simon@jacksonfamily.me"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Network Explorer ${TAG#v}"
+          git push origin "refs/tags/$TAG"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           flags=()
           [[ "$version" == *-* ]] && flags+=(--prerelease)
-          gh release create "$GITHUB_REF_NAME" --verify-tag "${flags[@]}" \
+          gh release create "$TAG" --verify-tag "${flags[@]}" \
             --title "Network Explorer $version" --notes-file dist/RELEASE_NOTES.md \
             dist/*.tar dist/manifest.json dist/SHA256SUMS
