@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-08
+
 ### Added
 - A tag-driven release workflow: pushing `vX.Y.Z` verifies the version, runs CI, builds the packages and publishes a GitHub release with checksums. `scripts/release.py` bumps every component version and moves the changelog for a release; see [RELEASING.md](docs/operations/RELEASING.md).
 - Continuous integration for the Python, Node and PHP checks, on PHP 8.0 and 8.3 and Python 3.10 and 3.12.

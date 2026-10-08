@@ -10,7 +10,7 @@ zabbix_export:
     description: LAB ONLY. Zabbix sender/trapper fixture replay for Network Explorer contract testing. No SNMP polling; never link to production network hosts. Registered custom widgets are required for dashboards.
     vendor:
       name: Network Explorer
-      version: 1.0.0-lab
+      version: 1.2.0-lab
     groups:
     - name: Templates/Network Explorer/Lab
     items:

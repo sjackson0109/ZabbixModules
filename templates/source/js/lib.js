@@ -5,7 +5,7 @@
 
 var NE = {};
 NE.SCHEMA = '1.1';
-NE.VERSION = '1.0.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+NE.VERSION = '1.2.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
 NE.FAILED = '__NE_COLLECTION_FAILED__';
 NE.UPTIME = '1.3.6.1.2.1.1.3.0';
 

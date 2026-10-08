@@ -1,6 +1,6 @@
 # Deployment guide: Docker test server and multi-proxy production
 
-This guide installs Network Explorer 1.0.0 on two kinds of estate:
+This guide installs Network Explorer 1.2.0 on two kinds of estate:
 
 - **Test:** one Docker host running the Zabbix server, frontend and one or more proxies as containers.
 - **Production:** one frontend server and several proxies spread across data centres, each proxy built from a customised Dockerfile.
@@ -41,7 +41,7 @@ Nothing in the module calls a proxy, runs a command or opens a network connectio
    sha256sum -c SHA256SUMS
    ```
 
-   You get `network-explorer-frontend-1.0.0.tar` (directories under `frontend/`), `network-explorer-templates-1.0.0.tar` (under `templates/native/`), and the optional collector package. Copy only the archives to your servers; nothing else from the checkout is needed.
+   You get `network-explorer-frontend-1.2.0.tar` (directories under `frontend/`), `network-explorer-templates-1.2.0.tar` (under `templates/native/`), and the optional collector package. Copy only the archives to your servers; nothing else from the checkout is needed.
 4. **Decide the `ne.domain` value(s).** Every switch host needs exactly one host tag `ne.domain` (for example `ne.domain=corp`). Peer matching only happens between hosts with the same value. Use one value across all five data centres if they are one routed/LLDP-connected network; use different values only for networks that must never be matched to each other (for example separate customers with overlapping IPs). The tag never grants visibility.
 5. **Check host names.** Technical and visible host names must be unique across the whole installation; LLDP peer matching relies on that.
 
@@ -67,10 +67,10 @@ Choose one of the two methods below. Bind mounts suit the test server; a derived
 Unpack the package into a versioned directory on the Docker host:
 
 ```sh
-sudo mkdir -p /opt/zabbix/network-explorer/1.0.0
-sudo tar -xf network-explorer-frontend-1.0.0.tar -C /opt/zabbix/network-explorer/1.0.0
-sudo ln -sfn /opt/zabbix/network-explorer/1.0.0 /opt/zabbix/network-explorer/current
-sudo chmod -R a+rX /opt/zabbix/network-explorer/1.0.0
+sudo mkdir -p /opt/zabbix/network-explorer/1.2.0
+sudo tar -xf network-explorer-frontend-1.2.0.tar -C /opt/zabbix/network-explorer/1.2.0
+sudo ln -sfn /opt/zabbix/network-explorer/1.2.0 /opt/zabbix/network-explorer/current
+sudo chmod -R a+rX /opt/zabbix/network-explorer/1.2.0
 ```
 
 The web container runs as an unprivileged user, so files must be world-readable and directories traversable; nothing needs to be writable. Then mount each directory read-only. In your compose file (service name and image are examples):
@@ -98,7 +98,7 @@ Apply it with `docker compose up -d zabbix-web`. Docker resolves the `current` s
 # Dockerfile.web
 FROM zabbix/zabbix-web-nginx-pgsql:alpine-7.4.3
 USER root
-# Unpacked from network-explorer-frontend-1.0.0.tar next to this Dockerfile.
+# Unpacked from network-explorer-frontend-1.2.0.tar next to this Dockerfile.
 COPY frontend/ /usr/share/zabbix/modules/
 RUN chmod -R a+rX /usr/share/zabbix/modules
 # Return to the base image's user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
@@ -106,9 +106,9 @@ USER 1997
 ```
 
 ```sh
-mkdir build && tar -xf network-explorer-frontend-1.0.0.tar -C build
+mkdir build && tar -xf network-explorer-frontend-1.2.0.tar -C build
 cp Dockerfile.web build/
-docker build -t registry.example/zabbix-web-ne:7.4.3-ne1.0.0 -f build/Dockerfile.web build
+docker build -t registry.example/zabbix-web-ne:7.4.3-ne1.2.0 -f build/Dockerfile.web build
 ```
 
 Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the image with both the Zabbix and the Network Explorer version so a rollback is a tag change. If you already maintain a customised web image, add the `COPY` and `chmod` lines to it instead.
@@ -132,7 +132,7 @@ If you run more than one frontend against the same database, every frontend must
 
 ## 4. Import the templates
 
-Unpack `network-explorer-templates-1.0.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`.
+Unpack `network-explorer-templates-1.2.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`.
 
 1. **Data collection → Templates → Import**, choose `network_explorer_snmp.yaml`. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import). This creates the template group `Templates/Network Explorer` and eight templates: `Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG` and the profile `Network Explorer - Profile - Generic standard MIB`.
 2. Only after the modules are enabled (3.3): import `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a host dashboard (Ports, Topology, Findings) and no items.
@@ -246,7 +246,7 @@ Proxies need nothing for a frontend or template upgrade; they receive the new it
 
 ## 8. Optional: the Python collector on a proxy
 
-The collector exists only for devices that native SNMP items cannot reach. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 1.0.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native profile to the same host.
+The collector exists only for devices that native SNMP items cannot reach. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 1.2.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native profile to the same host.
 
 If you do need it, add it to that proxy's Dockerfile. The example below targets the official Alpine proxy image; adjust the package manager for an Ubuntu or RHEL base. Python 3.10 or newer is required.
 
@@ -254,16 +254,16 @@ If you do need it, add it to that proxy's Dockerfile. The example below targets 
 FROM zabbix/zabbix-proxy-mysql:alpine-7.4.3
 USER root
 RUN apk add --no-cache python3
-COPY network-explorer-collector-1.0.0.tar /tmp/
+COPY network-explorer-collector-1.2.0.tar /tmp/
 RUN mkdir -p /opt/network-explorer/src \
- && tar -xf /tmp/network-explorer-collector-1.0.0.tar -C /opt/network-explorer/src \
+ && tar -xf /tmp/network-explorer-collector-1.2.0.tar -C /opt/network-explorer/src \
  && python3 -m venv /opt/network-explorer/venv \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --require-hashes \
       -r /opt/network-explorer/src/collector/requirements.lock \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --no-deps /opt/network-explorer/src/collector \
  && install -m 0755 /opt/network-explorer/src/collector/packaging/network-explorer-collect \
       /opt/network-explorer/network-explorer-collect \
- && rm /tmp/network-explorer-collector-1.0.0.tar
+ && rm /tmp/network-explorer-collector-1.2.0.tar
 # Return to the image's original user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
 USER 1997
 ```
