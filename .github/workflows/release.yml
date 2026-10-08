@@ -1,0 +1,79 @@
+name: Release
+
+# Push a vX.Y.Z tag on a commit of the default branch to publish a GitHub release.
+# See docs/operations/RELEASING.md.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tag matches VERSION, components and changelog
+        run: python scripts/release.py check "$GITHUB_REF_NAME"
+      - name: Tagged commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH" \
+            || { echo "::error::$GITHUB_REF_NAME is not on $DEFAULT_BRANCH"; exit 1; }
+
+  checks:
+    needs: verify
+    uses: ./.github/workflows/checks.yml
+
+  publish:
+    needs: checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generated files are current
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python templates/generate_snmp.py --check
+          python templates/generate_lab.py --check
+          python scripts/sync_widget_assets.py --check
+      - name: Build packages
+        run: |
+          python scripts/package.py --output dist
+          cd dist && sha256sum -c SHA256SUMS
+      - name: Release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            python scripts/release.py notes "$version"
+            echo
+            echo "## Install"
+            echo
+            echo "Download the archives below and check them with \`sha256sum -c SHA256SUMS\`. Install the frontend and template packages together, following [INSTALL.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/operations/INSTALL.md) or the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/operations/DEPLOYMENT_GUIDE.md)."
+          } > dist/RELEASE_NOTES.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          flags=()
+          [[ "$version" == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" --verify-tag "${flags[@]}" \
+            --title "Network Explorer $version" --notes-file dist/RELEASE_NOTES.md \
+            dist/*.tar dist/manifest.json dist/SHA256SUMS

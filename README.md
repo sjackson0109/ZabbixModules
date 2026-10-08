@@ -1,6 +1,6 @@
 # Zabbix Network Explorer
 
-A Zabbix frontend package and native SNMP templates for physical port investigation, LLDP topology, VLAN membership and propagation, STP state, LAG relationships and network data quality. Targets Zabbix 7.0–7.4, and Python 3.10+ for the optional collector. The release version is in [`VERSION`](VERSION); changes are in the [changelog](CHANGELOG.md).
+A Zabbix frontend package and native SNMP templates for physical port investigation, LLDP topology, VLAN membership and propagation, STP state, LAG relationships and network data quality. Targets Zabbix 7.0–7.4, and Python 3.10+ for the optional collector. The release version is in [`VERSION`](VERSION); changes are in the [changelog](CHANGELOG.md), and packaged releases are on the [releases page](https://github.com/sjackson0109/ZabbixModules/releases) ([how releases are made](docs/operations/RELEASING.md)).
 
 The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB, Q-BRIDGE-MIB, BRIDGE-MIB, MAU-MIB, ENTITY-MIB). They are tested against simulated switches on Zabbix 7.0, 7.2 and 7.4; no vendor or model has been qualified on real hardware yet.
 
