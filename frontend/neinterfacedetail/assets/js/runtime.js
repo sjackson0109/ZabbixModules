@@ -167,6 +167,45 @@
     if (!row) return '? No STP data';
     return `${STP_MARKS[stpClass(row)]} ${text(row.state)} · ${text(row.role)}${row.role_source === 'derived' ? '*' : ''}`;
   }
+  /**
+   * The observed instance-0 (CIST) root bridge, per matching domain. A switch is the root only when it reports itself
+   * as root (bridge_id == root_bridge_id) and every visible switch in its domain reports that same root; never from
+   * its place in the layout. `current` also needs current STP collection from the root switch. A domain whose
+   * switches disagree has no root; `claimed` lists the switches that report themselves as root.
+   */
+  function stpRoots(payload) {
+    const fresh = new Set(
+      asRows(payload.quality)
+        .filter(q => q.dataset === 'stp' && q.freshness === 'current' && q.status === 'ok')
+        .map(q => id(q.hostid))
+    );
+    const groups = new Map();
+    for (const host of asRows(payload.hosts)) {
+      const bridge = asRows(host.stp).find(b => Number(b.instance) === 0);
+      if (!bridge?.root_bridge_id) continue;
+      // A switch without a matching domain shares no namespace with the others.
+      const key = host.domain ? `domain:${host.domain}` : `host:${id(host.hostid)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({ host, bridge });
+    }
+    const result = { roots: new Set(), current: new Set(), claimed: new Set(), outside: [], disputed: [] };
+    for (const rows of groups.values()) {
+      for (const { host, bridge } of rows) if (bridge.is_root) result.claimed.add(id(host.hostid));
+      const seen = [...new Set(rows.map(r => r.bridge.root_bridge_id))];
+      if (seen.length > 1) {
+        result.disputed.push({ domain: rows[0].host.domain ?? '', roots: seen });
+        continue;
+      }
+      const root = rows.find(r => r.bridge.is_root && r.bridge.bridge_id === seen[0]);
+      if (!root) {
+        if (!result.outside.includes(seen[0])) result.outside.push(seen[0]);
+        continue;
+      }
+      result.roots.add(id(root.host.hostid));
+      if (fresh.has(id(root.host.hostid))) result.current.add(id(root.host.hostid));
+    }
+    return result;
+  }
   const MEDIA_LABELS = { copper: 'Copper', sfp: 'SFP', sfp_plus: 'SFP+' };
   /** Groups ports by stack member and slot (ENTITY-MIB placement); unplaced ports form one group. */
   function groupPorts(ports, layout = 'auto') {
@@ -476,11 +515,16 @@
     }
     return button(host.name ?? host.hostid, () => broadcast(host.hostid), 'ne-link-button');
   }
-  function showDetail(root, payload, port, broadcast) {
+  /**
+   * Interface detail. `ctx.linked === false` drops the linked-widget button (no dashboard to broadcast to);
+   * `ctx.selectInterface` makes each resolved peer selectable in place; `ctx.showHost` names the switch.
+   */
+  function showDetail(root, payload, port, broadcast, ctx = {}) {
     root.replaceChildren();
     root.appendChild(el('h4', `${text(port.name)} · ${stateLabel(port)}`));
     const list = el('dl', undefined, 'ne-details');
     const details = {
+      ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
       Description: port.description,
       Alias: port.alias,
       'Interface UID': port.uid,
@@ -566,19 +610,24 @@
         root.appendChild(link);
       }
     }
-    if (port.itemid)
+    if (port.itemid && ctx.linked !== false)
       root.appendChild(button('Select interface in linked widgets', () => broadcast(port.hostid, port.itemid)));
     const peers = peersFor(payload, port);
     root.appendChild(el('h4', 'LLDP peers'));
     if (!peers.length) notice(root, 'No permitted LLDP peer is resolved for this interface.');
     for (const { peer, edge } of peers) {
       const row = el('p');
+      const remote = findInterface(payload, peer.hostid, peer.uid);
       row.append(
         peerLink(payload, peer, port.name, broadcast),
         document.createTextNode(
-          ` · port ${text(peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
+          ` · port ${text(remote?.name ?? peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
         )
       );
+      if (remote && ctx.selectInterface) {
+        row.appendChild(document.createTextNode(' '));
+        row.appendChild(button(`Select ${text(remote.name)}`, () => ctx.selectInterface(remote), 'ne-link-button'));
+      }
       root.appendChild(row);
     }
     const lagRows = asRows(payload.lags).filter(
@@ -872,24 +921,29 @@
         'warning'
       );
   }
-  function stpNotes(root, hosts, rootVisible) {
-    const seen = [
-      ...new Set(
-        hosts.flatMap(h =>
-          asRows(h.stp)
-            .filter(b => Number(b.instance) === 0)
-            .map(b => b.root_bridge_id)
-        )
-      )
-    ].filter(Boolean);
-    notice(
-      root,
-      rootVisible
-        ? 'Root bridge marked ★. Root-port links are highlighted; ⊘ marks a blocking port end.'
-        : seen.length
-          ? `The spanning-tree root (bridge ${seen.join(', ')}) is not a visible switch. Root-port links are highlighted; ⊘ marks a blocking port end.`
-          : 'No spanning-tree data has been collected for the visible switches.'
-    );
+  /** Explains the root marker, in every mode: who the root is, or why none is marked. */
+  function stpNotes(root, info, mode) {
+    const marked = mode === 'stp' ? info.roots : info.current;
+    const parts = [];
+    if (marked.size) parts.push('★ marks the observed spanning-tree root bridge (instance 0).');
+    if (info.outside.length)
+      parts.push(
+        `The spanning-tree root (bridge ${info.outside.join(', ')}) is not a visible switch, so it is not drawn.`
+      );
+    if (info.disputed.length)
+      parts.push(
+        mode === 'stp'
+          ? 'Visible switches disagree about the spanning-tree root, so none is marked as the root; ☆ marks each switch that reports itself as root. See the stp_root_disagreement finding.'
+          : 'Visible switches disagree about the spanning-tree root, so none is marked. See the stp_root_disagreement finding.'
+      );
+    if (mode !== 'stp' && info.roots.size > info.current.size)
+      parts.push('A root whose spanning-tree observation is not current is marked only in the Spanning Tree view.');
+    if (mode === 'stp') {
+      if (!info.roots.size && !info.outside.length && !info.disputed.length)
+        parts.push('No spanning-tree data has been collected for the visible switches.');
+      else parts.push('Root-port links are highlighted; ⊘ marks a blocking port end.');
+    }
+    if (parts.length) notice(root, parts.join(' '), mode === 'stp' || !info.disputed.length ? 'info' : 'warning');
   }
   function onActivate(node, action) {
     node.addEventListener('click', action);
@@ -912,7 +966,25 @@
     }
     return '';
   }
-  function showEdgeDetails(details, payload, edge) {
+  /** The LAGs a member link belongs to, as "switch LAG (mode)". */
+  function lagNames(payload, member) {
+    return asRows(payload.lags)
+      .filter(lag => asRows(lag.edge_ids).map(id).includes(id(member.id)))
+      .map(
+        lag =>
+          `${text(hostName(payload, lag.hostid))} ${text(lag.name ?? lag.interface_uid)} (${LAG_MODES[lag.mode] ?? 'Unknown mode'})`
+      )
+      .join('; ');
+  }
+  /** A link end: a button selecting the interface when it is a visible one, else its plain identity. */
+  function endpointCell(payload, hostid, uid, ctx) {
+    const port = hostid === null || hostid === undefined ? null : findInterface(payload, hostid, uid);
+    if (!port) return hostid === null || hostid === undefined ? 'Undisclosed' : text(uid);
+    const node = button(text(port.name), () => ctx.selectInterface(port), 'ne-link-button ne-endpoint');
+    node.setAttribute('aria-label', `Select interface ${text(hostName(payload, hostid))} ${text(port.name)}`);
+    return node;
+  }
+  function showEdgeDetails(details, payload, edge, ctx) {
     details.replaceChildren();
     const aggregation = lagModeLabel(payload, edge);
     details.appendChild(
@@ -921,34 +993,110 @@
         `${edge.members.length > 1 ? 'LAG member links' : 'Observed physical link'}${aggregation ? ` (${aggregation})` : ''} · ${text(edge.status)}; confidence ${text(edge.confidence)}`
       )
     );
+    const stpEnd = end => (end ? `${text(end.role)} ${text(end.state)}` : 'Unknown');
     table(
       details,
       [
-        { label: 'Local host', value: e => hostName(payload, e.source) },
-        { label: 'Local interface', value: e => e.source_uid },
-        { label: 'Peer', value: e => hostName(payload, e.target) || 'Undisclosed' },
-        { label: 'Peer interface', value: e => e.target_uid },
+        { label: 'Source switch', value: e => hostName(payload, e.source) },
+        { label: 'Source interface', value: e => endpointCell(payload, e.source, e.source_uid, ctx) },
+        {
+          label: 'Destination switch',
+          value: e => (e.target === null ? 'Undisclosed peer' : hostName(payload, e.target))
+        },
+        { label: 'Destination interface', value: e => endpointCell(payload, e.target, e.target_uid, ctx) },
+        { label: 'LAG', value: e => lagNames(payload, e) || 'None observed' },
         { label: 'VLANs on both ends', value: e => (e.vlan ? e.vlan.common || 'None' : 'Unknown') },
         {
           label: 'Native VLAN',
           value: e => (e.vlan ? `${text(e.vlan.source_pvid)} / ${text(e.vlan.target_pvid)}` : 'Unknown')
         },
         {
-          label: 'STP state',
-          value: e => (e.stp ? `${text(e.stp.source?.state)} / ${text(e.stp.target?.state)}` : 'Unknown')
+          label: 'STP role and state (source / destination)',
+          value: e => (e.stp ? `${stpEnd(e.stp.source)} / ${stpEnd(e.stp.target)}` : 'Unknown')
         },
+        { label: 'Confidence', value: e => e.confidence },
         { label: 'Freshness', value: e => e.freshness }
       ],
       edge.members,
       'Individual observed members'
     );
   }
-  /** Draws one (possibly grouped) link; returns 'external' when only one end is a visible switch. */
+  /** Device identity and health, its visible interfaces, and the way to its host dashboard. */
+  function showHost(details, payload, host, ctx) {
+    details.replaceChildren();
+    const hostid = id(host.hostid),
+      bridge = asRows(host.stp).find(b => Number(b.instance) === 0);
+    details.appendChild(el('h4', `${ctx.stp?.roots.has(hostid) ? '★ ' : ''}${text(host.name)}`));
+    const addresses = asRows(host.addressing?.addresses).length
+      ? host.addressing.addresses.map(a => `${a.address} (${a.state})`).join(', ')
+      : asRows(host.management_addresses).join(', ');
+    const facts = {
+      'Vendor / model': [host.vendor, host.model].filter(Boolean).join(' / '),
+      Firmware: host.firmware,
+      Site: host.site,
+      'Matching domain': host.domain,
+      'Management addresses': addresses,
+      'SNMP agent': host.snmp_available === false ? 'Unreachable' : host.snmp_available === true ? 'Available' : null,
+      'Spanning tree (instance 0)': bridge
+        ? bridge.is_root
+          ? `Root bridge ${text(bridge.bridge_id)}`
+          : `Bridge ${text(bridge.bridge_id)}; root ${text(bridge.root_bridge_id)}, cost ${text(bridge.root_cost)}`
+        : null
+    };
+    const list = el('dl', undefined, 'ne-details');
+    for (const [label, value] of Object.entries(facts)) {
+      list.appendChild(el('dt', label));
+      list.appendChild(el('dd', text(value)));
+    }
+    details.appendChild(list);
+    if (host.out_of_subnet)
+      notice(details, 'Advertised management addressing is outside the selected subnet.', 'warning');
+    if (host.outside_site)
+      notice(
+        details,
+        'This switch is outside the selected site. It is shown because it connects to a switch inside it.'
+      );
+    const href = safeNavigation(host.dashboard_url);
+    if (href) {
+      const link = el('a', 'Open host dashboard', 'ne-open-dashboard');
+      link.href = href;
+      details.appendChild(link);
+    }
+    observations(details, payload, hostid);
+    const ports = asRows(payload.interfaces)
+      .filter(p => id(p.hostid) === hostid)
+      .sort((a, b) => natural(a.member ?? Infinity, b.member ?? Infinity) || natural(a.name, b.name));
+    const section = el('details');
+    section.open = true;
+    section.appendChild(el('summary', `Interfaces (${ports.length})`));
+    if (!ports.length) notice(section, 'No validated interface observations are available for this switch.');
+    else
+      table(
+        section,
+        [
+          { label: 'Interface', value: p => button(text(p.name), () => ctx.selectInterface(p), 'ne-link-button') },
+          { label: 'State', value: stateLabel },
+          { label: 'Speed', value: p => speed(p.speed_bps) },
+          {
+            label: 'Peer',
+            value: p =>
+              peersFor(payload, p)
+                .map(({ peer }) => (peer.hostid ? hostName(payload, peer.hostid) : 'Undisclosed'))
+                .join(', ')
+          },
+          { label: 'Description', value: p => p.description }
+        ],
+        ports,
+        `Visible interfaces of ${text(host.name)}`
+      );
+    details.appendChild(section);
+  }
+  /** Draws one (possibly grouped) link; returns the line, or null when neither end is a visible switch. */
   function drawEdge(context, edge, siblings) {
     const { payload, svg, byId } = context;
     const a = byId.get(id(edge.source)),
       b = byId.get(id(edge.target));
-    if (!a && !b) return 'hidden';
+    if (!a && !b) return null;
     let start = a ?? b,
       end = a && b ? b : { x: start.x + LAYOUT.externalOffset.x, y: start.y + LAYOUT.externalOffset.y };
     // Parallel links between the same two switches (expanded LAG members) are drawn side by side.
@@ -979,9 +1127,11 @@
       class: `ne-edge${uncertain ? ' ne-edge-uncertain' : ''}${edgeOverlay(context, edge)}`,
       tabindex: 0,
       role: 'button',
+      'aria-pressed': 'false',
       'aria-label': `${label}; ${edge.members.length} members; ${text(edge.status)}; ${text(edge.freshness)}`
     });
-    onActivate(line, () => showEdgeDetails(context.details, payload, edge));
+    line.dataset.external = a && b ? 'false' : 'true';
+    onActivate(line, () => context.select.edge(edge));
     svg.appendChild(line);
     if (!(a && b)) svg.appendChild(svgEl('circle', { cx: end.x, cy: end.y, r: 6, class: 'ne-external' }));
     if (edge.members.length > 1) {
@@ -995,7 +1145,7 @@
       );
     }
     if (context.mode === 'stp' && a && b) drawBlockMarks(svg, byId, edge, a, b);
-    return a && b ? 'drawn' : 'external';
+    return line;
   }
   /** Marks each blocking port end just outside its switch box, on the link towards the peer. */
   function drawBlockMarks(svg, byId, edge, a, b) {
@@ -1025,24 +1175,33 @@
       }
   }
   function drawNode(context, host, matching) {
-    const { payload, svg, details, broadcast } = context;
+    const { svg } = context,
+      hostid = id(host.hostid);
     const carries = context.mode === 'vlan' && asRows(host.vlans).some(v => Number(v.vlan_id) === context.vlan),
-      isRoot = context.mode === 'stp' && context.roots.has(id(host.hostid)),
+      // Layer 2 marks only a current, agreed root; Spanning Tree also marks one whose observation is not current.
+      isRoot = (context.mode === 'stp' ? context.stp.roots : context.stp.current).has(hostid),
+      claimsRoot =
+        context.mode === 'stp' && !isRoot && context.stp.disputed.length > 0 && context.stp.claimed.has(hostid),
       unreachable = host.snmp_available === false;
     const classes = ['ne-node'];
     const notes = [];
     if (!matching) classes.push('ne-muted');
     if (host.out_of_subnet) (classes.push('ne-node-warning'), notes.push('outside management subnet'));
+    if (host.outside_site) (classes.push('ne-node-context'), notes.push('outside selected site'));
     if (carries) (classes.push('ne-node-vlan'), notes.push(`has VLAN ${context.vlan}`));
     if (isRoot) (classes.push('ne-node-root'), notes.push('spanning-tree root'));
+    if (claimsRoot)
+      (classes.push('ne-node-root-disputed'), notes.push('reports itself as spanning-tree root; switches disagree'));
     if (unreachable) (classes.push('ne-node-unreachable'), notes.push('SNMP unreachable'));
     const group = svgEl('g', {
       transform: `translate(${host.x},${host.y})`,
       tabindex: 0,
       role: 'button',
+      'aria-pressed': 'false',
       'aria-label': [text(host.name), ...notes].join('; '),
       class: classes.join(' ')
     });
+    group.dataset.hostid = hostid;
     group.appendChild(
       svgEl('rect', {
         x: -LAYOUT.nodeWidth / 2,
@@ -1056,31 +1215,35 @@
       svgEl(
         'text',
         { 'text-anchor': 'middle', y: 4 },
-        `${isRoot ? '★ ' : ''}${text(host.name)}`.slice(0, LAYOUT.labelChars)
+        `${isRoot ? '★ ' : claimsRoot ? '☆ ' : ''}${text(host.name)}`.slice(0, LAYOUT.labelChars)
       )
     );
     group.appendChild(svgEl('title', {}, text(host.name)));
-    onActivate(group, () => {
-      details.replaceChildren();
-      details.appendChild(el('h4', text(host.name)));
-      details.appendChild(peerLink(payload, { hostid: host.hostid }, 'Topology', broadcast));
-      if (host.out_of_subnet)
-        notice(details, 'Advertised management addressing is outside the selected subnet.', 'warning');
-      if (host.addressing?.addresses)
-        notice(details, host.addressing.addresses.map(a => `${a.address}: ${a.state}`).join('; '));
-      broadcast(host.hostid);
-    });
+    onActivate(group, () => context.select.host(host));
     svg.appendChild(group);
     return group;
   }
-  function renderTopology(root, payload, broadcast, state = {}) {
+  const MODE_LABELS = [
+    ['physical', 'Layer 2'],
+    ['stp', 'Spanning Tree'],
+    ['vlan', 'VLAN']
+  ];
+  /**
+   * The topology, shared by the Topology widget and the Explorer page. Switches, links and link ends are all
+   * selectable; the selection is kept in `state.selection` and shown in `options.details` (or the widget's own
+   * drawer). Selecting a switch or interface also broadcasts its host or interface item to linked widgets.
+   * `options.linked === false` (no dashboard) hides linked-widget actions; `options.onChange(state)` hears every
+   * view or selection change. Returns { selectHost } for callers such as the findings table.
+   */
+  function renderTopology(root, payload, broadcast, state = {}, options = {}) {
     observations(root, payload, payload.scope?.hostid);
     const hosts = asRows(payload.hosts),
       edges = asRows(payload.edges);
     if (!hosts.length) {
       notice(root, 'No permitted hosts with network observations are available.');
-      return;
+      return { selectHost() {} };
     }
+    const changed = () => options.onChange?.(state);
     const toolbar = el('div', undefined, 'ne-toolbar'),
       search = el('input');
     search.type = 'search';
@@ -1088,7 +1251,7 @@
     search.setAttribute('aria-label', 'Find visible host');
     toolbar.appendChild(search);
     let collapse = state.collapse_lag ?? true;
-    const lagToggle = button('Expand LAG member links', () => {
+    const lagToggle = button(collapse ? 'Expand LAG member links' : 'Collapse LAG member links', () => {
       collapse = !collapse;
       state.collapse_lag = collapse;
       lagToggle.textContent = collapse ? 'Expand LAG member links' : 'Collapse LAG member links';
@@ -1098,14 +1261,10 @@
     const mode = el('select'),
       vlanPick = el('select'),
       tracePick = el('select');
-    mode.setAttribute('aria-label', 'Overlay');
+    mode.setAttribute('aria-label', 'View');
     vlanPick.setAttribute('aria-label', 'VLAN');
     tracePick.setAttribute('aria-label', 'Trace VLAN from');
-    for (const [value, label] of [
-      ['physical', 'Physical'],
-      ['vlan', 'VLAN'],
-      ['stp', 'STP']
-    ]) {
+    for (const [value, label] of MODE_LABELS) {
       const option = el('option', label);
       option.value = value;
       mode.appendChild(option);
@@ -1128,28 +1287,84 @@
       tracePick.appendChild(option);
     }
     mode.value = state.mode ?? payload.scope?.mode ?? 'physical';
-    if (state.vlan) vlanPick.value = state.vlan;
+    if (!mode.value) mode.value = 'physical';
+    if (state.vlan && vlanNames.has(Number(state.vlan))) vlanPick.value = state.vlan;
     if (state.trace) tracePick.value = state.trace;
     toolbar.append(mode, vlanPick, tracePick);
     root.appendChild(toolbar);
     const overlayNote = el('div');
     root.appendChild(overlayNote);
-    const graph = el('div', undefined, 'ne-graph'),
+    const graph = el('div', undefined, 'ne-graph');
+    let details = options.details;
+    if (!details) {
       details = el('section', undefined, 'ne-drawer');
-    details.setAttribute('aria-label', 'Topology selection details');
-    root.append(graph, details);
+      details.setAttribute('aria-label', 'Topology selection details');
+      details.setAttribute('aria-live', 'polite');
+    }
+    root.appendChild(graph);
+    if (!options.details) root.appendChild(details);
     notice(
       root,
       'Solid: confirmed. Dashed: one-sided, ambiguous, external or stale. LAG grouping retains each member link.'
     );
-    if (payload.scope?.management_cidr)
+    const cidrs = payload.scope?.management_cidr || asRows(payload.scope?.management_cidrs).join(', ');
+    if (cidrs)
       notice(
         root,
-        `Management subnet ${payload.scope.management_cidr} is an annotation; permitted connected neighbours outside it remain visible.`
+        `Management subnet ${cidrs} is an annotation; permitted connected neighbours outside it remain visible.`
       );
     const positions = (state.positions ??= new Map());
-    let nodes = [];
+    const stp = stpRoots(payload);
+    let nodes = [],
+      lines = [];
     const matches = host => !search.value || text(host.name).toLowerCase().includes(search.value.toLowerCase());
+    const isEnd = (member, hostid, uid) =>
+      (id(member.source) === hostid && id(member.source_uid) === uid) ||
+      (id(member.target) === hostid && id(member.target_uid) === uid);
+    /** Reflects state.selection on the drawing: the selected switch, link, or interface's switch and links. */
+    function mark() {
+      const sel = state.selection;
+      for (const [host, node] of nodes) {
+        const on = !!sel && ['host', 'interface'].includes(sel.kind) && id(host.hostid) === sel.hostid;
+        node.classList.toggle('ne-node-selected', on);
+        node.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+      for (const [edge, line] of lines) {
+        const on =
+          !!sel &&
+          ((sel.kind === 'edge' && edge.members.some(m => asRows(sel.edge_ids).includes(id(m.id)))) ||
+            (sel.kind === 'interface' && edge.members.some(m => isEnd(m, sel.hostid, sel.uid))));
+        line.classList.toggle('ne-edge-selected', on);
+        line.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+    }
+    const ctx = { stp, linked: options.linked, showHost: true, selectInterface: port => select.iface(port) };
+    const select = {
+      host(host, quiet) {
+        state.selection = { kind: 'host', hostid: id(host.hostid) };
+        mark();
+        showHost(details, payload, host, ctx);
+        if (!quiet) {
+          broadcast(host.hostid);
+          changed();
+        }
+      },
+      edge(edge, quiet) {
+        state.selection = { kind: 'edge', edge_ids: edge.members.map(m => id(m.id)) };
+        mark();
+        showEdgeDetails(details, payload, edge, ctx);
+        if (!quiet) changed();
+      },
+      iface(port, quiet) {
+        state.selection = { kind: 'interface', hostid: id(port.hostid), uid: id(port.uid) };
+        mark();
+        showDetail(details, payload, port, broadcast, ctx);
+        if (!quiet) {
+          if (port.itemid) broadcast(port.hostid, port.itemid);
+          changed();
+        }
+      }
+    };
     function draw() {
       graph.replaceChildren();
       overlayNote.replaceChildren();
@@ -1159,11 +1374,8 @@
       vlanPick.hidden = tracePick.hidden = mode.value !== 'vlan';
       const vlan = Number(vlanPick.value),
         trace = mode.value === 'vlan' && tracePick.value ? vlanTrace(payload, tracePick.value, vlan) : null;
-      const roots = new Set();
-      for (const h of hosts)
-        if (asRows(h.stp).some(b => Number(b.instance) === 0 && b.is_root)) roots.add(id(h.hostid));
       if (mode.value === 'vlan') vlanNotes(overlayNote, payload, vlan, vlanNames.size > 0, trace, tracePick.value);
-      if (mode.value === 'stp') stpNotes(overlayNote, hosts, roots.size > 0);
+      stpNotes(overlayNote, stp, mode.value);
       const arranged = graphLayout(hosts, edges, positions),
         byId = new Map(arranged.map(h => [id(h.hostid), h]));
       for (const h of arranged) positions.set(id(h.hostid), { x: h.x, y: h.y });
@@ -1171,24 +1383,27 @@
         height = Math.max(180, ...arranged.map(h => h.y + LAYOUT.nodeHeight / 2 + 50));
       const svg = svgEl('svg', {
         viewBox: `0 0 ${width} ${height}`,
-        role: 'img',
-        'aria-label': `Physical topology, ${arranged.length} permitted devices`
+        role: 'group',
+        'aria-label': `${MODE_LABELS.find(([value]) => value === mode.value)?.[1] ?? 'Layer 2'} topology, ${arranged.length} permitted devices`
       });
       svg.style.maxWidth = `${width * 1.25}px`; // a small graph keeps its proportions instead of filling the widget
-      const context = { payload, svg, byId, mode: mode.value, vlan, trace, details, broadcast, roots };
+      const context = { payload, svg, byId, mode: mode.value, vlan, trace, stp, select };
       const drawn = groupedEdges(edges, collapse),
         parallel = new Map();
       for (const edge of drawn) {
         const key = [id(edge.source), id(edge.target)].sort().join('|');
         parallel.set(key, [...(parallel.get(key) ?? []), edge]);
       }
-      let externalCount = 0;
+      lines = [];
       for (const edge of drawn) {
         const siblings = parallel.get([id(edge.source), id(edge.target)].sort().join('|'));
-        if (drawEdge(context, edge, siblings) === 'external') externalCount++;
+        const line = drawEdge(context, edge, siblings);
+        if (line) lines.push([edge, line]);
       }
+      const externalCount = lines.filter(([, line]) => line.dataset.external === 'true').length;
       nodes = arranged.map(host => [host, drawNode(context, host, matches(host))]);
       graph.appendChild(svg);
+      mark();
       if (hosts.length > arranged.length)
         notice(graph, `The visible topology is capped at ${LAYOUT.maxNodes} nodes. Narrow the scope.`, 'warning');
       if (externalCount)
@@ -1201,17 +1416,34 @@
     search.addEventListener('input', () => {
       for (const [host, node] of nodes) node.classList.toggle('ne-muted', !matches(host));
     });
-    for (const control of [mode, vlanPick, tracePick]) control.addEventListener('change', draw);
+    for (const control of [mode, vlanPick, tracePick])
+      control.addEventListener('change', () => {
+        draw();
+        changed();
+      });
     draw();
+    // A kept selection (widget refresh, or the Explorer's URL) is shown again without broadcasting.
+    const kept = state.selection;
+    if (kept?.kind === 'host' && findHost(payload, kept.hostid)) select.host(findHost(payload, kept.hostid), true);
+    else if (kept?.kind === 'edge') {
+      const edge = groupedEdges(edges, collapse).find(e =>
+        e.members.some(m => asRows(kept.edge_ids).includes(id(m.id)))
+      );
+      if (edge) select.edge(edge, true);
+    } else if (kept?.kind === 'interface') {
+      const port = findInterface(payload, kept.hostid, kept.uid);
+      if (port) select.iface(port, true);
+      else notice(details, 'The selected interface is not in the current scope or observation.', 'warning');
+    }
     const tabular = el('details');
     tabular.appendChild(el('summary', `Accessible link table (${edges.length})`));
     table(
       tabular,
       [
         { label: 'Device', value: e => hostName(payload, e.source) },
-        { label: 'Local port', value: e => e.source_uid },
+        { label: 'Local port', value: e => interfaceName(payload, e.source, e.source_uid) },
         { label: 'Peer', value: e => (e.target ? hostName(payload, e.target) : 'Undisclosed peer') },
-        { label: 'Peer port', value: e => e.target_uid },
+        { label: 'Peer port', value: e => (e.target ? interfaceName(payload, e.target, e.target_uid) : null) },
         { label: 'Resolution', value: e => e.status },
         { label: 'Confidence', value: e => e.confidence },
         { label: 'Freshness', value: e => e.freshness }
@@ -1221,6 +1453,91 @@
     );
     root.appendChild(tabular);
     capabilities(root, payload, payload.scope?.hostid);
+    return {
+      selectHost(hostid) {
+        const host = findHost(payload, hostid);
+        if (host) select.host(host);
+      }
+    };
+  }
+  function section(root, title, className) {
+    const node = el('section', undefined, `ne-explorer-section ${className}`);
+    node.appendChild(el('h3', title));
+    root.appendChild(node);
+    return node;
+  }
+  /**
+   * The Explorer page: the shared topology, one selection panel for switches, links and interfaces, and the
+   * findings and collection quality of the same scope. There is no dashboard, so nothing is broadcast.
+   */
+  function renderExplorer(root, payload, broadcast, state = {}) {
+    const graph = section(root, 'Network topology', 'ne-explorer-graph'),
+      selection = section(root, 'Selection', 'ne-explorer-selection'),
+      lower = el('div', undefined, 'ne-explorer-columns');
+    const details = el('div', undefined, 'ne-drawer ne-selection');
+    details.setAttribute('aria-label', 'Selection details');
+    details.setAttribute('aria-live', 'polite');
+    notice(details, 'Select a switch, a link or a link end in the topology to see its details here.');
+    selection.appendChild(details);
+    const topology = renderTopology(graph, payload, () => {}, state, {
+      details,
+      linked: false,
+      onChange: state.onChange
+    });
+    root.appendChild(lower);
+    const findings = section(lower, 'Findings', 'ne-explorer-findings'),
+      quality = section(lower, 'Collection quality', 'ne-explorer-quality');
+    notice(
+      findings,
+      'Findings and collection quality cover the same scope as the topology. The view selector changes only the drawing.'
+    );
+    renderFindings(findings, payload, hostid => {
+      topology.selectHost(hostid);
+      details.scrollIntoView?.({ block: 'nearest' });
+    });
+    renderQuality(quality, payload);
+  }
+  const VIEW_MODES = { layer2: 'physical', stp: 'stp', vlan: 'vlan' };
+  /**
+   * Starts the Explorer page from the server's request, and keeps the view, VLAN and selected interface in the
+   * address (for bookmarks and sharing; the server re-checks permissions on every load) and in the scope form.
+   */
+  function mountExplorer(root, payload, request = {}) {
+    const state = {
+      mode: VIEW_MODES[request.view] ?? 'physical',
+      vlan: request.vlan ? String(request.vlan) : undefined,
+      selection:
+        request.interface_uid && request.interface_hostid
+          ? { kind: 'interface', hostid: id(request.interface_hostid), uid: id(request.interface_uid) }
+          : undefined
+    };
+    state.onChange = () => {
+      const sel = state.selection?.kind === 'interface' ? state.selection : null;
+      const values = {
+        view: Object.keys(VIEW_MODES).find(key => VIEW_MODES[key] === state.mode) ?? 'layer2',
+        vlan: state.mode === 'vlan' ? id(state.vlan) : '',
+        interface_hostid: sel ? sel.hostid : '',
+        interface_uid: sel ? sel.uid : ''
+      };
+      for (const input of document.querySelectorAll('form.ne-scope input[data-ne-state]')) {
+        const value = values[input.dataset.neState] ?? '';
+        input.value = value;
+        input.disabled = value === '';
+      }
+      try {
+        const url = new URL(global.location.href);
+        for (const [key, value] of Object.entries(values)) {
+          if (value) url.searchParams.set(key, value);
+          else url.searchParams.delete(key);
+        }
+        global.history.replaceState(global.history.state, '', url.toString());
+      } catch (_) {
+        // A page without a usable address (a test fixture) still works; only bookmarking is lost.
+      }
+    };
+    render(root, payload, 'explorer', () => {}, state);
+    state.onChange();
+    return state;
   }
   function renderDetail(root, payload, broadcast) {
     const hostid = id(payload.scope?.hostid),
@@ -1419,12 +1736,15 @@
       topology: renderTopology,
       detail: renderDetail,
       quality: renderQuality,
-      findings: renderFindings
+      findings: renderFindings,
+      explorer: renderExplorer
     };
     if (handlers[kind]) handlers[kind](root, payload, broadcast, state);
   }
   const runtime = {
     render,
+    mountExplorer,
+    stpRoots,
     speed,
     portState,
     isPhysical,

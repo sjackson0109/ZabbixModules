@@ -6,14 +6,17 @@ The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB
 
 ## What is included
 
-- A Network Explorer page and permission-aware PHP dataset, identity, topology, policy, navigation and report services.
-- Five dashboard widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings.
+- **Monitoring → Network Explorer**, the network-wide view: a multi-switch Layer 2 topology with the observed spanning-tree root marked, Spanning Tree and VLAN views, site, domain, management-subnet and seed-device scope, clickable switches, links and link ends with interface detail, and the findings and collection quality of the same scope. It needs no dashboard.
+- Permission-aware PHP dataset, identity, topology, policy, navigation and report services.
+- Five dashboard widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings. The template host dashboard (Ports, Topology, Findings) is where one switch is investigated.
 - Versioned canonical JSON Schema (1.1, with 1.0 still accepted).
 - Native standard-MIB SNMP templates and an inherited host dashboard for Zabbix 7.0, 7.2 and 7.4.
 - An optional bounded Python SNMP collector with fixture replay, kept as a frozen schema 1.0 fallback for devices native SNMP items can't reach.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
-- LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; portable fleet dashboard recipes.
+- LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; optional dashboard recipes for administrators who want custom compositions.
 - Disposable integration labs, regression tests and deterministic copy-out packages.
+
+Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use.
 
 ## Develop
 

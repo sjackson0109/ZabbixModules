@@ -5,3 +5,4 @@ require __DIR__.'/topology.php';
 require __DIR__.'/schema11.php';
 require __DIR__.'/fixtures.php';
 require __DIR__.'/gateway.php';
+require __DIR__.'/scope.php';

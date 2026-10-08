@@ -5,6 +5,7 @@ Status: release candidate for 1.0.0, reviewed 7 October 2026. The frontend, nati
 ## Implemented
 
 - Network Explorer frontend module and five widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings.
+- Monitoring → Network Explorer is the network-wide view: multi-switch Layer 2 topology with the observed STP root, Spanning Tree and VLAN views, site/domain/subnet/seed scope, switch, link and link-end selection with interface detail, and same-scope findings and quality. No global dashboard is needed; dashboard recipes are optional.
 - Permission-filtered datasets, domain-qualified LLDP identity resolution, one-hop graph scope, LAG grouping, management CIDR annotations, peer navigation/highlighting and current-state CSV/JSON reports.
 - Canonical schema and optional bounded Python SNMPv2c/v3 collector with fixture mode, explicit failure/completeness outcomes, alias preservation and default remote-identity suppression.
 - Shared template contract, nine family handoff packs, unqualified profile metadata and portable dashboard recipes.
@@ -19,7 +20,7 @@ Status: release candidate for 1.0.0, reviewed 7 October 2026. The frontend, nati
 - JavaScript: the widget algorithm, manifest and export checks pass; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks are run separately with Playwright.
 - Real Zabbix 7.0.20, 7.2.7 and 7.4.3 labs exercise module registration, replay ingestion, LLD, native graphs, inherited dashboards, ordinary-user permissions, API/report behaviour and malformed/failing collection preservation. See [runtime evidence](../../lab/VERIFICATION.md).
 - Ports are placed by stack member, slot and position from ENTITY-MIB, with media (copper, SFP, SFP+) from the MAU tables; the Port panel shows stack members as tabs and takes its state colours from the widget form.
-- The spec's acceptance walkthrough (amber port, peer navigation, off-subnet switch, VLAN journey, STP root and blocking port, LAG as one link, a restricted viewer, a stopped agent) passes in Chromium against five simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`).
+- The acceptance walkthrough passes in Chromium against five simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`, 18 steps): host dashboards (amber port, peer navigation, stack tabs, static LAG), then Monitoring → Network Explorer with no dashboard (default Layer 2 with the root marked, LAG, Spanning Tree, VLAN journey, switch, link and link-end selection, Open host dashboard, off-subnet switch, site and seed scope with matching findings, quality and export), the Topology widget on a test-only dashboard, and a restricted viewer. The stopped-agent step passes on the Explorer page on 7.4.3.
 - Live browser tests exercised inherited dashboards, host/item broadcasts and peer-interface highlighting. These are synthetic lab hosts, not customer switches.
 
 ## Continue locally

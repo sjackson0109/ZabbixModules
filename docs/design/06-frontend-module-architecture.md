@@ -6,7 +6,7 @@ Status: **proposed, for review** (spec §24–29, §38, §40.6). The existing mo
 
 | Zabbix module | Type | Spec component | Exists | Changes needed |
 |---|---|---|---|---|
-| `networkexplorer` | module (page, services, exports) | data layer, Explorer page | yes | VLAN/STP readers and overlays; default domain; derived expected speed |
+| `networkexplorer` | module (page, services, exports) | data layer, Explorer page (network-wide view) | yes | VLAN/STP readers and overlays; default domain; derived expected speed. *Implemented:* the Explorer page is the fleet application (below) |
 | `neportpanel` | widget | Port Panel (§3.1, §9, §25) | yes | **Semantic layer switch**, VLAN selector, **configurable colours**, media-aware layout |
 | `netopology` | widget | Physical Topology, VLAN and STP overlays (§6, §27–29) | yes | **Real graph layout**, VLAN and STP modes, path trace |
 | `neinterfacedetail` | widget | Interface Detail (§26) | yes | VLAN, STP and capability sections; expected-speed source |
@@ -64,6 +64,23 @@ Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interfac
 
 - **Domain tag**: peer matching currently needs an `ne.domain` tag on every host, and no tag means no matching. Proposal: a host with no tag belongs to the `default` domain, and tags are only needed where IP ranges overlap between customers.
 - **Expected speed**: use the derived expectation from [02](02-canonical-schema.md), not explicit policy only.
+
+### Explorer page: the network-wide view
+
+Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use.
+
+```text
+Monitoring -> Network Explorer   network or site investigation: multi-switch Layer 2 topology, STP and VLAN
+                                 views, selection detail, findings and collection quality; no dashboard
+Host -> Host dashboard           one switch: Port panel, interface detail, host-local topology, findings;
+                                 inherited from the template
+```
+
+- **One data path.** `networkexplorer.view` calls `NetworkService::buildScope()` with a `NetworkScope` (seed host IDs, `site`, `domain`, management CIDRs), the same service the widgets, the JSON route and exports use. `build()` keeps the widgets' seed-and-CIDR signature. Site and domain filters become exact `site` / `ne.domain` tag conditions in the user's own `host.get`, so they narrow the permitted population and cannot widen it. The primary hosts (seeds, or hosts passing the filters) plus the permitted hosts of their matching domains are read for peer resolution; the response keeps the primary hosts and their one-hop neighbours. A neighbour at another site is kept as context (`outside_site`). Selector values come from `NetworkService::scopeOptions()`, the tags of readable hosts only.
+- **One renderer, two hosts.** The topology engine in `src/widget/runtime.js` serves the Topology widget and the page (`render(…, 'explorer')`, started by `mountExplorer`). `scripts/sync_widget_assets.py` copies it into each widget and into `networkexplorer/assets/`; no module loads another module's assets.
+- **Selection model.** Switch nodes, links and link ends are buttons (pointer, Enter, Space). The selection lives in page state (`state.selection`): a switch shows identity, health and interfaces without choosing an interface; a link shows both endpoints per member; an endpoint shows interface detail for that exact `hostid` + `interface_uid`. On a dashboard the widget also broadcasts the standard `_hostid` / `_itemid`, so an Interface Detail widget follows a selected link end; the page uses direct callbacks and broadcasts nothing.
+- **Root bridge.** `stpRoots()` takes the root from `bridge_id == root_bridge_id` (`StpService::split()`), per matching domain. Layer 2 marks it only when every visible switch in the domain agrees and its STP data is current; Spanning Tree also marks a root with older data. A root outside the visible scope is named, not drawn; a disagreement marks none in Layer 2 and shows each self-declared root as disputed (☆) in Spanning Tree, alongside the `stp_root_disagreement` finding. Layout position never decides it.
+- **State in the address.** `site`, `domain`, `management_cidr`, `hostid`, `view`, `vlan`, `interface_hostid` and `interface_uid`. Graph positions, LAG expansion and the trace source stay in the page.
 
 ### Navigation (spec §5)
 

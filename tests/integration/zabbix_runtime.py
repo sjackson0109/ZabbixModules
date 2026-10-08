@@ -319,6 +319,9 @@ def run(version: str, require_frontend: bool = True) -> dict:
         result["checks"].append("subnet-annotation-retains-physical-peer-in-api-and-report")
         explorer = frontend(user_browser, config, "networkexplorer.view", {"hostid": hostids["ne-lab-a"]})
         assert_that("Network Explorer" in explorer, "Explorer page did not render.")
+        fleet_page = frontend(user_browser, config, "networkexplorer.view", {})
+        assert_that('id="ne-explorer-app"' in fleet_page and "mountExplorer" in fleet_page
+                    and "ne-lab-hidden" not in fleet_page, "Explorer fleet page did not render without a host.")
         result["checks"].append("explorer-html-page")
         for report in ["inventory", "peers", "addressing", "degradation", "quality", "findings"]:
             exported = frontend(user_browser, config, "networkexplorer.export", {"format": "json", "report": report, "hostids[]": list(hostids.values())})

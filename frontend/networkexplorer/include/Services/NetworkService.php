@@ -7,11 +7,10 @@ namespace Modules\NetworkExplorer\Services;
  *
  * build() runs fixed stages: validate the scope, read the permitted hosts and their datasets, describe hosts and
  * interfaces, mask hidden bridges, build the topology, share aggregator state with LAG members, link the VLAN and
- * STP overlays, attach peers, add host findings, and finally narrow a seeded request to its one-hop neighbourhood.
+ * STP overlays, attach peers, add host findings, and finally narrow a seeded or filtered request to its one-hop
+ * neighbourhood. The scope is a NetworkScope; build() keeps the older seed-and-CIDR signature for widgets.
  */
 final class NetworkService {
-    private const MAX_CIDRS = 32;
-    private const MAX_CIDR_TEXT = 2048;
     private const MAX_STACK_MEMBERS = 16;
     private const INTERFACE_FIELDS = ['uid', 'if_index', 'name', 'description', 'alias', 'type', 'physical',
         'admin_status', 'oper_status', 'speed_bps', 'duplex', 'mtu', 'mac_address', 'expected_speed_bps', 'member',
@@ -33,18 +32,31 @@ final class NetworkService {
         return new self(new ApiGateway());
     }
 
+    /** Compatible entry point for widgets: seed host IDs and management CIDRs only. */
     public function build(array $hostids = [], string $managementCidr = ''): array {
-        [$hostids, $cidrs] = $this->validateScope($hostids, $managementCidr);
-        [$seeds, $hosts, $truncated] = $this->scopeHosts($hostids);
+        return $this->buildScope(NetworkScope::create($hostids, $managementCidr));
+    }
+
+    public function buildScope(NetworkScope $scope): array {
+        $cidrs = $scope->managementCidrs;
+        [$primary, $hosts, $truncated] = $this->scopeHosts($scope);
         $read = (new DatasetReader($this->gateway, $this->now))->read($hosts);
         // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
         // unless explicitly selected.
-        $seedIds = array_fill_keys(array_map('strval', array_column($seeds, 'hostid')), true);
+        $seedIds = array_fill_keys($scope->seedHostids, true);
         $hosts = array_filter($hosts, static fn($host) => isset($read['collected'][$host['hostid']])
             || isset($seedIds[$host['hostid']]));
+        $primary = array_values(array_filter($primary, static fn($id) => isset($hosts[$id])));
         $read['quality'] = array_values(array_filter($read['quality'],
             static fn($row) => isset($hosts[$row['hostid']])));
         $datasets = $read['datasets'];
+        $candidates = [];
+        if ($scope->listCandidates) {
+            foreach ($scope->fleet() ? array_keys($hosts) : $primary as $id) {
+                $candidates[] = ['hostid'=>(string) $id, 'name'=>$hosts[$id]['name']];
+            }
+            usort($candidates, static fn($a, $b) => strnatcasecmp($a['name'], $b['name']));
+        }
 
         $layers = $this->indexLayers($hosts, $datasets);
         $findings = $this->describeHosts($hosts, $datasets, $layers, $cidrs);
@@ -78,79 +90,100 @@ final class NetworkService {
 
         $network = ['hosts'=>$hosts, 'interfaces'=>$interfaces, 'edges'=>$graph['edges'], 'lags'=>$graph['lags'],
             'quality'=>$read['quality'], 'findings'=>$findings];
-        if ($hostids) {
-            $network = $this->neighbourhood($network, $hostids, $seeds);
+        if (!$scope->fleet()) {
+            $network = $this->neighbourhood($network, $primary, $scope);
         }
-        return ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
-            'scope'=>['seed_hostids'=>$hostids, 'management_cidrs'=>$cidrs, 'truncated'=>$truncated,
-                'neighbour_hops'=>$hostids ? 1 : 0],
+        $result = ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
+            'scope'=>$scope->describe() + ['truncated'=>$truncated, 'neighbour_hops'=>$scope->fleet() ? 0 : 1],
             'hosts'=>array_values($network['hosts']), 'interfaces'=>$network['interfaces'],
             'edges'=>$network['edges'], 'lags'=>$network['lags'], 'quality'=>$network['quality'],
             'findings'=>$network['findings'],
             'budgets'=>$read['budgets']];
-    }
-
-    /** @return array{0: string[], 1: string[]} seed host IDs and management CIDRs */
-    private function validateScope(array $hostids, string $managementCidr): array {
-        $hostids = array_values(array_unique(array_map('strval', $hostids)));
-        foreach ($hostids as $id) {
-            if (!preg_match('/^[1-9][0-9]*$/D', $id)) {
-                throw new \InvalidArgumentException('invalid_hostid');
-            }
+        if ($scope->listCandidates) {
+            $result['scope']['candidates'] = $candidates;
         }
-        if (count($hostids) > Limits::HOSTS) {
-            throw new \InvalidArgumentException('host_budget_exceeded');
-        }
-        if (strlen($managementCidr) > self::MAX_CIDR_TEXT) {
-            throw new \InvalidArgumentException('invalid_management_cidr');
-        }
-        $cidrs = trim($managementCidr) === '' ? [] : preg_split('/[\s,]+/', trim($managementCidr));
-        if (count($cidrs) > self::MAX_CIDRS) {
-            throw new \InvalidArgumentException('invalid_management_cidr');
-        }
-        $subnet = new SubnetService();
-        foreach ($cidrs as $cidr) {
-            if (!$subnet->validate($cidr)) {
-                throw new \InvalidArgumentException('invalid_management_cidr');
-            }
-        }
-        return [$hostids, $cidrs];
+        return $result;
     }
 
     /**
-     * Seeds plus every permitted host in a seed's matching domain, or every permitted host when unseeded.
-     * @return array{0: array, 1: array, 2: bool} seed rows, hosts by hostid, and whether the scope was capped
+     * Site and domain values carried by hosts the current user may read, for scope selectors.
+     * @return array{sites: string[], domains: string[], truncated: bool}
      */
-    private function scopeHosts(array $hostids): array {
-        $seeds = $hostids ? $this->gateway->hosts($hostids) : [];
-        $rows = $this->gateway->hosts();
-        $truncated = count($rows) > Limits::HOSTS;
-        $hosts = [];
-        $seedDomains = [];
-        foreach ($seeds as $row) {
-            $host = $this->host($row);
-            $hosts[$host['hostid']] = $host;
-            if ($host['domain'] !== '') {
-                $seedDomains[$host['domain']] = true;
+    public function scopeOptions(): array {
+        $rows = $this->gateway->tagged([NetworkScope::SITE_TAG, NetworkScope::DOMAIN_TAG]);
+        $values = [NetworkScope::SITE_TAG=>[], NetworkScope::DOMAIN_TAG=>[]];
+        foreach (array_slice($rows, 0, Limits::OPTION_HOSTS) as $row) {
+            foreach (array_keys($values) as $tag) {
+                $value = NetworkScope::tagValue($row['tags'] ?? [], $tag);
+                if ($value !== '') {
+                    $values[$tag][$value] = true;
+                }
             }
         }
-        foreach ($rows as $row) {
+        $sorted = static function (array $set): array {
+            $list = array_map('strval', array_keys($set));
+            natcasesort($list);
+            return array_slice(array_values($list), 0, Limits::OPTION_VALUES);
+        };
+        return ['sites'=>$sorted($values[NetworkScope::SITE_TAG]),
+            'domains'=>$sorted($values[NetworkScope::DOMAIN_TAG]),
+            'truncated'=>count($rows) > Limits::OPTION_HOSTS
+                || count($values[NetworkScope::SITE_TAG]) > Limits::OPTION_VALUES
+                || count($values[NetworkScope::DOMAIN_TAG]) > Limits::OPTION_VALUES];
+    }
+
+    /**
+     * Reads the scope's primary hosts (the seeds, or the hosts passing the site/domain filters) plus every
+     * permitted host in their matching domains, which peer resolution needs. The whole fleet is every permitted host.
+     * @return array{0: string[], 1: array, 2: bool} primary host IDs, hosts by hostid, and whether the scope was capped
+     */
+    private function scopeHosts(NetworkScope $scope): array {
+        if ($scope->fleet()) {
+            $rows = $this->gateway->hosts();
+            $hosts = [];
+            foreach (array_slice($rows, 0, Limits::HOSTS) as $row) {
+                $host = $this->host($row);
+                $hosts[$host['hostid']] = $host;
+            }
+            return [array_keys($hosts), $hosts, count($rows) > Limits::HOSTS];
+        }
+        $primaryRows = $scope->seeded()
+            ? $this->gateway->hosts($scope->seedHostids)
+            : $this->gateway->hosts([], $scope->tagConditions());
+        $truncated = count($primaryRows) > Limits::HOSTS;
+        $hosts = [];
+        $domains = [];
+        foreach ($primaryRows as $row) {
             $host = $this->host($row);
-            if ($hostids && !isset($hosts[$host['hostid']])
-                    && ($host['domain'] === '' || !isset($seedDomains[$host['domain']]))) {
+            // An inaccessible seed, or one outside the filters, never turns into a wider request.
+            if (!$scope->matches($host) || count($hosts) >= Limits::HOSTS) {
                 continue;
             }
-            if (count($hosts) >= Limits::HOSTS && !isset($hosts[$host['hostid']])) {
+            $hosts[$host['hostid']] = $host;
+            if ($host['domain'] !== '') {
+                $domains[$host['domain']] = true;
+            }
+        }
+        $primary = array_map('strval', array_keys($hosts));
+        if (!$domains) {
+            return [$primary, $hosts, $truncated];
+        }
+        $rows = !$scope->seeded() && $scope->site === ''
+            ? $primaryRows
+            : $this->gateway->hosts([], array_map(static fn($domain) => ['tag'=>NetworkScope::DOMAIN_TAG,
+                'value'=>(string) $domain], array_keys($domains)));
+        foreach ($rows as $row) {
+            $host = $this->host($row);
+            if (isset($hosts[$host['hostid']]) || !isset($domains[$host['domain']])) {
+                continue;
+            }
+            if (count($hosts) >= Limits::HOSTS) {
                 $truncated = true;
                 continue;
             }
             $hosts[$host['hostid']] = $host;
         }
-        // An inaccessible seed never turns into an all-host request.
-        if ($hostids && !$seeds) {
-            $hosts = [];
-        }
-        return [$seeds, $hosts, $truncated];
+        return [$primary, $hosts, $truncated];
     }
 
     /**
@@ -413,26 +446,26 @@ final class NetworkService {
     }
 
     /**
-     * Keeps the seeds and the hosts one hop from them. Peers are resolved against every permitted same-domain
-     * candidate first; a neighbour's own peers are not added.
+     * Keeps the primary hosts and the hosts one hop from them. Peers are resolved against every permitted same-domain
+     * candidate first; a neighbour's own peers are not added. With a site filter, a neighbour at another site stays
+     * visible as context and is marked `outside_site`.
      */
-    private function neighbourhood(array $network, array $hostids, array $seeds): array {
-        $display = [];
-        foreach ($seeds as $seed) {
-            $display[(string) $seed['hostid']] = true;
-        }
+    private function neighbourhood(array $network, array $primary, NetworkScope $scope): array {
+        $isPrimary = array_fill_keys($primary, true);
+        $display = $isPrimary;
         foreach ($network['edges'] as $edge) {
-            if (isset($display[$edge['source'] ?? '']) && in_array((string) ($edge['source'] ?? ''), $hostids, true)
-                    && $edge['target'] !== null) {
-                $display[(string) $edge['target']] = true;
-            }
-            if (isset($display[$edge['target'] ?? '']) && in_array((string) ($edge['target'] ?? ''), $hostids, true)
-                    && $edge['source'] !== null) {
-                $display[(string) $edge['source']] = true;
+            foreach (['source'=>'target', 'target'=>'source'] as $from => $to) {
+                if (isset($isPrimary[(string) ($edge[$from] ?? '')]) && $edge[$to] !== null) {
+                    $display[(string) $edge[$to]] = true;
+                }
             }
         }
         $shown = static fn($hostid) => $hostid === null || isset($display[$hostid]);
         $network['hosts'] = array_intersect_key($network['hosts'], $display);
+        foreach ($network['hosts'] as &$host) {
+            $host['outside_site'] = $scope->site !== '' && $host['site'] !== $scope->site;
+        }
+        unset($host);
         $network['interfaces'] = array_values(array_filter($network['interfaces'],
             static fn($row) => isset($display[$row['hostid']])));
         $network['edges'] = array_values(array_filter($network['edges'],
@@ -462,13 +495,6 @@ final class NetworkService {
     }
 
     private function host(array $row): array {
-        $domains = [];
-        foreach ($row['tags'] ?? [] as $tag) {
-            if (($tag['tag'] ?? null) === 'ne.domain' && is_string($tag['value'] ?? null)
-                    && $tag['value'] !== '' && strlen($tag['value']) <= 128) {
-                $domains[$tag['value']] = true;
-            }
-        }
         $addresses = [];
         foreach ($row['interfaces'] ?? [] as $interface) {
             if ((int) ($interface['type'] ?? 0) === INTERFACE_TYPE_SNMP && (int) ($interface['useip'] ?? 0) === INTERFACE_USE_IP) {
@@ -488,9 +514,10 @@ final class NetworkService {
         $id = (string) $row['hostid'];
         $this->overrides[$id] = SpeedIntent::overrides($row['macros'] ?? []);
         return ['hostid'=>$id, 'host'=>(string) $row['host'], 'name'=>(string) $row['name'],
-            'domain'=>count($domains) === 1 ? (string) array_key_first($domains) : '',
+            'domain'=>NetworkScope::tagValue($row['tags'] ?? [], NetworkScope::DOMAIN_TAG),
+            'site'=>NetworkScope::tagValue($row['tags'] ?? [], NetworkScope::SITE_TAG),
             'management_addresses'=>$this->addresses($addresses), 'dashboard_url'=>Navigation::dashboard($id),
-            'explorer_url'=>Navigation::explorer($id), 'snmp_available'=>$available];
+            'explorer_url'=>Navigation::explorer($id), 'snmp_available'=>$available, 'outside_site'=>false];
     }
 
     private function addresses(array $addresses): array {

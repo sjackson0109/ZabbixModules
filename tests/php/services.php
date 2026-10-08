@@ -17,9 +17,30 @@ final class FixtureGateway implements DataGateway {
     public array $itemRows = [];
     public array $values = [];
     public array $requestedHistory = [];
-    public function hosts(array $hostids = []): array {
-        return array_values(array_filter($this->hostRows, static fn($host) => !$hostids
-            || in_array((string) $host['hostid'], $hostids, true)));
+    public array $hostQueries = [];
+    public function hosts(array $hostids = [], array $tags = []): array {
+        $this->hostQueries[] = ['hostids'=>$hostids, 'tags'=>$tags];
+        $byName = [];
+        foreach ($tags as $tag) {
+            $byName[$tag['tag']][] = $tag['value'];
+        }
+        return array_values(array_filter($this->hostRows, static function ($host) use ($hostids, $byName): bool {
+            if ($hostids && !in_array((string) $host['hostid'], $hostids, true)) {
+                return false;
+            }
+            foreach ($byName as $name => $values) {
+                if (!array_filter($host['tags'] ?? [], static fn($t) => $t['tag'] === $name
+                        && in_array($t['value'], $values, true))) {
+                    return false;
+                }
+            }
+            return true;
+        }));
+    }
+    public function tagged(array $names): array {
+        return array_values(array_filter(array_map(static fn($host) => ['hostid'=>$host['hostid'],
+            'tags'=>array_values(array_filter($host['tags'] ?? [], static fn($t) => in_array($t['tag'], $names, true)))],
+            $this->hostRows), static fn($row) => $row['tags'] !== []));
     }
     public function items(array $hostids): array {
         return array_values(array_filter($this->itemRows, static fn($item) =>

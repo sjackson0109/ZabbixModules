@@ -152,3 +152,42 @@ test('widget manifests use only native host/item broadcasts and ship the shared 
     }
   }
 });
+test('the STP root comes from bridge evidence agreed within a domain, never from layout', () => {
+  const bridge = (bridgeId, rootId) => [
+    { instance: 0, bridge_id: bridgeId, root_bridge_id: rootId, is_root: bridgeId === rootId }
+  ];
+  const current = hostid => ({ hostid, dataset: 'stp', status: 'ok', freshness: 'current' });
+  const payload = {
+    hosts: [
+      { hostid: '1', domain: 'd', stp: bridge('a', 'b') },
+      { hostid: '2', domain: 'd', stp: bridge('b', 'b') },
+      { hostid: '3', domain: 'e', stp: bridge('c', 'undisclosed-1234') }
+    ],
+    quality: [current('2')]
+  };
+  let roots = runtime.stpRoots(payload);
+  assert.deepEqual([...roots.roots], ['2']);
+  assert.deepEqual([...roots.current], ['2']);
+  assert.deepEqual(roots.outside, ['undisclosed-1234']);
+  payload.quality = [{ ...current('2'), freshness: 'stale' }];
+  assert.deepEqual([...runtime.stpRoots(payload).current], [], 'A stale root is not marked in the Layer 2 view');
+  payload.hosts[0].stp = bridge('a', 'a');
+  roots = runtime.stpRoots(payload);
+  assert.deepEqual([...roots.roots], [], 'Disagreeing switches choose no root');
+  assert.deepEqual([...roots.claimed].sort(), ['1', '2']);
+  assert.equal(roots.disputed.length, 1);
+});
+test('the Explorer page module ships the same shared runtime and stylesheet as the widgets', () => {
+  const directory = path.join(__dirname, '../../frontend/networkexplorer');
+  const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));
+  assert.deepEqual(manifest.assets.js, ['runtime.js']);
+  assert.ok(manifest.assets.css.includes('widget.css'));
+  for (const [name, copy] of [
+    ['runtime.js', 'assets/js/runtime.js'],
+    ['widget.css', 'assets/css/widget.css']
+  ])
+    assert.equal(
+      hash(fs.readFileSync(path.join(directory, copy))),
+      hash(fs.readFileSync(path.join(__dirname, '../../src/widget', name)))
+    );
+});

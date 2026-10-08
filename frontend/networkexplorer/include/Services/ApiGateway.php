@@ -7,12 +7,17 @@ final class ApiGateway implements DataGateway {
     private array $authorisedItems = [];
     private array $authorisedHosts = [];
 
-    public function hosts(array $hostids = []): array {
+    public function hosts(array $hostids = [], array $tags = []): array {
         $options = ['output'=>['hostid','host','name'], 'monitored_hosts'=>true,
             'selectTags'=>['tag','value'], 'selectInterfaces'=>['ip','dns','useip','type','available'],
             'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>Limits::HOSTS + 1];
         if ($hostids) {
             $options['hostids'] = $hostids;
+        }
+        if ($tags) {
+            $options['evaltype'] = TAG_EVAL_TYPE_AND_OR;
+            $options['tags'] = array_map(static fn($tag) => ['tag'=>(string) $tag['tag'], 'value'=>(string) $tag['value'],
+                'operator'=>TAG_OPERATOR_EQUAL], $tags);
         }
         $rows = \API::Host()->get($options);
         foreach ($rows as &$row) {
@@ -23,6 +28,15 @@ final class ApiGateway implements DataGateway {
         }
         unset($row);
         return $rows;
+    }
+
+    public function tagged(array $names): array {
+        $rows = \API::Host()->get(['output'=>['hostid'], 'monitored_hosts'=>true, 'selectTags'=>['tag','value'],
+            'evaltype'=>TAG_EVAL_TYPE_OR, 'tags'=>array_map(static fn($name) => ['tag'=>(string) $name,
+                'operator'=>TAG_OPERATOR_EXISTS], $names), 'limit'=>Limits::OPTION_HOSTS + 1]);
+        // Only the requested tags leave the gateway.
+        return array_map(static fn($row) => ['hostid'=>(string) $row['hostid'], 'tags'=>array_values(array_filter(
+            $row['tags'] ?? [], static fn($tag) => in_array($tag['tag'] ?? null, $names, true)))], $rows);
     }
 
     public function items(array $hostids): array {

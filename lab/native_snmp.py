@@ -34,6 +34,8 @@ GROUP = "Network Explorer lab"
 HIDDEN_GROUP = "Network Explorer lab restricted"
 SWITCHES = ("sw-core-01", "sw-access-17", "sw-dist-02", "sw-dist-01", "sw-stack-01")
 VIEWER = "ne-lab-viewer"
+# Administrator-set site tags: sw-dist-01 is the one switch at another site (and outside the management subnet).
+SITES = {name: "lab-west" if name == "sw-dist-01" else "lab-east" for name in SWITCHES}
 # Demonstrates both interface triggers: Gi1/0/24 is monitored, Gi1/0/23 should run at 1G but runs at 100M.
 CORE_MACROS = [{"macro": "{$NE.IF.MONITOR:\"Gi1/0/24\"}", "value": "1"},
                {"macro": "{$NE.IF.EXPECTED_SPEED:\"Gi1/0/23\"}", "value": "1000000000"},
@@ -60,12 +62,15 @@ def create_hosts(config: dict, token: str, address: str, port: int) -> None:
     url = config["url"]
     template = lab.api_request(url, "template.get", {"filter": {"host": [PROFILE]}, "output": ["templateid"]}, token)[0]
     for name in SWITCHES:
-        if lab.api_request(url, "host.get", {"filter": {"host": [name]}}, token):
+        tags = [{"tag": "ne.domain", "value": "lab"}, {"tag": "site", "value": SITES[name]}]
+        existing = lab.api_request(url, "host.get", {"filter": {"host": [name]}, "output": ["hostid"]}, token)
+        if existing:
+            lab.api_request(url, "host.update", {"hostid": existing[0]["hostid"], "tags": tags}, token)
             continue
         groupid = group_id(config, token, HIDDEN_GROUP if name == "sw-dist-01" else GROUP)
         lab.api_request(url, "host.create", {
             "host": name, "groups": [{"groupid": groupid}], "templates": [{"templateid": template["templateid"]}],
-            "tags": [{"tag": "ne.domain", "value": "lab"}],
+            "tags": tags,
             "macros": CORE_MACROS if name == "sw-core-01" else [],
             # Every simulated switch answers on the one simulator address. Connecting by "DNS name" keeps that shared
             # address out of the host's management addresses, so each switch is placed by the address it reports.

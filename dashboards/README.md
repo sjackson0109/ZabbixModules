@@ -1,4 +1,8 @@
-# Dashboard recipes
+# Dashboard recipes (optional)
+
+Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use. Fleet, site, VLAN and STP topology and fleet findings are on that page; nothing here is an installation step.
+
+These recipes are optional examples for administrators who deliberately want custom dashboard compositions, such as a NOC wall. The widgets also remain for host dashboards and user-made dashboards.
 
 `recipes.json` contains portable definitions and explicit resolver requirements, not instance-specific `dashboard.create` requests. Names, tags and item keys are resolved against the target instance during an administrator-controlled provisioning step. No numeric host/group/item/dashboard IDs are shipped.
 

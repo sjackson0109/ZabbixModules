@@ -4,6 +4,16 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- Monitoring → Network Explorer is now the network-wide view, with no global dashboard needed. With no parameters it draws every permitted switch as a Layer 2 topology; Site, Domain, Management subnet and Seed device narrow it; a View selector switches between Layer 2, Spanning Tree and VLAN; switches, links and link ends are selectable, with device, link and interface detail in one panel; findings, collection quality and CSV/JSON exports follow the same scope. The view, VLAN and selected interface are kept in the address.
+- Site scope from the administrator-controlled `site` host tag, beside `ne.domain`. Selectors list only values on hosts the user can read.
+- `NetworkScope` and `NetworkService::buildScope()`, one validated scope for the page, the JSON route, exports and widgets.
+
+### Changed
+- The default Layer 2 view (page and Topology widget) marks the observed spanning-tree root bridge when the visible switches in its domain agree on it and its data is current. A disagreement marks none and is explained.
+- The Topology widget's link details make both endpoint interfaces selectable; selecting one shows its interface detail and broadcasts its item, so a linked Interface Detail widget follows. Its view labels are now Layer 2, Spanning Tree and VLAN.
+- Dashboard recipes are optional examples, not installation steps. The lab acceptance walkthrough runs on Monitoring → Network Explorer; its old fleet dashboard is gone, and a test-only widget fixture checks the Topology widget.
+
 ## [1.2.0] - 2026-10-08
 
 ### Added

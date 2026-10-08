@@ -71,6 +71,18 @@ final class Manager {
     $assert(Manager::History()->requested === [['itemid'=>'10','hostid'=>'1','key_'=>'ne.raw.lldp','value_type'=>'4']],
         'History reads only authorised items, with their authorised value type.');
     $assert((new ApiGateway())->items(['1']) === [], 'A new gateway has authorised no hosts.');
+    (new ApiGateway())->hosts([], [['tag'=>'site', 'value'=>'east'], ['tag'=>'ne.domain', 'value'=>'d-a']]);
+    $call = end(API::$objects['Host']->calls);
+    $assert($call['evaltype'] === TAG_EVAL_TYPE_AND_OR && $call['tags'] === [
+            ['tag'=>'site', 'value'=>'east', 'operator'=>TAG_OPERATOR_EQUAL],
+            ['tag'=>'ne.domain', 'value'=>'d-a', 'operator'=>TAG_OPERATOR_EQUAL]] && $call['monitored_hosts'],
+        'Site and domain filters are exact tag matches inside the user\'s own host.get.');
+    API::$objects['Host'] = new StubApiObject([['hostid'=>'1', 'tags'=>[['tag'=>'site', 'value'=>'east'],
+        ['tag'=>'owner', 'value'=>'private']]]]);
+    $tagged = (new ApiGateway())->tagged(['site', 'ne.domain']);
+    $assert($tagged === [['hostid'=>'1', 'tags'=>[['tag'=>'site', 'value'=>'east']]]]
+        && API::$objects['Host']->calls[0]['tags'][0]['operator'] === TAG_OPERATOR_EXISTS,
+        'Selector population reads only the scope tags.');
 
     // Widget payloads: only fixed messages reach the browser.
     API::$objects = [];

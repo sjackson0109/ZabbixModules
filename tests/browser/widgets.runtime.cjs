@@ -187,12 +187,12 @@ const assert = require('node:assert/strict');
     );
     assert.equal(await page.locator('svg .ne-node').count(), 2);
     assert.equal(await page.locator('svg .ne-edge').count(), 1);
-    await page.getByRole('combobox', { name: 'Overlay' }).selectOption('vlan');
+    await page.getByRole('combobox', { name: 'View' }).selectOption('vlan');
     await page.getByRole('combobox', { name: 'VLAN', exact: true }).selectOption('49');
     await page.getByRole('combobox', { name: 'Trace VLAN from' }).selectOption('101');
     assert.equal(await page.locator('svg .ne-edge-vlan-stopped').count(), 1);
     assert.ok((await page.locator('#widget').innerText()).includes('VLAN 49 stops at Fixture switch B'));
-    await page.getByRole('combobox', { name: 'Overlay' }).selectOption('physical');
+    await page.getByRole('combobox', { name: 'View' }).selectOption('physical');
     assert.ok((await page.locator('svg').textContent()).includes('LAG ×2 · Static'));
     await page.locator('svg .ne-edge').first().focus();
     await page.keyboard.press('Enter');
@@ -202,10 +202,62 @@ const assert = require('node:assert/strict');
     await page.locator('svg .ne-node').first().focus();
     await page.keyboard.press('Enter');
     assert.ok((await page.locator('.ne-drawer').innerText()).includes('Fixture switch A'));
+    assert.equal(await page.locator('svg .ne-node').first().getAttribute('aria-pressed'), 'true');
+    assert.ok((await page.locator('.ne-drawer').innerText()).includes('Interfaces (48)'));
+    // A link end selects that exact interface and broadcasts its item to linked widgets.
+    await page.locator('svg .ne-edge').first().focus();
+    await page.keyboard.press('Enter');
+    await page.evaluate(() => (window.testBroadcasts.length = 0));
+    await page.getByRole('button', { name: 'Select interface Fixture switch A Eth1' }).click();
+    assert.ok((await page.locator('.ne-drawer').innerText()).includes('Eth1 ·'));
+    assert.deepEqual(await page.evaluate(() => window.testBroadcasts), [['101', '1000']]);
+    assert.equal(await page.locator('svg .ne-edge-selected').count(), 1);
+    // The default Layer 2 view marks a current, agreed root; disagreement marks none.
+    await page.evaluate(() => {
+      const p = window.testPayload;
+      p.hosts[0].domain = p.hosts[1].domain = 'fixture';
+      p.hosts[0].stp = [{ instance: 0, bridge_id: '8000.a', root_bridge_id: '8000.b', is_root: false }];
+      p.hosts[1].stp = [{ instance: 0, bridge_id: '8000.b', root_bridge_id: '8000.b', is_root: true }];
+      p.quality.push({ hostid: '102', dataset: 'stp', status: 'ok', freshness: 'current' });
+      window.NEWidgetRuntime.render(document.querySelector('#widget'), p, 'topology', () => {});
+    });
+    assert.equal(await page.getByRole('combobox', { name: 'View' }).inputValue(), 'physical');
+    assert.ok((await page.locator('svg .ne-node-root').getAttribute('aria-label')).startsWith('Fixture switch B'));
+    await page.evaluate(() => {
+      const p = window.testPayload;
+      p.hosts[0].stp = [{ instance: 0, bridge_id: '8000.a', root_bridge_id: '8000.a', is_root: true }];
+      window.NEWidgetRuntime.render(document.querySelector('#widget'), p, 'topology', () => {}, { mode: 'physical' });
+    });
+    assert.equal(await page.locator('svg .ne-node-root').count(), 0);
+    assert.ok((await page.locator('#widget').innerText()).includes('disagree about the spanning-tree root'));
+    await page.getByRole('combobox', { name: 'View' }).selectOption('stp');
+    assert.equal(await page.locator('svg .ne-node-root').count(), 0);
+    assert.equal(await page.locator('svg .ne-node-root-disputed').count(), 2);
+    // The Explorer page: one selection panel, findings and quality of the same payload, nothing broadcast.
+    await page.evaluate(() => {
+      const p = window.testPayload;
+      p.hosts[0].stp = [{ instance: 0, bridge_id: '8000.a', root_bridge_id: '8000.b', is_root: false }];
+      p.scope = { management_cidrs: ['192.0.2.0/24'] };
+      window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), p, {
+        view: 'layer2',
+        interface_hostid: '101',
+        interface_uid: 'port:3'
+      });
+    });
+    const selection = page.locator('.ne-explorer-selection');
+    assert.ok((await selection.innerText()).includes('Eth3 ·'), 'A deep-linked interface opens selected');
+    assert.equal(await selection.getByRole('button', { name: 'Select interface in linked widgets' }).count(), 0);
+    assert.ok((await page.locator('svg .ne-node-root').getAttribute('aria-label')).startsWith('Fixture switch B'));
+    await page.locator('svg .ne-node', { hasText: 'Fixture switch B' }).click();
+    assert.ok((await selection.innerText()).includes('Root bridge 8000.b'));
+    assert.equal(await page.evaluate(() => window.testExplorer.selection.kind), 'host');
+    await page.locator('.ne-explorer-findings').getByRole('button', { name: 'Fixture switch A' }).first().click();
+    assert.ok((await selection.locator('h4').first().innerText()).includes('Fixture switch A'));
+    assert.equal(await page.locator('.ne-explorer-quality tbody tr').count(), 3);
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(document.querySelector('#widget'), window.testPayload, 'quality')
     );
-    assert.equal(await page.locator('tbody tr').count(), 2);
+    assert.equal(await page.locator('tbody tr').count(), 3);
     assert.ok((await page.locator('#widget').innerText()).includes('partial'));
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(document.querySelector('#widget'), window.testPayload, 'findings')
@@ -288,7 +340,7 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('#widget').innerText()).includes('Member 2 · slot 0 · Copper'));
     assert.deepEqual(errors, []);
     console.log(
-      'Chromium: physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
+      'Chromium: Explorer page selection, Layer 2 root marker, link-end selection, physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
     );
   } finally {
     await browser.close();
