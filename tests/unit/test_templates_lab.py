@@ -200,7 +200,8 @@ def test_profiles_have_no_unearned_model_support_claims():
 
 def test_dashboard_recipes_have_no_instance_ids_or_automatic_writes():
     recipes = json.loads((ROOT / "dashboards/recipes.json").read_text())
-    assert recipes["artifact_type"] == "portable provisioning recipes, not direct API payloads"
+    # Optional compositions: Monitoring -> Network Explorer is the network-wide view without any dashboard.
+    assert recipes["artifact_type"] == "optional example compositions for administrators, not installation steps or direct API payloads"
     for recipe in recipes["recipes"]:
         assert recipe["mutation_policy"].startswith("proposal/diff only")
         assert all("resolve" in f or f["type"] == "STRING"

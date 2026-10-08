@@ -1,4 +1,12 @@
-.ne-explorer form { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
-.ne-explorer .ne-export { display: inline-block; margin: 0 1rem 1rem 0; }
+.ne-explorer form.ne-scope { display: flex; gap: 0.6rem 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.ne-explorer form.ne-scope label { font-weight: bold; }
+.ne-explorer form.ne-scope .ne-scope-field { display: inline-flex; gap: 0.4rem; align-items: center; }
+.ne-explorer .ne-export { display: inline-block; margin: 0 1rem 0.5rem 0; }
 .ne-explorer h2 { margin-top: 1.5rem; }
 .ne-explorer .ne-selected-interface { outline: 2px solid #1c73bb; outline-offset: -2px; }
+.ne-explorer .ne-explorer-app.ne-widget { max-height: none; overflow: visible; padding: 0; }
+.ne-explorer .ne-explorer-section { margin-bottom: 1.2rem; }
+.ne-explorer .ne-explorer-section h3 { font-size: 1.15em; margin: 0.6rem 0; }
+.ne-explorer .ne-explorer-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.ne-explorer .ne-explorer-quality { overflow-x: auto; }
+.ne-explorer details.ne-tables > summary { cursor: pointer; font-weight: bold; margin: 1rem 0 0.5rem; }

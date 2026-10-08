@@ -120,7 +120,7 @@ Module state is stored in the Zabbix database, so this is done once per installa
 1. Log in as a Super admin and open **Administration → General → Modules**.
 2. Click **Scan directory**. Six entries appear: *Network Explorer* and five *Network Explorer: …* widgets.
 3. Enable **Network Explorer** first, then the five widgets. The widgets show an installation message while the base module is disabled; that is expected.
-4. Check that **Monitoring → Network Explorer** now appears in the menu.
+4. Check that **Monitoring → Network Explorer** now appears in the menu. That page is the network-wide view; no global dashboard has to be created or imported. Dashboard recipes in `dashboards/` are optional examples.
 
 If you run more than one frontend against the same database, every frontend must have identical module files; the database tells all of them the modules are enabled.
 
@@ -201,12 +201,12 @@ In **Monitoring → Latest data**, filter the host and the key `ne.`:
 
 ### 6.3 Check the frontend
 
-1. **Monitoring → Network Explorer**, select the pilot host. Ports, speeds and LLDP neighbours should be listed.
-2. Open the host dashboard (if linked) or add the **Port panel**, **Physical topology** and **Data quality** widgets to a dashboard. Check:
+1. **Monitoring → Network Explorer**. With no selection it draws every switch you can read as a Layer 2 topology. Choose the pilot host as *Seed device*, or its *Site* if you tag hosts with `site=<name>`. Click the switch to see its interfaces, and click a link to see both ends. If the switches run spanning tree, the root bridge is marked ★.
+2. Open the host dashboard (from *Open host dashboard* on the Explorer page, if linked) or add the **Port panel**, **Physical topology** and **Data quality** widgets to a dashboard. Check:
    - ports appear with correct state and speed, and stacks show one tab per member (this needs ENTITY-MIB; switches without it show ports unplaced rather than guessed);
    - an LLDP neighbour that is also monitored, with the same `ne.domain`, can be clicked through to its host;
    - the Data quality widget shows no invalid or stale datasets.
-3. Set the management subnet(s) in the Physical topology widget's *Management subnet* field or with `management_cidr=` on the JSON route (see the [module README](../../frontend/networkexplorer/README.md)); physically connected devices outside it stay visible and are highlighted.
+3. Set the management subnet(s) in the Explorer page's *Management subnet* field (or the Physical topology widget's field, or `management_cidr=` on the JSON route) (see the [module README](../../frontend/networkexplorer/README.md)); physically connected devices outside it stay visible and are highlighted.
 4. **Log in as an ordinary user** with access to only some host groups and confirm they see only those hosts, and that neighbours they may not see are shown as unresolved placeholders without names.
 
 A quick machine check of the same data, as a logged-in user: `zabbix.php?action=networkexplorer.data&hostid=<id>` returns the permitted current state as JSON.

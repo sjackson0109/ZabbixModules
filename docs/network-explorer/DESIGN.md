@@ -170,7 +170,9 @@ Resolve only among authorised hosts at read time. Matching precedence: exact nor
 
 Map remote interfaces using port ID subtype and vendor-provided equivalence rules, with description as supporting evidence. Unknown remote interface does not invalidate an observed local link. Reconcile A→B and B→A into one edge where compatible; retain disagreement, multiple peers and one-sided relationships. Do not infer a broadcast segment's complete physical structure from multiple LLDP peers.
 
-Scope has two controls: authorised seed hosts/site/tag/CIDR, and bounded neighbour expansion. Default one hop, configurable within limits. Management subnet compliance is an annotation rather than a visibility filter; connected out-of-subnet neighbours remain visible when permitted. Report unknown and multiple management addresses separately. Scope containment supports IPv4/IPv6.
+The network-wide view is Monitoring → Network Explorer; global dashboards are optional custom compositions and are not required for ordinary use. Host dashboards remain the single-switch view.
+
+Scope has two controls: authorised seed hosts/site/tag/CIDR, and bounded neighbour expansion. Site comes only from the administrator-controlled `site` host tag (never hostnames, addresses, proxies or LLDP names); a permitted neighbour at another site stays visible as context. Default one hop, configurable within limits. Management subnet compliance is an annotation rather than a visibility filter; connected out-of-subnet neighbours remain visible when permitted. Report unknown and multiple management addresses separately. Scope containment supports IPv4/IPv6.
 
 ## 7. Graph and overlay rules
 

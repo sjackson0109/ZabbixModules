@@ -369,3 +369,25 @@ html[color-scheme='dark'] .ne-widget {
   stroke: #b04444;
   stroke-dasharray: 5 3;
 }
+.ne-widget .ne-node-selected rect {
+  stroke: var(--ne-accent);
+  stroke-width: 5;
+  fill: var(--ne-node-vlan-fill);
+}
+.ne-widget .ne-edge-selected {
+  stroke: var(--ne-accent);
+  stroke-width: 6;
+}
+.ne-widget .ne-node-context rect {
+  stroke-dasharray: 8 3;
+}
+.ne-widget .ne-node-root-disputed rect {
+  stroke: #2676b9;
+  stroke-dasharray: 4 3;
+  stroke-width: 3;
+}
+.ne-widget a.ne-open-dashboard {
+  display: inline-block;
+  margin: 4px 0 8px;
+  font-weight: bold;
+}

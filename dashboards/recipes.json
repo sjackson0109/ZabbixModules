@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "artifact_type": "portable provisioning recipes, not direct API payloads",
+  "artifact_type": "optional example compositions for administrators, not installation steps or direct API payloads",
   "required_modules": [
     "networkexplorer",
     "neportpanel",
@@ -20,7 +20,7 @@
     {
       "id": "network-operations",
       "name": "Network Operations",
-      "description": "Fleet investigation with explicit authorised domain/site scope.",
+      "description": "Optional NOC composition of the fleet widgets with explicit authorised domain/site scope; Monitoring -> Network Explorer already provides this view.",
       "owner_marker": "network-explorer:recipe:network-operations:1",
       "scope_requirements": [
         "explicit network_domain",
@@ -384,5 +384,6 @@
       "mutation_policy": "proposal/diff only until administrator deployment; preserve user authored objects",
       "pdf_status": "not qualified; optional native scheduled reports after browser/webservice tests"
     }
-  ]
+  ],
+  "note": "Monitoring -> Network Explorer provides the network-wide view (fleet, site, VLAN and STP topology, findings and quality) without any dashboard. These recipes are optional custom compositions."
 }

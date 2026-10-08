@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Copy the shared widget runtime and stylesheet into each widget module.
+"""Copy the shared runtime and stylesheet into each widget module and the Network Explorer page module.
 
-Zabbix serves a module's assets only from its own directory, so every widget ships a copy. The copies are
-generated from src/widget; edit the source and run this script, never the copies.
+Zabbix serves a module's assets only from its own directory, so every widget, and the Explorer page, ships a copy:
+one topology implementation, several presentation hosts. The copies are generated from src/widget; edit the source
+and run this script, never the copies.
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "widget"
-WIDGETS = ("neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings")
+WIDGETS = ("neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings", "networkexplorer")
 ASSETS = {"runtime.js": Path("assets/js/runtime.js"), "widget.css": Path("assets/css/widget.css")}
 
 

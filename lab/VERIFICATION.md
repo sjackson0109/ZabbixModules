@@ -94,3 +94,25 @@ The first 7.0 run found that stack positions never reached Zabbix: the generator
 sw-stack-01 now reaches sw-dist-02 over a static bundle: Po1 on the stack holds Te1/1/1 and Te2/1/1 (one port on each member), and Po20 on sw-dist-02 holds Te0/4 and Te0/5. Neither end publishes dot3adAgg rows for it, only ifType 161 and ifStackTable, while sw-dist-02's LACP Po10 stays beside it. The LAG normaliser reports such a bundle as `static`; an aggregator with no active members stays `unknown`.
 
 On 7.0.20, 7.2.7 and 7.4.3, all five switches polled with no unsupported items and the acceptance walkthrough passed nine steps plus the stopped-agent step, with no browser errors. The topology labels the two bundles "LAG ×2 · LACP" and "LAG ×2 · Static", expanding them shows seven member links, and selecting Te2/1/1 on the stack's Port panel reads "LAG Po1 · Static · 2 observed members." The port detail previously printed an undefined `protocol` field for every LAG; it now shows the mode.
+
+## Network Explorer page as the fleet view (8 October 2026)
+
+`lab/acceptance.cjs` now runs the network-wide journey on Monitoring → Network Explorer and deletes the old `Network Explorer fleet (lab)` dashboard first, so nothing depends on it. The lab hosts carry `site` tags: sw-dist-01 is at `lab-west`, the other four at `lab-east` (`native_snmp.py hosts` sets them on existing hosts too). On 7.0.20, 7.2.7 and 7.4.3 all 18 steps passed with no browser errors:
+
+1–4. Host dashboards, unchanged: amber Gi1/0/23, peer navigation to sw-access-17 Gi1/0/48, stack member tabs, static LAG.
+5. The Monitoring menu entry opens the page with no parameters and all five switches; no Network Explorer global dashboard exists apart from the test-only widget fixture.
+6. The default view is Layer 2 and marks sw-dist-02 as the root (★) without any STP link emphasis.
+7. Both LAGs are one link each (LACP, Static) and expand to two members.
+8. Spanning Tree: root, root-path links, one blocking link and one ⊘ mark; the address holds `view=stp`.
+9. VLAN: VLAN 49 traced from sw-access-17 stops at sw-core-01 Gi1/0/23; the address holds `view=vlan&vlan=49`.
+10. Selecting sw-core-01 shows its identity, health, interfaces and *Open host dashboard*, and selects no interface.
+11. Selecting the sw-core-01 to sw-access-17 link lists both endpoint interfaces (Gi1/0/23 and Gi1/0/48).
+12. Selecting Gi1/0/48 shows its interface detail; the selection is in the address and survives a reload.
+13. *Open host dashboard with this port highlighted* opens sw-access-17's inherited dashboard with Gi1/0/48 selected.
+14. Management subnet 10.101.0.0/16 flags sw-dist-01 and keeps it and its links.
+15. Site `lab-west` shows sw-dist-01 plus sw-core-01 and sw-dist-02 as context; the findings, quality table and JSON inventory export cover exactly those three switches.
+16. Seed sw-access-17 shows itself and sw-core-01.
+17. On a test-only dashboard (`Network Explorer widget fixture (lab test only)`), the Topology widget draws the same graph and root, and a link end selects its interface for linked widgets.
+18. The restricted viewer gets the menu entry and four switches; the Site selector offers only `lab-east`; no page (also with `site=lab-west`, `hostid` of sw-dist-01, or `management_cidr=10.102.0.0/16`) and no JSON or CSV export contains sw-dist-01, its address or its site.
+
+With sw-access-17's agent stopped (`native_snmp.py break`), the page drew it as SNMP unreachable and listed `snmp_unreachable` on 7.4.3. The 300-switch render fixture (`tests/perf/render.cjs`) drew 300 nodes and 1,000 links in a median 190 ms.

@@ -7,6 +7,9 @@ final class Limits {
     /** Hosts in one network view; one more is requested to detect truncation. */
     public const HOSTS = 300;
     public const INTERFACES = 30000;
+    /** Hosts whose tags populate the site and domain selectors, and the values listed for each. */
+    public const OPTION_HOSTS = 10000;
+    public const OPTION_VALUES = 500;
     /** Network Explorer items read per request; one more is requested to detect overflow. */
     public const ITEMS = 50000;
     public const HISTORY_ITEMS = 3000;

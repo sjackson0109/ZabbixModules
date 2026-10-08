@@ -55,7 +55,7 @@ Exit: a user can investigate a port on A, follow its LLDP peer to B, retain the 
 
 - Implement identity reconciliation with subtypes, one-sided/ambiguous edges, external placeholders and conservative security filtering.
 - Implement automatic topology layout, scope/expansion, CIDR validation, out-of-scope management anomaly annotation and LAG member grouping.
-- Ship Network Operations, Site Network and Discovery/Coverage dashboard recipes.
+- Ship Network Operations, Site Network and Discovery/Coverage dashboard recipes. *Changed:* the fleet and site topology now live on Monitoring → Network Explorer, which needs no dashboard; the recipes are optional examples.
 - Implement Findings widget and current-state inventory, peer, addressing, degradation and collection-health exports.
 - Run the 300-switch scale fixture and capture agreed response/layout budgets.
 - Package compatible modules/templates/collector with rollback/canary documentation and licence manifest.

@@ -18,6 +18,7 @@ final class Errors {
             'item_not_interface'=>_('Select a Network Explorer interface operational item.'),
             'item_wrong_host'=>_('The selected item belongs to a different host.'),
             'invalid_management_cidr'=>_('Enter valid IPv4 or IPv6 management subnet ranges.'),
+            'invalid_scope_filter'=>_('Invalid site or domain selection.'),
             'invalid_report'=>_('Unknown report.'),
             'invalid_format'=>_('Unknown export format.'),
             'host_budget_exceeded'=>_s('The host scope exceeds the %1$s-host limit. Select a narrower scope.',

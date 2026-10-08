@@ -6,11 +6,28 @@
   "version": "1.2.0",
   "type": "module",
   "author": "Network Explorer contributors",
-  "description": "Permission-aware network investigation, dataset services and current-state exports.",
+  "description": "Monitoring -> Network Explorer: the permission-aware network-wide view (Layer 2, Spanning Tree and VLAN topology, selection detail, findings and collection quality), plus the shared dataset services and exports.",
   "actions": {
-    "networkexplorer.view": {"class": "Explorer", "view": "networkexplorer.view"},
-    "networkexplorer.data": {"class": "Data", "layout": "layout.json"},
-    "networkexplorer.export": {"class": "Export", "layout": "layout.networkexplorer.export"}
+    "networkexplorer.view": {
+      "class": "Explorer",
+      "view": "networkexplorer.view"
+    },
+    "networkexplorer.data": {
+      "class": "Data",
+      "layout": "layout.json"
+    },
+    "networkexplorer.export": {
+      "class": "Export",
+      "layout": "layout.networkexplorer.export"
+    }
   },
-  "assets": {"css": ["explorer.css"]}
+  "assets": {
+    "js": [
+      "runtime.js"
+    ],
+    "css": [
+      "widget.css",
+      "explorer.css"
+    ]
+  }
 }
