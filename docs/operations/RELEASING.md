@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are cut from the default branch (`work`), either from the Actions tab or by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the full CI suite, builds the packages and publishes a GitHub release. Nothing is published unless every step passes.
+Releases are cut from the default branch (`work`), either from the Actions tab or by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the standard CI checks, builds the packages and publishes a GitHub release. Nothing is published unless every step passes.
 
 ## Version policy
 

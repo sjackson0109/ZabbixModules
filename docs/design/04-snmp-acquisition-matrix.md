@@ -186,8 +186,8 @@ Cisco EtherChannel without LACP: CISCO-PAGP-MIB (1.3.6.1.4.1.9.9.98) **verify**.
 
 | Gap | Why native fails | Fallback |
 |---|---|---|
-| Cisco per-VLAN STP and BRIDGE-MIB (PVST+) | Data lives in per-VLAN SNMP contexts (`vlan-<id>` for v3, `community@<id>` for v2c). A Zabbix SNMP interface has one fixed context. | Collector iterates the VLAN list and merges into one canonical STP snapshot. |
-| Walks too large for one item value | Very large stacks with full VLAN bitmaps can exceed the text value or preprocessing budget. | Collector shards by member or VLAN range under a manifest (design §4). To be measured with real walks first. |
-| Agents that time out on large bulk walks | Some older switches fail GETBULK with high repetitions. | Tune `max_repetitions` per interface first; collector only if that fails. |
+| Cisco per-VLAN STP and BRIDGE-MIB (PVST+) | Data lives in per-VLAN SNMP contexts (`vlan-<id>` for v3, `community@<id>` for v2c). A Zabbix SNMP interface has one fixed context. | Future acquisition agent iterates the VLAN list and merges into one canonical STP snapshot. |
+| Walks too large for one item value | Very large stacks with full VLAN bitmaps can exceed the text value or preprocessing budget. | Future acquisition agent shards by member or VLAN range under a manifest (design §4). To be measured with real walks first. |
+| Agents that time out on large bulk walks | Some older switches fail GETBULK with high repetitions. | Tune `max_repetitions` per interface first; future acquisition agent only if evidence shows it is necessary. |
 
 Every fallback row needs a captured walk showing the problem before a non-native acquisition path is enabled for a profile.

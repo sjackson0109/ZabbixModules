@@ -80,5 +80,5 @@ Each needs a capability, security and retention contract, and real-device eviden
 
 These are evaluated separately and are not performed by any unit above.
 
-- **Repository name.** The product is Zabbix Network Explorer; the repository is `ZabbixModules`. Proposed name: `zabbix-network-explorer`. Inside the repository only the README's releases link names the repository; release notes use `$GITHUB_REPOSITORY`, so they follow a rename. External references and old links rely on GitHub's redirect and should be updated.
+- **Repository name.** The current repository name, `ZabbixModules`, is generic. Renaming stays deferred until the broader product and module boundary is settled, since the repository may come to hold sibling applications beside Network Explorer. The repository is not renamed as part of this programme without explicit approval.
 - **Default branch.** `work` is the default branch. A move to `main` touches the `Checks` push trigger (already lists `main`), the release workflow (reads the default branch at run time), RELEASING.md and this documentation. A migration plan comes with the proposal.
