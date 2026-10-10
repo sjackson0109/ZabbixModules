@@ -255,8 +255,10 @@
    *   the previous x position from `options.previous` (hostid → {x}) when given, then natural name and host ID.
    *   Levels wider than LAYOUT.maxRowNodes wrap onto extra rows.
    *
-   * Returns {nodes: [{...host, x, y, component, level, order, unresolved}], components: [{index, size, anchors}],
-   * bounds: {x, y, width, height}}. The same input always gives the same output.
+   * Returns {nodes: [{...host, x, y, component, block, level, order, unresolved}], components: [{index, size, anchors,
+   * block}], bounds: {x, y, width, height}}. `components` are the graph's connected components, one per unlinked
+   * switch too; `block` is only where a component is packed, and the unlinked switches share one block. The same
+   * input always gives the same output.
    */
   function layoutTopology(hosts, edges, options = {}) {
     const anchors = options.anchors ?? new Set(),
@@ -292,18 +294,38 @@
     }
     const anchored = members => members.some(h => anchors.has(h));
     groups.sort((a, b) => anchored(b) - anchored(a) || b.length - a.length || byRank(a[0], b[0]));
-    const blocks = groups.map(members =>
-      componentLevels(members, { neighbours, anchors, parents, previous, byRank })
-    );
+    const blocks = groups.map(members => ({
+      ...componentLevels(members, { neighbours, anchors, parents, previous, byRank }),
+      members: [members]
+    }));
     if (loose.length)
-      blocks.push({ rows: chunk(loose.flat(), LAYOUT.maxRowNodes).map(row => ({ ids: row, level: 0 })), anchors: [] });
+      blocks.push({
+        rows: chunk(loose.flat(), LAYOUT.maxRowNodes).map(row => ({ ids: row, level: 0 })),
+        anchors: [],
+        members: loose
+      });
+    // Graph components keep their own identity and count, whatever block they are packed into.
+    const components = [],
+      componentOf = new Map();
+    blocks.forEach((block, b) =>
+      block.members.forEach(members => {
+        const index = components.length;
+        components.push({
+          index,
+          size: members.length,
+          anchors: block.members.length === 1 ? block.anchors : members.filter(h => anchors.has(h)),
+          block: b
+        });
+        for (const hostid of members) componentOf.set(hostid, index);
+      })
+    );
     // Blocks run left to right and wrap into bands, so a wide estate stays readable.
     const placed = new Map(),
       bandLimit = LAYOUT.maxRowNodes * LAYOUT.columnGap;
     let left = 0,
       top = 0,
       bandHeight = 0;
-    blocks.forEach((block, component) => {
+    blocks.forEach((block, blockIndex) => {
       const { rows } = block;
       const width = Math.max(...rows.map(r => r.ids.length)) * LAYOUT.columnGap,
         height = rows.reduce((sum, r) => sum + (r.gapBefore ? LAYOUT.rowGap : 0), rows.length * LAYOUT.rowGap);
@@ -319,7 +341,8 @@
           placed.set(hostid, {
             x: LAYOUT.originX + left + (width - row.ids.length * LAYOUT.columnGap) / 2 + c * LAYOUT.columnGap,
             y,
-            component,
+            component: componentOf.get(hostid),
+            block: blockIndex,
             level: row.level,
             order: c,
             unresolved: !!row.unresolved
@@ -336,11 +359,7 @@
       ys = nodes.map(n => n.y);
     return {
       nodes,
-      components: blocks.map((b, index) => ({
-        index,
-        size: b.rows.reduce((sum, r) => sum + r.ids.length, 0),
-        anchors: b.anchors
-      })),
+      components,
       bounds: nodes.length
         ? {
             x: Math.min(...xs) - LAYOUT.nodeWidth / 2,
@@ -438,9 +457,14 @@
     }
     return { rows, anchors: hierarchy || tops.some(h => anchors.has(h)) ? tops : [] };
   }
-  /** Child → parent hostid along observed STP root ports: a switch whose port on a link has the root role. */
+  /**
+   * Child → parent hostid along observed STP root ports: a switch whose port on a link has the root role. Every
+   * distinct upstream switch observed is a candidate; LAG members towards one switch count once. A switch with
+   * conflicting candidates gets no parent, so the conflict stays visible as an unresolved placement and never
+   * depends on the order links arrive in.
+   */
   function stpParents(edges) {
-    const parents = new Map();
+    const candidates = new Map();
     for (const edge of edges)
       for (const member of asRows(edge.members ?? [edge])) {
         if (!member.source || !member.target) continue;
@@ -448,9 +472,14 @@
           ['source', 'target'],
           ['target', 'source']
         ])
-          if (member.stp?.[side]?.role === 'root' && !parents.has(id(member[side])))
-            parents.set(id(member[side]), id(member[other]));
+          if (member.stp?.[side]?.role === 'root') {
+            const child = id(member[side]);
+            if (!candidates.has(child)) candidates.set(child, new Set());
+            candidates.get(child).add(id(member[other]));
+          }
       }
+    const parents = new Map();
+    for (const [child, upstream] of candidates) if (upstream.size === 1) parents.set(child, [...upstream][0]);
     return parents;
   }
   const LAG_MODES = { lacp: 'LACP', static: 'Static', pagp: 'PAgP' };
@@ -1472,7 +1501,7 @@
       has = selector => !!svg.querySelector(selector);
     const rootSet = mode === 'stp' ? stp.roots : stp.current;
     const entries = [
-      [arranged.some(h => rootSet.has(id(h.hostid))), '★', 'Spanning-tree root (observed; every visible switch agrees)'],
+      [arranged.some(h => rootSet.has(id(h.hostid))), '★', 'Observed spanning-tree root (agreed within its domain)'],
       [has('.ne-node-root-disputed'), '☆', 'Reports itself as root; the switches disagree'],
       [lines.some(([, l]) => !l.classList.contains('ne-edge-uncertain')), 'solid', 'Confirmed link'],
       [lines.some(([, l]) => l.classList.contains('ne-edge-uncertain')), 'dashed', 'One-sided, ambiguous, external or stale link'],

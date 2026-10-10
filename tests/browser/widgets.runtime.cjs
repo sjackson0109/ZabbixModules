@@ -288,7 +288,7 @@ const assert = require('node:assert/strict');
         .getAttribute('transform')
         .then(t => Number(/,([-\d.]+)\)/.exec(t)[1]));
     assert.ok((await nodeY('Fixture switch B')) < (await nodeY('Fixture switch A')));
-    assert.ok((await page.getByRole('list', { name: 'Topology legend' }).innerText()).includes('Spanning-tree root'));
+    assert.ok((await page.getByRole('list', { name: 'Topology legend' }).innerText()).includes('Observed spanning-tree root (agreed within its domain)'));
     // Selecting the root keeps its root marking alongside the selection.
     await page.locator('svg .ne-node-root').click();
     assert.equal(await page.locator('svg .ne-node-root.ne-node-selected').count(), 1);
@@ -344,6 +344,8 @@ const assert = require('node:assert/strict');
       );
     });
     assert.equal(await page.locator('svg .ne-node').count(), 60);
+    // One linked network and 20 unlinked switches are 21 components, though the unlinked ones share a block.
+    assert.ok((await page.locator('svg.ne-topology').getAttribute('aria-label')).endsWith('60 permitted devices, 21 groups of connected devices'));
     // No two switch boxes overlap, across separate components and the unlinked block.
     const centres = await page
       .locator('svg .ne-node')

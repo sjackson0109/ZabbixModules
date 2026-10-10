@@ -107,6 +107,39 @@ test('example C: Spanning Tree follows root ports; the blocked alternate link st
   assert.deepEqual([p[1].level, p[2].level, p[3].level, p[4].level], [0, 1, 1, 2]);
   assert.ok(p[4].y > p[3].y);
 });
+test('conflicting root-port evidence gives no parent, whatever order the links arrive in', () => {
+  const hosts = [layoutHost(1, 'ROOT'), layoutHost(2, 'D1'), layoutHost(3, 'D2'), layoutHost(4, 'A1')];
+  // A1 reports a root port towards D1 and another towards D2: two different upstream switches.
+  const edges = [
+    link(2, 1, rootPort('source')),
+    link(3, 1, rootPort('source')),
+    link(4, 2, rootPort('source')),
+    link(4, 3, rootPort('source'))
+  ];
+  for (const order of [edges, edges.slice().reverse()]) {
+    const parents = runtime.stpParents(order);
+    assert.deepEqual(Object.fromEntries(parents), { 2: '1', 3: '1' });
+    const p = at(runtime.graphLayout(hosts, order, { anchors: new Set(['1']), parents }));
+    assert.equal(p[4].unresolved, true);
+    assert.equal(p[4].level, null);
+  }
+  // LAG members towards one upstream switch are one candidate, not a conflict.
+  const lag = [
+    link(2, 1, rootPort('source')),
+    { source: '4', target: '2', members: [{ source: '4', target: '2', stp: rootPort('source') }, { source: '4', target: '2', stp: rootPort('source') }] }
+  ];
+  assert.deepEqual(Object.fromEntries(runtime.stpParents(lag)), { 2: '1', 4: '2' });
+});
+test('unlinked switches share a packing block but each stays its own component', () => {
+  const hosts = [layoutHost(1, 'A'), layoutHost(2, 'A2'), layoutHost(3, 'B'), layoutHost(4, 'C'), layoutHost(5, 'D')];
+  const result = runtime.layoutTopology(hosts, [link(1, 2)]);
+  assert.equal(result.components.length, 4);
+  assert.deepEqual(result.components.map(c => c.size), [2, 1, 1, 1]);
+  const p = at(result.nodes);
+  assert.equal(new Set(['3', '4', '5'].map(h => p[h].component)).size, 3);
+  assert.equal(new Set(['3', '4', '5'].map(h => p[h].block)).size, 1);
+  assert.notEqual(p[1].block, p[3].block);
+});
 test('a switch with no root-port path is kept visible in an unresolved area, never given a parent', () => {
   const hosts = [layoutHost(1, 'ROOT'), layoutHost(2, 'D1'), layoutHost(3, 'SW-X')];
   // SW-X is physically linked to D1, but no root role was observed on its side.
