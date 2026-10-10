@@ -71,6 +71,18 @@ final class Manager {
     $assert(Manager::History()->requested === [['itemid'=>'10','hostid'=>'1','key_'=>'ne.raw.lldp','value_type'=>'4']],
         'History reads only authorised items, with their authorised value type.');
     $assert((new ApiGateway())->items(['1']) === [], 'A new gateway has authorised no hosts.');
+    $gateway->items(['1'], ['ne.device.snapshot', 'ne.lldp.snapshot']);
+    $call = end(API::$objects['Item']->calls);
+    $assert($call['filter'] === ['key_'=>['ne.device.snapshot', 'ne.lldp.snapshot']] && !isset($call['search'])
+        && $call['hostids'] === ['1'], 'An identity read lists only the exact snapshot keys, still for authorised hosts.');
+    $assert($call['limit'] === Modules\NetworkExplorer\Services\Limits::ITEMS + 1, 'Item listings stay bounded.');
+    API::$objects['Item'] = new StubApiObject([['hostid'=>'12'], ['hostid'=>'3'], ['hostid'=>'12']]);
+    $ids = (new ApiGateway())->networkHostids(['ne.device.snapshot'], 50);
+    $call = end(API::$objects['Item']->calls);
+    $assert($ids === ['3', '12'] && $call['filter'] === ['key_'=>['ne.device.snapshot']] && $call['monitored']
+        && $call['limit'] === 50 && !isset($call['hostids']),
+        'Network Explorer hosts are found through the user\'s own item.get by exact key, bounded and in host order.');
+    API::$objects['Item'] = new StubApiObject([['itemid'=>'10','hostid'=>'1','key_'=>'ne.raw.lldp','value_type'=>'4']]);
     (new ApiGateway())->hosts([], [['tag'=>'site', 'value'=>'east'], ['tag'=>'ne.domain', 'value'=>'d-a']]);
     $call = end(API::$objects['Host']->calls);
     $assert($call['evaltype'] === TAG_EVAL_TYPE_AND_OR && $call['tags'] === [

@@ -49,7 +49,7 @@ For the implemented state, verified checks and next steps, read [the offline con
 
 Production enrolment, template replacement, customer network scans and scheduled report delivery are separate deployment actions. The build uses no customer credentials or live switch access.
 
-Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. The topology is placed on a deterministic grid rather than a topology-aware layout. One 300-host budget bounds both the drawn switches and the candidates read for peer resolution (301 are read to detect truncation, before domain filtering), so peer coverage can be incomplete in larger mixed estates; truncation is reported. The [roadmap](docs/network-explorer/ROADMAP.md) addresses both. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
+Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. One view draws at most 300 switches; a larger scope is not drawn and says how many devices it holds, so narrow it by site, domain or seed device. Peers are resolved against up to 1,000 permitted Network Explorer hosts in the scope's domains; a larger domain is reported as a finding. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
 
 ## Licence
 

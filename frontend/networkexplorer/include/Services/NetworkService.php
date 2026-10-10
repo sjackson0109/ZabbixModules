@@ -39,24 +39,43 @@ final class NetworkService {
 
     public function buildScope(NetworkScope $scope): array {
         $cidrs = $scope->managementCidrs;
-        [$primary, $hosts, $truncated] = $this->scopeHosts($scope);
-        $read = (new DatasetReader($this->gateway, $this->now))->read($hosts);
-        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
-        // unless explicitly selected.
-        $seedIds = array_fill_keys($scope->seedHostids, true);
-        $hosts = array_filter($hosts, static fn($host) => isset($read['collected'][$host['hostid']])
-            || isset($seedIds[$host['hostid']]));
-        $primary = array_values(array_filter($primary, static fn($id) => isset($hosts[$id])));
-        $read['quality'] = array_values(array_filter($read['quality'],
-            static fn($row) => isset($hosts[$row['hostid']])));
-        $datasets = $read['datasets'];
+        $reader = new DatasetReader($this->gateway, $this->now);
+        $plan = $this->scopeHosts($scope, $reader);
+        $hosts = $plan['hosts'];
+        $primary = $plan['primary'];
         $candidates = [];
         if ($scope->listCandidates) {
-            foreach ($scope->fleet() ? array_keys($hosts) : $primary as $id) {
+            foreach ($primary as $id) {
                 $candidates[] = ['hostid'=>(string) $id, 'name'=>$hosts[$id]['name']];
             }
             usort($candidates, static fn($a, $b) => strnatcasecmp($a['name'], $b['name']));
         }
+        if ($plan['oversized'] !== null) {
+            return $this->oversized($scope, $plan['oversized'], $candidates);
+        }
+        // Everything drawn is read in full: the primary hosts, then (for a narrowed scope) their direct neighbours.
+        $display = array_fill_keys($primary, true);
+        $read = $reader->read(array_intersect_key($hosts, $display));
+        if (!$scope->fleet()) {
+            $neighbours = $this->neighbourIds($hosts, array_replace($plan['identity'], $read['datasets']), $display);
+            if (count($display) + count($neighbours) > Limits::DISPLAY_HOSTS) {
+                return $this->oversized($scope, ['devices'=>count($display) + count($neighbours), 'at_least'=>false],
+                    $candidates);
+            }
+            if ($neighbours) {
+                $more = $reader->read(array_intersect_key($hosts, $neighbours));
+                $read['datasets'] = array_replace($read['datasets'], $more['datasets']);
+                $read['quality'] = array_merge($read['quality'], $more['quality']);
+                $read['itemids'] = array_replace($read['itemids'], $more['itemids']);
+                foreach (['history_items', 'history_bytes'] as $budget) {
+                    $read['budgets'][$budget] += $more['budgets'][$budget];
+                }
+            }
+        }
+        // Hosts that are not drawn keep only their identity snapshots, so peers still resolve against them.
+        $datasets = array_replace($plan['identity'], $read['datasets']);
+        $read['budgets']['identity_candidates'] = count($hosts);
+        $truncated = $plan['candidates_truncated'];
 
         $layers = $this->indexLayers($hosts, $datasets);
         $findings = $this->describeHosts($hosts, $datasets, $layers, $cidrs);
@@ -94,7 +113,8 @@ final class NetworkService {
             $network = $this->neighbourhood($network, $primary, $scope);
         }
         $result = ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
-            'scope'=>$scope->describe() + ['truncated'=>$truncated, 'neighbour_hops'=>$scope->fleet() ? 0 : 1],
+            'scope'=>$scope->describe() + ['candidates_truncated'=>$truncated,
+                'neighbour_hops'=>$scope->fleet() ? 0 : 1],
             'hosts'=>array_values($network['hosts']), 'interfaces'=>$network['interfaces'],
             'edges'=>$network['edges'], 'lags'=>$network['lags'], 'quality'=>$network['quality'],
             'findings'=>$network['findings'],
@@ -133,30 +153,42 @@ final class NetworkService {
     }
 
     /**
-     * Reads the scope's primary hosts (the seeds, or the hosts passing the site/domain filters) plus every
-     * permitted host in their matching domains, which peer resolution needs. The whole fleet is every permitted host.
-     * @return array{0: string[], 1: array, 2: bool} primary host IDs, hosts by hostid, and whether the scope was capped
+     * Finds the scope's primary hosts (the seeds, the hosts passing the site/domain filters, or the whole fleet) and
+     * the identity candidates their peers are resolved against: every permitted Network Explorer host in the
+     * primary hosts' domains, found by domain tag rather than by taking the first hosts returned. The display
+     * budget is checked before anything is read in full.
+     * @return array{primary: string[], hosts: array, identity: array, candidates_truncated: bool, oversized: ?array}
      */
-    private function scopeHosts(NetworkScope $scope): array {
+    private function scopeHosts(NetworkScope $scope, DatasetReader $reader): array {
         if ($scope->fleet()) {
-            $rows = $this->gateway->hosts();
-            $hosts = [];
-            foreach (array_slice($rows, 0, Limits::HOSTS) as $row) {
-                $host = $this->host($row);
-                $hosts[$host['hostid']] = $host;
+            // Only hosts with a Network Explorer item count, however many other hosts the user can read.
+            $ids = $this->gateway->networkHostids(DatasetReader::MEMBERSHIP,
+                (Limits::CANDIDATE_HOSTS + 1) * count(DatasetReader::MEMBERSHIP));
+            $plan = ['primary'=>[], 'hosts'=>[], 'identity'=>[], 'candidates_truncated'=>false, 'oversized'=>null];
+            if (count($ids) > Limits::DISPLAY_HOSTS) {
+                $plan['oversized'] = ['devices'=>min(count($ids), Limits::CANDIDATE_HOSTS),
+                    'at_least'=>count($ids) > Limits::CANDIDATE_HOSTS];
+                $ids = array_slice($ids, 0, Limits::CANDIDATE_HOSTS);
             }
-            return [array_keys($hosts), $hosts, count($rows) > Limits::HOSTS];
+            // Host rows only (names for the seed selector); nothing is read in full yet.
+            foreach ($ids ? $this->gateway->hosts($ids) : [] as $row) {
+                $host = $this->host($row);
+                $plan['hosts'][$host['hostid']] = $host;
+            }
+            ksort($plan['hosts'], SORT_NATURAL);
+            $plan['primary'] = array_map('strval', array_keys($plan['hosts']));
+            return $plan;
         }
-        $primaryRows = $scope->seeded()
+        $rows = $scope->seeded()
             ? $this->gateway->hosts($scope->seedHostids)
             : $this->gateway->hosts([], $scope->tagConditions());
-        $truncated = count($primaryRows) > Limits::HOSTS;
+        $rowsTruncated = !$scope->seeded() && count($rows) > Limits::CANDIDATE_HOSTS;
         $hosts = [];
         $domains = [];
-        foreach ($primaryRows as $row) {
+        foreach (array_slice($rows, 0, Limits::CANDIDATE_HOSTS) as $row) {
             $host = $this->host($row);
             // An inaccessible seed, or one outside the filters, never turns into a wider request.
-            if (!$scope->matches($host) || count($hosts) >= Limits::HOSTS) {
+            if (!$scope->matches($host)) {
                 continue;
             }
             $hosts[$host['hostid']] = $host;
@@ -164,26 +196,72 @@ final class NetworkService {
                 $domains[$host['domain']] = true;
             }
         }
-        $primary = array_map('strval', array_keys($hosts));
-        if (!$domains) {
-            return [$primary, $hosts, $truncated];
-        }
-        $rows = !$scope->seeded() && $scope->site === ''
-            ? $primaryRows
-            : $this->gateway->hosts([], array_map(static fn($domain) => ['tag'=>NetworkScope::DOMAIN_TAG,
-                'value'=>(string) $domain], array_keys($domains)));
-        foreach ($rows as $row) {
-            $host = $this->host($row);
-            if (isset($hosts[$host['hostid']]) || !isset($domains[$host['domain']])) {
-                continue;
+        $primary = array_fill_keys(array_map('strval', array_keys($hosts)), true);
+        $candidatesTruncated = false;
+        if ($domains) {
+            $domainRows = !$scope->seeded() && $scope->site === ''
+                ? $rows
+                : $this->gateway->hosts([], array_map(static fn($domain) => ['tag'=>NetworkScope::DOMAIN_TAG,
+                    'value'=>(string) $domain], array_keys($domains)));
+            $candidatesTruncated = count($domainRows) > Limits::CANDIDATE_HOSTS;
+            foreach (array_slice($domainRows, 0, Limits::CANDIDATE_HOSTS) as $row) {
+                $host = $this->host($row);
+                if (!isset($hosts[$host['hostid']]) && isset($domains[$host['domain']])) {
+                    $hosts[$host['hostid']] = $host;
+                }
             }
-            if (count($hosts) >= Limits::HOSTS) {
-                $truncated = true;
-                continue;
-            }
-            $hosts[$host['hostid']] = $host;
         }
-        return [$primary, $hosts, $truncated];
+        // Device and LLDP snapshots only: enough to tell Network Explorer hosts apart and to resolve peers.
+        $identity = $reader->read($hosts, DatasetReader::IDENTITY);
+        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
+        // unless explicitly selected.
+        $seedIds = array_fill_keys($scope->seedHostids, true);
+        $hosts = array_filter($hosts, static fn($host) => isset($identity['collected'][$host['hostid']])
+            || isset($seedIds[$host['hostid']]));
+        $primary = array_values(array_map('strval', array_keys(array_intersect_key($primary, $hosts))));
+        $oversized = null;
+        if ($rowsTruncated || count($primary) > Limits::DISPLAY_HOSTS) {
+            $oversized = ['devices'=>count($primary), 'at_least'=>$rowsTruncated];
+        }
+        return ['primary'=>$primary, 'hosts'=>$hosts, 'identity'=>$identity['datasets'],
+            'candidates_truncated'=>$candidatesTruncated, 'oversized'=>$oversized];
+    }
+
+    /** Hosts linked to the drawn ones by LLDP from either end, resolved against every identity candidate. */
+    private function neighbourIds(array $hosts, array $datasets, array $display): array {
+        $found = [];
+        foreach ((new TopologyService())->build($hosts, $datasets)['edges'] as $edge) {
+            foreach (['source'=>'target', 'target'=>'source'] as $from => $to) {
+                $peer = $edge[$to] ?? null;
+                if (isset($display[(string) ($edge[$from] ?? '')]) && $peer !== null && !isset($display[(string) $peer])) {
+                    $found[(string) $peer] = true;
+                }
+            }
+        }
+        return $found;
+    }
+
+    /**
+     * A scope too large to draw: nothing is drawn, nothing is read in full and no findings are claimed. The
+     * response says how many devices the scope holds, so the omitted switches are never implied not to exist.
+     */
+    private function oversized(NetworkScope $scope, array $oversized, array $candidates): array {
+        $count = $oversized['devices'];
+        $limit = Limits::DISPLAY_HOSTS;
+        $message = ($oversized['at_least']
+            ? 'This scope contains more than '.$count.' visible Network Explorer devices.'
+            : 'This scope contains '.$count.' visible Network Explorer devices.')
+            .' The interactive topology is limited to '.$limit.' devices. Select a site, domain or seed device'
+            .' to narrow the view. Findings and collection quality are not evaluated for this scope.';
+        $result = ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),
+            'scope'=>$scope->describe() + ['oversized'=>$oversized + ['limit'=>$limit, 'message'=>$message],
+                'candidates_truncated'=>false, 'neighbour_hops'=>$scope->fleet() ? 0 : 1],
+            'hosts'=>[], 'interfaces'=>[], 'edges'=>[], 'lags'=>[], 'quality'=>[], 'findings'=>[],
+            'budgets'=>['display_host_limit'=>$limit, 'candidate_host_limit'=>Limits::CANDIDATE_HOSTS]];
+        if ($scope->listCandidates) {
+            $result['scope']['candidates'] = $candidates;
+        }
+        return $result;
     }
 
     /**
@@ -439,8 +517,10 @@ final class NetworkService {
             }
         }
         if ($truncated) {
-            $findings[] = Finding::create('scope_truncated', 'info', null, 'Host scope is bounded.',
-                'Only the first '.Limits::HOSTS.' permitted hosts were read. Select a narrower host/domain scope.');
+            $findings[] = Finding::create('identity_candidates_truncated', 'warning', null,
+                'Peer identity used a bounded set of devices.',
+                'The scope\'s domains hold more than '.Limits::CANDIDATE_HOSTS.' permitted hosts; peers were resolved'
+                .' against the first '.Limits::CANDIDATE_HOSTS.', so some may show as unresolved. Select a narrower domain.');
         }
         return $findings;
     }

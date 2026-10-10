@@ -8,9 +8,16 @@ interface DataGateway {
      * @param array $tags equality conditions [['tag'=>..., 'value'=>...]]; the same tag ORs, different tags AND
      */
     public function hosts(array $hostids = [], array $tags = []): array;
+    /**
+     * IDs of permitted hosts that carry a Network Explorer item with one of these exact keys, at most $limit rows
+     * read. Hosts without such an item (servers, other devices) are never part of the answer.
+     * @return string[]
+     */
+    public function networkHostids(array $keys, int $limit): array;
     /** Host IDs and tags of permitted hosts carrying any of these tag names. */
     public function tagged(array $names): array;
-    public function items(array $hostids): array;
+    /** Network Explorer items of these hosts; with $keys, only items with exactly those keys. */
+    public function items(array $hostids, array $keys = []): array;
     /** Latest rows PER item, keyed by itemid; never a global history limit. */
     public function history(array $items, int $limit): array;
 }

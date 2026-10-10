@@ -56,6 +56,14 @@ if (isset($data['error'])) {
     return;
 }
 
+// A scope too large to draw says so and stops: no partial topology, no empty findings that look like "none".
+if (isset($data['scope']['oversized'])) {
+    $root->addItem((new CDiv($data['scope']['oversized']['message']))->addClass('msg-warning')
+        ->addClass('ne-scope-oversized'));
+    $page->addItem($root)->show();
+    return;
+}
+
 $summary = _n('%1$s permitted switch in scope.', '%1$s permitted switches in scope.', count($data['hosts']));
 if ($request['hostid'] !== '') {
     $summary .= ' '._('Showing the seed device and its direct neighbours.');

@@ -398,6 +398,32 @@ const assert = require('node:assert/strict');
     for await (const chunk of stream) csv += chunk.toString('utf8');
     assert.ok(csv.includes("'=Unsafe spreadsheet formula"));
     assert.ok(csv.includes("' =Unsafe spreadsheet formula after space"));
+    // A scope too large to draw shows its message and nothing else: no partial drawing, no empty findings.
+    await page.evaluate(() =>
+      window.NEWidgetRuntime.render(
+        document.querySelector('#widget'),
+        {
+          scope: {
+            oversized: {
+              devices: 487,
+              limit: 300,
+              at_least: false,
+              message: 'This scope contains 487 visible Network Explorer devices. The interactive topology is limited to 300 devices.'
+            }
+          },
+          hosts: [],
+          interfaces: [],
+          edges: [],
+          lags: [],
+          quality: [],
+          findings: []
+        },
+        'explorer'
+      )
+    );
+    assert.ok((await page.locator('#widget').innerText()).includes('This scope contains 487 visible Network Explorer devices.'));
+    assert.equal(await page.locator('#widget svg').count(), 0);
+    assert.equal(await page.locator('#widget table').count(), 0);
     // Stack members as tabs, ENTITY-MIB placement headings and configured colours.
     await page.evaluate(() => {
       const ports = [];

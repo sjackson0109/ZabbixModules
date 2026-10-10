@@ -43,7 +43,7 @@ The Chromium suite installs its locked Playwright with `npm ci` in `tests/browse
 
 ## Known limits
 
-- `Limits::HOSTS` (300) bounds both the drawn switches and the candidates used to resolve LLDP peers, so peers can stay unresolved in larger mixed estates; truncation is reported (roadmap PR D).
+- One view draws at most `Limits::DISPLAY_HOSTS` (300) switches; a larger scope (fleet, site or domain filter, or a seed with its neighbours) is not drawn and states its device count, so it must be narrowed. Peers are resolved against up to `Limits::CANDIDATE_HOSTS` (1,000) permitted Network Explorer hosts in the scope's domains; a larger domain raises an `identity_candidates_truncated` warning.
 
 ## Next implementation threads
 

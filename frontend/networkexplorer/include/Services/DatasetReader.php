@@ -20,6 +20,10 @@ final class DatasetReader {
         'member','slot','port'];
     /** Always reported; the 1.1 datasets are reported only where a host has their items. */
     private const CORE = ['device','interfaces','lldp','lag'];
+    /** A host with any of these is a Network Explorer host; every native template and the collector carry one. */
+    public const MEMBERSHIP = ['ne.device.snapshot', 'ne.interfaces.inventory', 'ne.interfaces.state'];
+    /** What peer identity needs from a host that is not drawn: who it is, and whose LLDP names a drawn switch. */
+    public const IDENTITY = ['ne.device.snapshot', 'ne.lldp.snapshot'];
     private DataGateway $gateway;
     private EnvelopeValidator $validator;
     private int $now;
@@ -30,8 +34,15 @@ final class DatasetReader {
         $this->now = $now ?? time();
     }
 
-    public function read(array $hosts): array {
-        $items = $this->gateway->items(array_map('strval', array_keys($hosts)));
+    /**
+     * Reads the hosts' snapshots. With $only (item keys), only those snapshot items (plus the membership keys, to tell which
+     * hosts are Network Explorer hosts) are listed and read, and only their datasets are reported.
+     */
+    public function read(array $hosts, array $only = []): array {
+        $hostids = array_map('strval', array_keys($hosts));
+        $items = $hostids ? $this->gateway->items($hostids,
+            $only ? array_values(array_unique(array_merge($only, self::MEMBERSHIP))) : []) : [];
+        $wanted = $only ? array_fill_keys($only, true) : null;
         if (count($items) > Limits::ITEMS) {
             throw new \RuntimeException('item_budget_exceeded');
         }
@@ -44,6 +55,9 @@ final class DatasetReader {
             }
             $collected[(string) $item['hostid']] = true;
             $key = (string) $item['key_'];
+            if ($wanted !== null && !isset($wanted[$key])) {
+                continue;
+            }
             if (isset(self::KEYS[$key]) || isset(self::ATTEMPTS[$key])) {
                 // Canonical envelopes MUST be text history, never guessed as uint.
                 if ((int) $item['value_type'] === ITEM_VALUE_TYPE_TEXT) {
@@ -95,8 +109,10 @@ final class DatasetReader {
         }
         $datasets = [];
         $quality = [];
+        $reported = $wanted === null ? array_keys(self::TTL) : array_values(array_unique(array_map(
+            static fn($key) => self::KEYS[$key] ?? self::ATTEMPTS[$key], array_keys($wanted))));
         foreach ($hosts as $hostid => $host) {
-            foreach (array_keys(self::TTL) as $dataset) {
+            foreach ($reported as $dataset) {
                 $records = $byHost[$hostid] ?? [];
                 $keys = array_keys(array_filter(self::KEYS, fn($value) => $value === $dataset));
                 $attemptKeys = array_keys(array_filter(self::ATTEMPTS, fn($value) => $value === $dataset));
@@ -160,7 +176,8 @@ final class DatasetReader {
         }
         return ['datasets'=>$datasets, 'quality'=>$quality, 'itemids'=>$scalarItemIds, 'collected'=>$collected,
             'budgets'=>['history_items'=>count($historyItems), 'history_bytes'=>$byteCount,
-                'host_limit'=>Limits::HOSTS, 'interface_limit'=>Limits::INTERFACES]];
+                'display_host_limit'=>Limits::DISPLAY_HOSTS, 'candidate_host_limit'=>Limits::CANDIDATE_HOSTS,
+                'interface_limit'=>Limits::INTERFACES]];
     }
 
     private function merge(array $parts, string $dataset): ?array {

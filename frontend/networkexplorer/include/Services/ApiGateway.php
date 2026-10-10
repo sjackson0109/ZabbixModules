@@ -10,7 +10,7 @@ final class ApiGateway implements DataGateway {
     public function hosts(array $hostids = [], array $tags = []): array {
         $options = ['output'=>['hostid','host','name'], 'monitored_hosts'=>true,
             'selectTags'=>['tag','value'], 'selectInterfaces'=>['ip','dns','useip','type','available'],
-            'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>Limits::HOSTS + 1];
+            'selectMacros'=>['macro','value','type'], 'sortfield'=>'hostid', 'limit'=>Limits::CANDIDATE_HOSTS + 1];
         if ($hostids) {
             $options['hostids'] = $hostids;
         }
@@ -30,6 +30,14 @@ final class ApiGateway implements DataGateway {
         return $rows;
     }
 
+    public function networkHostids(array $keys, int $limit): array {
+        $rows = \API::Item()->get(['output'=>['hostid'], 'monitored'=>true, 'filter'=>['key_'=>array_values($keys)],
+            'sortfield'=>'itemid', 'limit'=>$limit]);
+        $ids = array_values(array_unique(array_map(static fn($row) => (string) $row['hostid'], $rows)));
+        usort($ids, static fn($a, $b) => strnatcmp($a, $b));
+        return $ids;
+    }
+
     public function tagged(array $names): array {
         $rows = \API::Host()->get(['output'=>['hostid'], 'monitored_hosts'=>true, 'selectTags'=>['tag','value'],
             'evaltype'=>TAG_EVAL_TYPE_OR, 'tags'=>array_map(static fn($name) => ['tag'=>(string) $name,
@@ -39,15 +47,18 @@ final class ApiGateway implements DataGateway {
             $row['tags'] ?? [], static fn($tag) => in_array($tag['tag'] ?? null, $names, true)))], $rows);
     }
 
-    public function items(array $hostids): array {
+    public function items(array $hostids, array $keys = []): array {
         $hostids = array_values(array_filter($hostids,
             fn($id): bool => isset($this->authorisedHosts[(string) $id])));
         if (!$hostids) {
             return [];
         }
-        $rows = \API::Item()->get(['output'=>['itemid','hostid','key_','value_type','state','status'],
-            'hostids'=>$hostids, 'search'=>['key_'=>'ne.'], 'startSearch'=>true,
-            'limit'=>Limits::ITEMS + 1]);
+        $options = ['output'=>['itemid','hostid','key_','value_type','state','status'], 'hostids'=>$hostids,
+            'limit'=>Limits::ITEMS + 1];
+        $options += $keys
+            ? ['filter'=>['key_'=>array_values($keys)]]
+            : ['search'=>['key_'=>'ne.'], 'startSearch'=>true];
+        $rows = \API::Item()->get($options);
         foreach ($rows as $row) {
             $this->authorisedItems[(string) $row['itemid']] = $row;
         }
