@@ -8,7 +8,7 @@ Status: **historical delivery plan** (6 October 2026), kept for its acceptance c
 | 1 Architectural spikes | Done; results in `lab/VERIFICATION.md` |
 | 2 Data foundation and templates | Done for generic standard MIBs. Two evidence-backed vendor families: **open**, waiting on real walks |
 | 3 First usable host workflow | Done: Port Panel, Interface Detail, Data Quality, host dashboard, peer navigation |
-| 4 Fleet topology and LAG | Done; the fleet view is Monitoring → Network Explorer, not dashboard recipes. Layout is still a grid (roadmap PR C) |
+| 4 Fleet topology and LAG | Done; the fleet view is Monitoring → Network Explorer, not dashboard recipes. Topology-aware layout from roadmap PR C |
 | 5 VLAN | Done on simulated data |
 | 6 STP | Done for instance 0 / CIST on simulated data; MSTI/PVST instances are backlog |
 | 7 Optional extensions | Backlog; see the roadmap |
