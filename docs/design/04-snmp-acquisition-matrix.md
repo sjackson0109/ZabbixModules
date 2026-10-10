@@ -180,7 +180,9 @@ Cisco EtherChannel without LACP: CISCO-PAGP-MIB (1.3.6.1.4.1.9.9.98) **verify**.
 | Optics (DOM) | ENTITY-SENSOR-MIB entPhySensorTable 1.3.6.1.2.1.99.1.1.1 linked through entPhysicalContainedIn; CISCO-ENTITY-SENSOR-MIB 1.3.6.1.4.1.9.9.91; vendor-specific elsewhere |
 | MAC/endpoints | Q-BRIDGE dot1qTpFdbTable 1.3.6.1.2.1.17.7.1.2.2; IP-MIB ipNetToPhysicalTable 1.3.6.1.2.1.4.35 |
 
-## Where native collection is not enough (Python proxy collector)
+## Where native collection is not enough
+
+**Superseded in part:** this table first assigned these gaps to the Python proxy collector. That collector is now frozen on schema 1.0 and will not collect VLAN or STP, so the gaps below belong to a future, separately designed acquisition agent ([roadmap](../network-explorer/ROADMAP.md#future-acquisition-agent)). The gaps themselves still stand.
 
 | Gap | Why native fails | Fallback |
 |---|---|---|
@@ -188,4 +190,4 @@ Cisco EtherChannel without LACP: CISCO-PAGP-MIB (1.3.6.1.4.1.9.9.98) **verify**.
 | Walks too large for one item value | Very large stacks with full VLAN bitmaps can exceed the text value or preprocessing budget. | Collector shards by member or VLAN range under a manifest (design §4). To be measured with real walks first. |
 | Agents that time out on large bulk walks | Some older switches fail GETBULK with high repetitions. | Tune `max_repetitions` per interface first; collector only if that fails. |
 
-Every fallback row needs a captured walk showing the problem before the collector path is enabled for a profile.
+Every fallback row needs a captured walk showing the problem before a non-native acquisition path is enabled for a profile.

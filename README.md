@@ -43,13 +43,13 @@ LLDP remote metadata may expose restricted neighbours through raw item history. 
 
 ## Design and build scope
 
-[Design pack](docs/network-explorer/README.md) · [build plan](docs/network-explorer/BUILD_PLAN.md) · [confirmed decisions](docs/network-explorer/DECISIONS.md) · [lab instructions](lab/README.md).
+[Design pack](docs/network-explorer/README.md) · [roadmap](docs/network-explorer/ROADMAP.md) · [build plan](docs/network-explorer/BUILD_PLAN.md) · [confirmed decisions](docs/network-explorer/DECISIONS.md) · [lab instructions](lab/README.md).
 
 For the implemented state, verified checks and next steps, read [the offline continuation handoff](docs/operations/BUILD_STATUS.md).
 
 Production enrolment, template replacement, customer network scans and scheduled report delivery are separate deployment actions. The build uses no customer credentials or live switch access.
 
-Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. Candidate discovery is bounded to the first 301 permitted monitored hosts before domain filtering; narrow-scope peer coverage can therefore be incomplete in larger mixed estates. Truncation is reported. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
+Current limits: no snapshot sharding, coherent topology history or automatic duplicate-IP conflict report. The topology is placed on a deterministic grid rather than a topology-aware layout. One 300-host budget bounds both the drawn switches and the candidates read for peer resolution (301 are read to detect truncation, before domain filtering), so peer coverage can be incomplete in larger mixed estates; truncation is reported. The [roadmap](docs/network-explorer/ROADMAP.md) addresses both. Full 300-switch/15,000-port production performance remains unverified. See [runtime evidence](lab/VERIFICATION.md) for tested release patches and the distinction between synthetic transport and vendor qualification.
 
 ## Licence
 

@@ -1,6 +1,6 @@
 # 07 — Test plan
 
-Status: **proposed, for review** (spec §34, §35, §40.7). Each requirement in spec §34 is traced to a test that exists today, a planned test, or a gap. "Exists" means the test runs in `scripts/test-dev.sh` or the lab harness and passes on the `work` branch as of 7 October 2026.
+Status: **in force**, reviewed 10 October 2026 (spec §34, §35, §40.7). Each requirement in spec §34 is traced to a test that exists today, a planned test, or a gap. "Exists" means the test runs in `scripts/test-dev.sh`, CI or the lab harness and passes on the `work` branch as of 10 October 2026.
 
 ## Test layers
 
@@ -11,30 +11,33 @@ Status: **proposed, for review** (spec §34, §35, §40.7). Each requirement in 
 | Unit: PHP services | `php tests/php/run.php` | Policy, identity resolution, topology, VLAN/STP overlays, exports |
 | Unit: widget runtime | `node --test` | Rendering logic, layout, navigation, CSV escaping |
 | Integration | Docker lab: Zabbix 7.0, 7.2, 7.4 + proxy + **snmpsim** replaying captured walks | Real templates import, real SNMP polling through the proxy, preprocessing, LLD, triggers, widgets |
-| Browser | Playwright against the lab | Dashboards, navigation and highlight, permissions in the page |
+| Browser: renderer | `tests/browser/widgets.runtime.cjs`, Playwright and Chromium against a static fixture | DOM, escaping, keyboard, selection, VLAN/STP views, root marker, LAG, Explorer selection, CSV. Run by hand today; CI is roadmap PR B |
+| Browser: lab | `lab/acceptance.cjs`, Playwright against the lab | Dashboards, Explorer page, navigation and highlight, permissions in the page |
 | Scale | Generated 300-switch fixture | Render and response budgets |
 
-The step change from today is the integration layer. It currently replays envelopes through `zabbix_sender` into lab trapper templates. It must instead poll **simulated SNMP agents built from captured walks** through the **real** templates, so that the whole native path is tested.
+The integration layer polls **snmpsim** agents serving the walks in `tests/fixtures/walks/` through the **real** native templates on Zabbix 7.0, 7.2 and 7.4 (`lab/native_snmp.py`, `lab/VERIFICATION.md`), so the whole native path is tested. The older envelope replay through `zabbix_sender` into LAB trapper templates remains for frontend fixtures. The walks are synthetic until real devices are captured.
 
 ## Spec §34 unit tests
 
 | Requirement | Status | Test |
 |---|---|---|
 | SNMP parsing | Exists (collector) | `test_complete_standard_fixture`, `test_lldp_multiple_peers_and_ipv6_management_index` |
-| | Planned | Template JS: walk-to-envelope for every dataset, run against each captured `.snmprec` |
+| | Exists (synthetic) | Template JS walk-to-envelope for every dataset against each `.snmprec` (`test_every_dataset_is_complete_and_schema_valid`, `tests/unit/test_native_normalisers.py`) |
 | Vendor normalisation | Planned | One fixture per qualified profile; expected canonical output checked in |
 | Speed normalisation | Exists | `test_interface_speed_units_logical_port_and_identity` (ifHighSpeed and ifSpeed saturation) |
 | | Planned | MAU bit decoding to speed lists; effective expected speed (all four precedence rules) |
 | Interface state normalisation | Exists | `test_status_mapping_and_unknown_speed_do_not_invent_health`, PHP policy checks |
 | | Exists (synthetic) | Custom state colours from the Port panel form (`tests/browser/widgets.runtime.cjs`; lab form check on 7.0, 7.2 and 7.4) |
 | | Planned | Seven semantic states, including duplex degraded from the LLDP partner |
-| VLAN membership normalisation | Planned | Bitmaps over 64 ports (MSB first), bridge port ≠ ifIndex, egress minus untagged = tagged, access/trunk/hybrid classification, forbidden, static versus current, missing join gives `unknown` |
+| VLAN membership normalisation | Exists (synthetic) | `test_vlan_membership_matches_the_spec_example`, 640-port bitmap decoding in `tests/unit/test_native_normalisers.py` |
+| | Planned | Bitmaps over 64 ports (MSB first), bridge port ≠ ifIndex, egress minus untagged = tagged, access/trunk/hybrid classification, forbidden, static versus current, missing join gives `unknown` |
 | LLDP peer matching | Exists | `test_lldp_uses_subtypes_and_compound_indices_not_localnum_ifindex`, PHP identity checks (chassis, address, domain isolation) |
-| STP state normalisation | Planned | State enum mapping, derived roles (root, designated, alternate), bridge ID formatting, topology-change counter reset after reboot |
+| STP state normalisation | Exists (synthetic) | `test_stp_roles_are_derived_from_bridge_evidence`; root disagreement in `tests/php/schema11.php` and the Chromium renderer suite |
+| | Planned | State enum mapping, derived roles (root, designated, alternate), bridge ID formatting, topology-change counter reset after reboot |
 | LAG detection | Exists | `test_standard_lag_member_evidence`, `test_unknown_lag_partner_and_dangling_aggregator_evidence` |
 | | Exists (synthetic) | Static LAG from ifStackTable beside LACP and across stack members, aggregator with no members stays `unknown`, idle LACP aggregator falls back to ifStack, LACP selected/distributing bits (`test_static_bundle_*`, `test_aggregator_without_members_is_unknown_not_static`, `test_idle_lacp_aggregator_lists_ifstack_members`, `test_lacp_bundle`); LACP or Static shown on links and port details in the lab walkthrough |
-| Inventory tools | Planned in this branch | Secret stripping, capability classification, CSV escaping, walk parser and sanitiser |
-| Canonical schema 1.1 | Exists in this branch | `tests/unit/test_proposed_schema.py` |
+| Inventory tools | Exists | Walk parser, sanitiser, OID and credential validation (`tests/unit/test_capture_walk.py`), inventory export (`tests/unit/test_inventory_export.py`) |
+| Canonical schema 1.1 | Exists | `tests/unit/test_schema_1_1.py`, `tests/php/schema11.php` |
 
 ## Spec §34 integration scenarios
 
@@ -74,3 +77,15 @@ The release is accepted by running one scripted walkthrough on each Zabbix versi
 ## Security tests (spec §30)
 
 Existing: secrets never in collector output or errors, CSV formula escaping, restricted peer data hidden for a read-only user, inaccessible seed returns an empty graph. Planned: XSS payloads in ifAlias, sysName and LLDP descriptions rendered inert in every widget; widget form inputs (CIDR, VLAN ID, layer) validated server-side; inventory export output contains no interface secrets.
+
+## Tests the roadmap adds
+
+Each [roadmap](../network-explorer/ROADMAP.md) unit lands with its tests:
+
+| Unit | Tests |
+|---|---|
+| B | Chromium renderer suite in CI; release blocked unless the Zabbix 7.0/7.2/7.4 compatibility run passes |
+| C | Deterministic layout for identical input; STP root-oriented layout from canonical root evidence; disconnected components never overlap; positions stable across view, VLAN, selection, LAG and refresh changes; pan/zoom without page overflow; selected switch, link and link-end styling not carried by colour alone |
+| D | Peer resolution with more than 300 permitted candidates; display budget separate from the identity-candidate budget; oversized-scope message; permission and domain isolation unchanged |
+| E | Fleet summary counts only accessible objects; search focuses without filtering; STP path-to-root only from sufficient evidence; URL state round-trips and rejects unsafe values |
+| F | Qualification matrix entries only reference committed, sanitised evidence |

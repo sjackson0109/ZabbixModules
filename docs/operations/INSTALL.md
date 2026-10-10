@@ -9,7 +9,7 @@ Applies to release 1.2.0 on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before
 3. Make files readable by the frontend account and directories traversable. The package needs no writable web directory. Match local ownership/security policy; do not make the web root world-writable.
 4. In the administrator frontend, scan modules and enable Network Explorer and its widget modules. No Zabbix core files are changed. Container deployments bind-mount or copy the same directories into the image's actual frontend modules path.
 5. Configure authorised hosts and their controlled `ne.domain` tags, and link a dataset producer (see Templates below); without data, widgets show missing/unknown observations rather than invented ports.
-6. Add Port Panel, Interface Detail, Data Quality, Findings or Physical Topology to a dashboard, selecting a host or using native Host navigator communication. Template dashboards use the inherited host context. Validate with an ordinary scoped user as well as an administrator.
+6. Open **Monitoring → Network Explorer** for the network-wide view; it needs no dashboard. For one switch, use the inherited host dashboard (see Templates below). The widgets can also be added to any dashboard you build, selecting a host or using native Host navigator communication. Validate with an ordinary scoped user as well as an administrator.
 
 `/usr/share/zabbix/modules` is verified in the included official-container labs; it is not assumed to be the path of every package installation.
 
@@ -33,7 +33,7 @@ See [the templates README](../../templates/README.md) for what each template rea
 
 The replay YAML exports under `templates/lab/` are only for isolated lab hosts and are not packaged. They accept fixture envelopes through trapper items and perform no SNMP collection. Never link a LAB replay producer and a real producer of the same canonical keys to one host.
 
-Fleet dashboard recipes resolve installation-local IDs at provisioning time. Back up existing definitions and review a diff before replacing them. Dashboard sharing must not grant visibility to otherwise restricted hosts.
+Dashboard recipes in `dashboards/` are optional examples, not installation steps; they resolve installation-local IDs at provisioning time. Back up existing definitions and review a diff before replacing them. Dashboard sharing must not grant visibility to otherwise restricted hosts.
 
 ## Reports, history and service models
 

@@ -1,17 +1,17 @@
 # 06 — Frontend module architecture
 
-Status: **proposed, for review** (spec §24–29, §38, §40.6). The existing module and five widgets stay. This document records what they do and the changes needed to meet the spec.
+Status: **implemented**, with the open items marked below (spec §24–29, §38, §40.6). This document started as the proposal for the module and five widgets; items since built are marked *Implemented*, replaced ones **Superseded**, and the remaining gaps point at the [roadmap](../network-explorer/ROADMAP.md).
 
 ## Packages
 
 | Zabbix module | Type | Spec component | Exists | Changes needed |
 |---|---|---|---|---|
-| `networkexplorer` | module (page, services, exports) | data layer, Explorer page (network-wide view) | yes | VLAN/STP readers and overlays; default domain; derived expected speed. *Implemented:* the Explorer page is the fleet application (below) |
-| `neportpanel` | widget | Port Panel (§3.1, §9, §25) | yes | **Semantic layer switch**, VLAN selector, **configurable colours**, media-aware layout |
-| `netopology` | widget | Physical Topology, VLAN and STP overlays (§6, §27–29) | yes | **Real graph layout**, VLAN and STP modes, path trace |
-| `neinterfacedetail` | widget | Interface Detail (§26) | yes | VLAN, STP and capability sections; expected-speed source |
-| `nedataquality` | widget | freshness and capability (§23) | yes | All seven datasets |
-| `nefindings` | widget | anomalies and exports | yes | VLAN and STP findings |
+| `networkexplorer` | module (page, services, exports) | data layer, Explorer page (network-wide view) | yes | *Implemented:* VLAN/STP readers and overlays, derived expected speed, the Explorer page as the fleet application (below). Open: default domain; separate display and identity budgets (roadmap PR D) |
+| `neportpanel` | widget | Port Panel (§3.1, §9, §25) | yes | *Implemented:* semantic layer switch, VLAN selector, configurable colours, media-aware layout and stack tabs |
+| `netopology` | widget | Physical Topology, VLAN and STP overlays (§6, §27–29) | yes | *Implemented:* VLAN and STP modes, VLAN path trace. Open: real graph layout (roadmap PR C) |
+| `neinterfacedetail` | widget | Interface Detail (§26) | yes | *Implemented:* VLAN, STP and capability sections; expected-speed source |
+| `nedataquality` | widget | freshness and capability (§23) | yes | *Implemented:* all seven datasets |
+| `nefindings` | widget | anomalies and exports | yes | *Implemented:* VLAN and STP findings |
 
 Spec §38 names separate "VLAN Overlay" and "STP Overlay" components. These are implemented as **modes** of the Port Panel and Topology widgets, not separate widgets, so that one renderer serves all layers (spec §24 allows this). Each widget has a mode field, so a dashboard can still hold a dedicated "VLAN topology" widget instance.
 
@@ -34,7 +34,7 @@ Browser widget ──▶ widget view action (PHP, current user session)
 
 This answers open decision 14: the frontend reads **dedicated structured items** (the canonical snapshots) through the user's own session. It does not query SNMP or call the API with a privileged token (spec §30, §37). Every request re-authorises; there is no shared cache across users.
 
-Every widget refresh runs a full `NetworkService::build()` for its scope. That is deliberate for 1.0. The work is bounded by `Limits` (300 hosts, 50,000 items, 64 MiB of history), and the 300-switch synthetic fixture builds in about 1.5 s and renders in under 0.2 s (`tests/perf`). A cache would have to be keyed per user and per scope to keep permissions exact, and would show stale state after a link change. Revisit this with a short per-user scope cache, or a single-host read for the Port Panel, if a real estate measures slower than the refresh interval.
+Every widget refresh runs a full `NetworkService::build()` for its scope. That is deliberate for 1.0. The work is bounded by `Limits` (300 hosts, 50,000 items, 64 MiB of history; the 300-host figure currently bounds both what is drawn and the candidates used for peer resolution, which roadmap PR D separates), and the 300-switch synthetic fixture builds in about 1.5 s and renders in under 0.2 s (`tests/perf`). A cache would have to be keyed per user and per scope to keep permissions exact, and would show stale state after a link change. Revisit this with a short per-user scope cache, or a single-host read for the Port Panel, if a real estate measures slower than the refresh interval.
 
 Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interface_uid`, `edge_id`, `severity`, `rule`, `title`, `reason`) and one ID, a SHA-256 over rule, host, interface and link, so an ID stays stable across refreshes.
 
@@ -51,7 +51,7 @@ Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interfac
 
 ### Physical Topology
 
-- **Layout engine**: replace the current grid placement with **Cytoscape.js** (MIT licence, self-hosted inside the module, no CDN) using a force-directed layout (`cose`). Node positions persist per user in browser storage so a refresh does not reshuffle the graph. Manual dragging is optional and never required (spec §27).
+- **Layout engine**: ~~replace the current grid placement with **Cytoscape.js** (MIT licence, self-hosted inside the module, no CDN) using a force-directed layout (`cose`). Node positions persist per user in browser storage so a refresh does not reshuffle the graph.~~ **Superseded:** the renderer stays in-house SVG with no third-party graph library. Placement is still a deterministic breadth-first grid with positions kept in page state across refreshes; a topology-aware layout, root-oriented STP hierarchy, separated components and fit/zoom/reset are roadmap PR C. Manual dragging is optional and never required (spec §27).
 - **Scale**: at about 300 switches, collapse by site or stack, filter by scope and use level-of-detail labels. Budget: first render within 5 seconds at p95 for 300 nodes and 1,000 links. This must be measured with a generated fixture before release.
 - **VLAN mode** (spec §10, §28): select a VLAN, then:
   - participating switches are highlighted;
@@ -62,8 +62,8 @@ Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interfac
 
 ### Defaults that block out-of-the-box use
 
-- **Domain tag**: peer matching currently needs an `ne.domain` tag on every host, and no tag means no matching. Proposal: a host with no tag belongs to the `default` domain, and tags are only needed where IP ranges overlap between customers.
-- **Expected speed**: use the derived expectation from [02](02-canonical-schema.md), not explicit policy only.
+- **Domain tag** (open, not implemented): peer matching needs an `ne.domain` tag on every host, and no tag means no matching (`domain_missing`). Proposal: a host with no tag belongs to the `default` domain, and tags are only needed where IP ranges overlap between customers.
+- **Expected speed**: *Implemented:* the derived expectation from [02](02-canonical-schema.md) (`SpeedIntent::derive()`), not explicit policy only.
 
 ### Explorer page: the network-wide view
 

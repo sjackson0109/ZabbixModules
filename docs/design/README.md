@@ -6,17 +6,17 @@ The requirements specification asks for these seven artefacts to be reviewed bef
 |---|---|---|
 | 1 | [Vendor capability matrix](01-vendor-capability-matrix.md) | Hypotheses only; waiting on inventory and walks |
 | 2 | [Canonical schema](02-canonical-schema.md) and [`schemas/`](../../schemas/) | Current 1.1, adds VLAN, STP and port capability |
-| 3 | [Zabbix template architecture](03-template-architecture.md) | Proposed |
-| 4 | [SNMP acquisition matrix](04-snmp-acquisition-matrix.md) | Proposed; OIDs marked *verify* need a MIB check |
-| 5 | [Proxy script architecture](05-proxy-script-architecture.md) | Proposed; describes the existing collector |
-| 6 | [Frontend module architecture](06-frontend-module-architecture.md) | Proposed |
-| 7 | [Test plan](07-test-plan.md) | Proposed |
+| 3 | [Zabbix template architecture](03-template-architecture.md) | Implemented for the generic standard-MIB templates; vendor profiles wait on walks |
+| 4 | [SNMP acquisition matrix](04-snmp-acquisition-matrix.md) | Standard-MIB rows implemented and tested on synthetic walks; vendor rows marked *verify* need a MIB check and real walks |
+| 5 | [Proxy script architecture](05-proxy-script-architecture.md) | Implemented and frozen on schema 1.0; future acquisition in the [roadmap](../network-explorer/ROADMAP.md#future-acquisition-agent) |
+| 6 | [Frontend module architecture](06-frontend-module-architecture.md) | Implemented; open items marked |
+| 7 | [Test plan](07-test-plan.md) | In force; roadmap additions listed |
 
 Tools for the first action in spec §40 (collect the vendor/model matrix) are in [`tools/inventory/`](../../tools/inventory/).
 
-## Working assumptions until confirmed
+## Working assumptions (now confirmed by the build)
 
-These follow the specification where it differs from the earlier `DECISIONS.md`:
+These followed the specification where it differed from the earlier `DECISIONS.md`, and are what shipped:
 
 - VLAN and STP are part of the first production release (spec §35 criteria 10–13).
 - Expected speed is derived from port and partner capability, with a per-port override (spec §3.2).
