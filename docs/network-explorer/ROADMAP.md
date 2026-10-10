@@ -55,7 +55,7 @@ Internal source organisation (splitting `src/widget/` by responsibility while st
 
 ## Future acquisition agent
 
-The Python collector in `collector/` is **Collector v1**: frozen on envelope schema 1.0, security and correctness fixes only. It does not collect VLAN, STP, port capability or static LAG data, and will not be extended to.
+The Python collector in `collector/` is **Collector v1**: frozen on envelope schema 1.0, security and correctness fixes only. It does not collect VLAN, STP, port capability or static LAG data, and will not be extended to collect them.
 
 Some acquisition cannot be expressed by native Zabbix SNMP items. If real-hardware qualification proves such a gap, it belongs in a separate, not-yet-built component, the **Network Explorer Acquisition Agent** (collector v2), with its own design review before code. Candidate responsibilities:
 
