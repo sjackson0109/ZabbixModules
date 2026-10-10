@@ -12,6 +12,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ### Changed
 - The default Layer 2 view (page and Topology widget) marks the observed spanning-tree root bridge when the visible switches in its domain agree on it and its data is current. A disagreement marks none and is explained.
 - The Topology widget's link details make both endpoint interfaces selectable; selecting one shows its interface detail and broadcasts its item, so a linked Interface Detail widget follows. Its view labels are now Layer 2, Spanning Tree and VLAN.
+- Documentation matches the implementation: build status, decisions, design pack, frontend architecture and test plan mark superseded passages, the release process states that published releases are immutable and that the next release is 1.3.0, and a [roadmap](docs/network-explorer/ROADMAP.md) records the improvement programme, the backlog and the boundary between the frozen schema 1.0 collector and a future acquisition agent.
 - Dashboard recipes are optional examples, not installation steps. The lab acceptance walkthrough runs on Monitoring → Network Explorer; its old fleet dashboard is gone, and a test-only widget fixture checks the Topology widget.
 
 ## [1.2.0] - 2026-10-08

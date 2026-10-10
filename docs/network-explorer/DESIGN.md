@@ -1,12 +1,14 @@
 # Zabbix Network Explorer: architecture and product design
 
+This is the original design (6 October 2026). Where the implementation took a different route, the passage is marked **Superseded** and names what replaced it. Current status is in [build status](../operations/BUILD_STATUS.md) and planned work in the [roadmap](ROADMAP.md).
+
 ## 1. Outcome and boundaries
 
 Provide a network investigation workspace inside Zabbix: start from a switch or network scope, inspect physical ports, follow LLDP peers, understand VLAN/STP/LAG relationships, and see which observations are stale, incomplete or unsupported.
 
 Zabbix remains the monitoring source of truth. A frontend package reads permission-filtered per-host datasets. Native SNMP table collection is preferred. A proxy-local adapter is an optional acquisition path for joins, contexts or vendor behaviours that native collection cannot handle efficiently. No separate authoritative network inventory or topology database is introduced.
 
-The proposed first usable milestone is interfaces, speed policy and LLDP peer navigation. The next milestone adds fleet topology and LAG. VLAN and STP follow as explicit release gates. All requirements in the supplied specification remain in the full programme; optional enrichment is separately identified.
+~~The proposed first usable milestone is interfaces, speed policy and LLDP peer navigation. The next milestone adds fleet topology and LAG. VLAN and STP follow as explicit release gates.~~ **Superseded:** interfaces, LLDP, fleet topology, LAG, VLAN and STP (instance 0 / CIST) all shipped in the first release line. All requirements in the supplied specification remain in the full programme; optional enrichment is separately identified.
 
 User-selected compatibility range: Zabbix 7.0 through 7.4. Test pinned patches from 7.0, 7.2 and 7.4; use a shared baseline with small compatibility adapters for verified differences. Exact patch releases and deployment platforms remain inputs. Research has inspected official 7.0 and 7.4 source; intermediate 7.2 compatibility remains a runtime test requirement, not an established result.
 
@@ -26,7 +28,8 @@ flowchart TB
   G --> W[Port Panel, Topology, Interface Detail and Quality widgets]
   G --> E[Explorer page and user-requested exports]
   L --> S[Optional Zabbix service trees]
-  W --> H[Host and fleet dashboards]
+  W --> H[Host dashboards and optional custom dashboards]
+  E --> X[Monitoring → Network Explorer network-wide view]
   H --> F[Optional scheduled PDF reports]
 ```
 
@@ -228,7 +231,7 @@ Widget inputs: host or host selection, site/group/tag scope, semantic layer, opt
 
 Port Panel: stack member tabs, mixed copper/SFP layouts, numbering/labels, status icons, accessible legend, keyboard navigation and click details. Model profiles provide geometry, not manually maintained membership. Generic deterministic grouped rows work for unknown models. Optics/PoE render only when collected. Port roles/configuration come exclusively from discovered datasets.
 
-Topology: scope filter, one-hop expansion, automatic layout, search, collapse by site/stack, LAG expansion, selected port highlighting, stale styling, external peer placeholders. Prefer a pinned self-hosted graph library such as Cytoscape.js with licence review and no remote CDN. Use a renderer adapter to allow replacement if third-party libraries are restricted. Layout can run in a worker; do not restart all node positions on every refresh. Support SVG/image or tabular export subject to library and browser validation.
+Topology: scope filter, one-hop expansion, automatic layout, search, collapse by site/stack, LAG expansion, selected port highlighting, stale styling, external peer placeholders. ~~Prefer a pinned self-hosted graph library such as Cytoscape.js with licence review and no remote CDN. Use a renderer adapter to allow replacement if third-party libraries are restricted.~~ **Superseded:** the renderer is in-house SVG in `src/widget/runtime.js` with no third-party graph library; a topology-aware deterministic layout is roadmap PR C. Layout can run in a worker; do not restart all node positions on every refresh. Support SVG/image or tabular export subject to library and browser validation.
 
 Peer navigation: resolve a permitted peer and a host dashboard suitable for its templates using server-side APIs, rather than assuming the originating dashboard ID also applies to the peer. Construct the supported host-dashboard route. Store only validated interface UID/selection context in an extension-owned URL fragment or session context; a core host-dashboard controller does not promise a custom interface parameter. The target widget consumes and validates context, highlights the port, and shows the origin breadcrumb. Prototype this immediately. If host dashboard context cannot be restored reliably on the pinned version, Explorer provides the fully contextual journey and the host dashboard offers a tested jump-back action.
 
@@ -246,9 +249,13 @@ Host dashboards are inherited from templates, not generated per device. Provide 
 | STP | Instance selector, role/state overlay, root evidence and topology-change trends |
 | Diagnostics | Capability matrix, collection timings/errors, freshness and item references |
 
+*As built:* the native `Network Explorer - Host dashboard` template has three pages: **Ports** (collection quality, Port panel with its VLAN and STP layers, interface detail), **Topology** (host-local topology widget) and **Findings**. The LAB replay templates keep Overview, Connectivity and Diagnostics. VLAN and STP are layers of the Port panel and Topology widgets rather than separate pages.
+
 Unsupported dataset pages show a precise capability message; do not disappear unexpectedly. Companion templates can provide a reduced Overview before all capabilities are installed.
 
-Fleet dashboards are ordinary Zabbix dashboards, supplied as provisioning recipes:
+**Superseded:** the network-wide view is the Monitoring → Network Explorer page (PR #12), which needs no dashboard. The recipes below remain in `dashboards/recipes.json` as optional examples for administrators who want custom compositions; none is an installation step.
+
+Fleet dashboards were planned as ordinary Zabbix dashboards, supplied as provisioning recipes:
 
 - Network Operations: native Host navigator, topology, active problems, quality summary and findings.
 - Site Network: scoped topology, subnet compliance, uplink/LAG issues and selected device detail.

@@ -13,6 +13,11 @@ static LAGs, or per-member LACP state, so a host it feeds shows no VLAN or STP
 overlay and no derived expected speed. Use it only where native SNMP items can't
 reach a device.
 
+Acquisition that native items cannot express (Cisco per-VLAN STP contexts,
+MST/PVST instances, sharding oversized walks) is not added here. It belongs to a
+future, separately designed acquisition agent; see the
+[roadmap](../docs/network-explorer/ROADMAP.md#future-acquisition-agent).
+
 Python 3.10 is the minimum. Python 3.14 is the primary runtime. Installation is
 manual copy-out; a Zabbix external check does not inherit the credentials of its
 host's SNMP interface. Never pass communities, usernames or passphrases as item

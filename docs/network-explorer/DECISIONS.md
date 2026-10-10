@@ -1,12 +1,14 @@
 # Decisions and deployment inputs
 
+Decisions that later work replaced stay here for history, marked **Superseded** with what replaced them. Unmarked entries are current.
+
 ## Confirmed by the user
 
 - Compatibility range: Zabbix 7.0 to 7.4.
 - Acquisition: SNMPv2 and SNMPv3 through native Zabbix support; Python external scripts on assigned proxies are acceptable.
 - Rebuild existing vendor SNMP templates from the ground up to satisfy Network Explorer contracts.
 - Known families: Cisco SBS/small-business, Cisco Catalyst, legacy Dell PowerConnect, Dell N-Series, Dell S-Series, Zyxel, Netgear, Ubiquiti and additional vendors yet to be inventoried.
-- First release: interfaces, LLDP, physical topology and LAG; VLAN/STP follow.
+- ~~First release: interfaces, LLDP, physical topology and LAG; VLAN/STP follow.~~ **Superseded:** VLAN and STP shipped in the first release line (schema 1.1, native templates and frontend overlays).
 - Design future support for customer agent-based, possibly one-off collection and programmatic ingestion.
 - Python 3.14 is installed; use Python 3 rather than a Python 2-compatible implementation. Candidate dependencies currently require Python ≥3.10; proposed minimum is 3.10, with 3.14 as the primary test target. Do not claim every historical Python 3 minor is supported.
 - Installation is initially manual copy/deployment, suitable for package-based or container-based Zabbix. Native apt packaging is optional later work.
@@ -24,10 +26,11 @@
 | Collector language | Python ≥3.10, 3.14 primary runtime, pinned dependencies, minimal launcher | Current candidate dependency metadata; runtime validation required |
 | Templates | Shared capability contracts with rebuilt vendor profiles | Supports many models without duplicated monitoring logic |
 | Model support | Capability/evidence badges; two vendors at initial gate | Prevents unsupported model claims |
-| Graph library | Pinned self-hosted Cytoscape.js candidate behind renderer interface | No runtime CDN; replace if restrictions require it |
+| Graph library | ~~Pinned self-hosted Cytoscape.js candidate behind renderer interface~~ **Superseded:** an in-house deterministic SVG renderer in `src/widget/runtime.js`, no third-party graph library. Layout v2 stays in-house unless a library is justified, licence-reviewed, packaged locally and noted in third-party notices | No runtime CDN; replace if restrictions require it |
+| Network-wide view | Monitoring → Network Explorer page; global dashboards optional (decided 8 October 2026, PR #12) | Fleet investigation must not depend on a dashboard someone has to build |
 | Discovery enrolment | Existing hosts first; candidate proposals; no automatic host creation | LLDP is evidence, not enrolment authority |
 | Scope | Site/domain seeds plus bounded neighbour expansion | Keeps out-of-subnet peers visible without unbounded traversal |
-| Expected speed | Explicit per-port or role policy; otherwise unknown | Capacity and negotiated speed do not prove intent |
+| Expected speed | ~~Explicit per-port or role policy; otherwise unknown~~ **Superseded:** derived expectation, in order: explicit policy (per-port macro), the speed both link ends can negotiate, then uplink capability towards a bridge peer; otherwise unknown. Each port shows which source applied | Capacity and negotiated speed do not prove intent on their own |
 | Agent support | Reserve ingestion interface now; deploy agent transport later | Avoids delaying first release |
 | History | Current state and dated evidence; no coherent topology timeline initially | First-release scope; avoid false historical claims |
 | Reports | On-demand permission-filtered tables/CSV/JSON | No mail/web-service dependency for first release |
@@ -52,6 +55,15 @@ No answer is required to continue shared design, schema/policy/parser developmen
 2. The Python collector is a frozen fallback on envelope schema 1.0, with security and correctness fixes only. The native SNMP templates are the primary producer.
 3. One bad interface row (duplicate or missing name, missing status columns, `ifNumber` mismatch) is a warning: the row is skipped or keeps unknown fields and the snapshot stays complete. Only a walk with no identifiable interface fails the dataset.
 
+## Programme decisions (10 October 2026)
+
+1. The next release is **1.3.0**, not 1.2.1: PR #12's network-wide application is a new user-facing feature. Changes stay under *Unreleased* until the release is cut.
+2. Published releases are immutable. `v1.2.0` and later tags, releases and assets are never deleted, recreated, moved or overwritten; corrections go in a newer release.
+3. Monitoring → Network Explorer is the network-wide application, template host dashboards are the single-switch experience, and global dashboards are optional. None of these is replaced by another.
+4. Network Explorer and `sjackson0109/ZabbixWidgets` stay independent: no shared source, runtime dependency or asset loading in either direction.
+5. The frozen schema 1.0 Python collector is not extended. Acquisition native Zabbix items cannot express goes to a future, separately designed acquisition agent (see the [roadmap](ROADMAP.md#future-acquisition-agent)).
+6. Renaming the repository and changing the default branch from `work` are proposals that need explicit approval; no code change performs them.
+
 ## Build gates requiring facts or capabilities
 
 | Gate | What is needed | Work that proceeds independently |
@@ -68,5 +80,7 @@ No answer is required to continue shared design, schema/policy/parser developmen
 The planning request does not authorise production enrolment, template imports, scans, report delivery or access to a customer environment. It does authorise producing this design. During a later autonomous build, finish all authorised code/lab work and raise only concrete missing requirements; do not repeatedly ask about defaults already settled here.
 
 ## Environment state
+
+**Superseded:** this records the empty checkout at planning time (6 October 2026). The repository now holds the full implementation; see [build status](../operations/BUILD_STATUS.md).
 
 The cloud machine is available. At initial inspection, the selected checkout had no source/commit and its remote read returned no `main` ref. The design baseline is now stored in `docs/network-explorer` on the existing branch. No deployable Zabbix runtime was validated; the build must establish a lab runtime. No application source, lockfiles or current templates were modified.

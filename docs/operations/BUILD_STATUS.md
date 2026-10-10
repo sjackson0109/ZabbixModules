@@ -1,6 +1,8 @@
 # Offline continuation handoff
 
-Status: release candidate for 1.0.0, reviewed 7 October 2026. The frontend, native standard-MIB templates and collector are complete for the first production-capable scope and tested against simulated switches; no vendor or model has been qualified on real hardware. Release history is in the [changelog](../../CHANGELOG.md).
+Status, 10 October 2026: **1.2.0** is the latest published release (8 October 2026). The `work` branch is ahead of it: PR #12 made Monitoring → Network Explorer the network-wide application, a minor-version feature, so the next release is **1.3.0**. Its changes are under *Unreleased* in the [changelog](../../CHANGELOG.md) until it is cut. The current improvement programme and its pull-request sequence are in the [roadmap](../network-explorer/ROADMAP.md).
+
+Everything below is tested against simulated switches only; no vendor or model has been qualified on real hardware.
 
 ## Implemented
 
@@ -14,10 +16,10 @@ Status: release candidate for 1.0.0, reviewed 7 October 2026. The frontend, nati
 
 ## Verification
 
-- Python: 209 unit, transport, template, schema and package tests pass (`scripts/test-dev.sh`, and in CI on Python 3.10 and 3.12).
+- Python: 245 unit, transport, template, schema and package tests pass (`scripts/test-dev.sh`, and in CI on Python 3.10 and 3.12).
 - Collector transport and normalisation tests also passed on Python 3.10 and 3.12; localhost SNMPv2c and SNMPv3 SHA256/AES128 roundtrips used disposable credentials.
 - PHP: the service, topology, schema 1.1, lab-fixture and gateway-authorisation suites pass on PHP 8.0 and 8.3.
-- JavaScript: the widget algorithm, manifest and export checks pass; Chromium DOM, escaping, keyboard, navigation, LAG and CSV checks are run separately with Playwright.
+- JavaScript: the widget algorithm, manifest and export checks pass in CI (`node --test tests/browser/widgets.test.cjs`). The Chromium suite (`tests/browser/widgets.runtime.cjs`: DOM, escaping, keyboard, port, node, link and link-end selection, VLAN and STP views, root marker, LAG, Explorer selection, CSV) passes but is still run by hand with Playwright; adding it to CI is roadmap PR B.
 - Real Zabbix 7.0.20, 7.2.7 and 7.4.3 labs exercise module registration, replay ingestion, LLD, native graphs, inherited dashboards, ordinary-user permissions, API/report behaviour and malformed/failing collection preservation. See [runtime evidence](../../lab/VERIFICATION.md).
 - Ports are placed by stack member, slot and position from ENTITY-MIB, with media (copper, SFP, SFP+) from the MAU tables; the Port panel shows stack members as tabs and takes its state colours from the widget form.
 - The acceptance walkthrough passes in Chromium against five simulated switches on 7.0.20, 7.2.7 and 7.4.3 (`lab/acceptance.cjs`, 18 steps): host dashboards (amber port, peer navigation, stack tabs, static LAG), then Monitoring → Network Explorer with no dashboard (default Layer 2 with the root marked, LAG, Spanning Tree, VLAN journey, switch, link and link-end selection, Open host dashboard, off-subnet switch, site and seed scope with matching findings, quality and export), the Topology widget on a test-only dashboard, and a restricted viewer. The stopped-agent step passes on the Explorer page on 7.4.3.
@@ -38,10 +40,16 @@ Python dependencies and Docker images must already be cached or supplied through
 
 Browser scripts require the externally installed Playwright test dependency and a compatible Chromium executable; see [lab instructions](../../lab/README.md). The production frontend itself uses no Playwright dependency or remote CDN.
 
+## Known limits
+
+- Layout is a deterministic breadth-first grid, not topology-aware (roadmap PR C).
+- `Limits::HOSTS` (300) bounds both the drawn switches and the candidates used to resolve LLDP peers, so peers can stay unresolved in larger mixed estates; truncation is reported (roadmap PR D).
+- Releases are not yet gated on the Zabbix 7.0/7.2/7.4 integration run (roadmap PR B).
+
 ## Next implementation threads
 
-Use [the family handoff index](../../templates/specifications/FAMILY_HANDOFFS.md), [shared contract](../../templates/specifications/CONTRACT.md) and the current [schema 1.1](../../schemas/envelope-1.1.schema.json). Obtain sanitised model/firmware inventory and numeric-OID walks before implementing or claiming support for a family profile. Preserve existing monitoring coverage and qualify each producer against the module contracts.
+Follow the [roadmap](../network-explorer/ROADMAP.md) sequence. For vendor work, use [the family handoff index](../../templates/specifications/FAMILY_HANDOFFS.md), [shared contract](../../templates/specifications/CONTRACT.md) and the current [schema 1.1](../../schemas/envelope-1.1.schema.json). Obtain sanitised model/firmware inventory and numeric-OID walks before implementing or claiming support for a family profile. Preserve existing monitoring coverage and qualify each producer against the module contracts.
 
-Production vendor templates remain specifications; the generic standard-MIB native templates and the frontend read VLAN, STP and port capability (schema 1.1). Snapshot partitioning, coherent topology history, automatic duplicate-address conflict reporting, scheduled PDFs and business service provisioning are later scope. At the spec's 300-switch/15,000-port scale, synthetic data builds in under 3 s and renders in under 0.5 s; production performance, including Zabbix API and history latency, is not established. Candidate host retrieval currently applies a 301-host cap before domain filtering; larger mixed estates can therefore have incomplete peer coverage, with truncation reported.
+Production vendor templates remain specifications; the generic standard-MIB native templates and the frontend read VLAN, STP and port capability (schema 1.1). Snapshot partitioning, coherent topology history, automatic duplicate-address conflict reporting, scheduled PDFs and business service provisioning are later scope. At the spec's 300-switch/15,000-port scale, synthetic data builds in under 3 s and renders in under 0.5 s; production performance, including Zabbix API and history latency, is not established.
 
 No production host enrolment, private network scan, vendor qualification or customer credential access was performed.

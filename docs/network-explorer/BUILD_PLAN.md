@@ -1,6 +1,17 @@
 # Build plan and acceptance
 
-Status: executable delivery plan for the next build phase. This document does not claim the software or tests already exist. User-confirmed first-release scope is interfaces, LLDP, physical topology and LAG. VLAN/STP and optional enrichment remain planned subsequent releases.
+Status: **historical delivery plan** (6 October 2026), kept for its acceptance criteria and traceability. Gates 0–6 have been delivered against simulated switches and first published as release 1.2.0; work after that follows the [roadmap](ROADMAP.md). The original first-release scope (interfaces, LLDP, physical topology and LAG, with VLAN/STP later) is **superseded**: VLAN and STP shipped in the first release line.
+
+| Gate | State, 10 October 2026 |
+|---|---|
+| 0 Lab and evidence | Done: disposable Zabbix 7.0/7.2/7.4 labs with snmpsim (`lab/`). No real-device walks yet |
+| 1 Architectural spikes | Done; results in `lab/VERIFICATION.md` |
+| 2 Data foundation and templates | Done for generic standard MIBs. Two evidence-backed vendor families: **open**, waiting on real walks |
+| 3 First usable host workflow | Done: Port Panel, Interface Detail, Data Quality, host dashboard, peer navigation |
+| 4 Fleet topology and LAG | Done; the fleet view is Monitoring → Network Explorer, not dashboard recipes. Layout is still a grid (roadmap PR C) |
+| 5 VLAN | Done on simulated data |
+| 6 STP | Done for instance 0 / CIST on simulated data; MSTI/PVST instances are backlog |
+| 7 Optional extensions | Backlog; see the roadmap |
 
 ## 1. Build order
 
@@ -118,7 +129,7 @@ tests/
 lab/                      pinned disposable runtime and fixture agent setup
 ```
 
-This is a proposed coding layout, not existing repository content. Pin dependency versions/locks during build. Use framework-supported widget folders/manifests and a package-local shared library; validate autoloading instead of patching Zabbix's core loader.
+**Superseded:** this was the layout proposed before any code existed. The actual layout is `frontend/` (six modules), `src/widget/` (canonical widget runtime and CSS), `templates/` (`native/`, `lab/`, `specifications/` and generators), `schemas/`, `collector/`, `dashboards/`, `lab/`, `tests/`, `tools/inventory/` and `scripts/`. Pin dependency versions/locks during build. Use framework-supported widget folders/manifests and a package-local shared library; validate autoloading instead of patching Zabbix's core loader.
 
 ## 3. First-release acceptance
 

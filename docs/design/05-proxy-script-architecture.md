@@ -1,10 +1,10 @@
 # 05 — Proxy-side script architecture
 
-Status: **proposed, for review** (spec §20, §40.5). The collector already exists in `collector/` and is tested. This document fixes its *role*, which the earlier build left too broad, and maps it to the spec's requirements.
+Status: **implemented and frozen** (spec §20, §40.5). The collector in `collector/` is tested and, by the 7 October 2026 release decision, frozen on envelope schema 1.0 with security and correctness fixes only. Passages below that give it schema 1.1 work (per-VLAN contexts, long per-VLAN STP walks) are **superseded**: that work belongs to a future acquisition agent described in the [roadmap](../network-explorer/ROADMAP.md#future-acquisition-agent).
 
 ## Role: a fallback, not the main path
 
-Native Zabbix SNMP walks are the primary acquisition path ([03](03-template-architecture.md)). The Python collector runs on the proxy only for a dataset and profile where a captured walk shows native collection cannot work. The known cases are listed at the end of [04](04-snmp-acquisition-matrix.md), mainly Cisco per-VLAN contexts and oversized walks. It produces exactly the same canonical envelope, so the frontend cannot tell the two paths apart (spec §18).
+Native Zabbix SNMP walks are the primary acquisition path ([03](03-template-architecture.md)). The Python collector runs on the proxy only for a dataset and profile where native collection cannot reach a device. It produces schema 1.0 `device`, `interfaces`, `lldp` and `lag` envelopes, which the frontend reads like any other producer (spec §18); it does not produce VLAN, STP or port capability. ~~The known cases are listed at the end of [04](04-snmp-acquisition-matrix.md), mainly Cisco per-VLAN contexts and oversized walks.~~ **Superseded:** those cases go to the future acquisition agent.
 
 Python replaces the spec's suggested shell layout (`discover.sh`, `collect.sh`). This was agreed in the earlier conversation. Shell is limited to a fixed launcher that never parses SNMP data or builds commands from device text.
 
@@ -27,7 +27,7 @@ Mapped from the spec's proposed tree:
 ## Invocation
 
 1. **External check (short datasets).** The Zabbix item `network-explorer-collect[<device-id>,<dataset>]` runs on the proxy that monitors the host. Arguments are an allowlisted device ID and dataset name only. The collector always prints one envelope. A handled failure is a valid `failed` envelope with exit code 0, because Zabbix 7.0 does not use external-check exit codes as a health signal.
-2. **Scheduled worker (long datasets, e.g. per-VLAN STP across 200 VLANs).** A systemd timer runs the collector, writes the envelope atomically to a protected cache, and a cheap external check returns the cached envelope. This keeps long walks out of the Zabbix poller timeout.
+2. ~~**Scheduled worker (long datasets, e.g. per-VLAN STP across 200 VLANs).** A systemd timer runs the collector, writes the envelope atomically to a protected cache, and a cheap external check returns the cached envelope. This keeps long walks out of the Zabbix poller timeout.~~ **Superseded:** never built; a cached long-walk mode is a candidate for the future acquisition agent.
 
 ## Requirements from spec §20
 
@@ -46,5 +46,7 @@ Mapped from the spec's proposed tree:
 | Least privilege | Runs as the proxy's service user; read-only SNMP; no SET; destinations restricted to the configured allowlist, never to addresses learnt from LLDP |
 
 ## A default to revisit
+
+Still open; the collector keeps `redact_remote: true` by default.
 
 The collector currently **suppresses remote LLDP identity by default** (`redact_remote: true`), removing remote chassis IDs, names and addresses before storage. This protects multi-tenant estates, but it also stops peer resolution and navigation from working out of the box, which spec §4 and criteria 4–6 require. The proposal is to default to `false`, and to enable redaction per network domain where tenants share a Zabbix but must not see each other's neighbours. The frontend permission filter applies in both cases.
