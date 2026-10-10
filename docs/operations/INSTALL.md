@@ -49,6 +49,8 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
+For a downloaded release from 1.3.0 on, `gh attestation verify <archive> --repo sjackson0109/ZabbixModules` also confirms it was built by this repository's release workflow ([releasing](RELEASING.md)).
+
 The frontend, collector, templates and template-specification archives have deterministic metadata and a manifest. They exclude local lab state and dependencies. Supply an independently verified offline wheelhouse where proxy Internet access is unavailable; Python dependency wheels depend on the target platform/runtime.
 
 Upgrade compatible producer/schema/reader versions together, first on a small lab/canary scope. Keep old archives and template/dashboard exports. Restore module directories and compatible producer assets to roll back. Template unlink-and-clear deletes data and is not part of ordinary rollback. Removing module files does not automatically delete user dashboards or monitoring history.

@@ -34,6 +34,21 @@ python3 lab/lab.py destroy --version 7.4
 
 Startup does not copy modules automatically. The integration command copies the current frontend files into the web container and registers/enables them through the official Zabbix module API. This avoids assumptions about bind-mount ownership and makes each integration run exercise the current source. Installing different files with the same module identifier remains limited to these disposable labs.
 
+The same commands run in GitHub Actions (`.github/workflows/compatibility.yml`): nightly on `work`, on pull requests that change the frontend, widget source, templates, schemas or this lab, and before every release. Each runner generates its own credentials and is discarded afterwards; on failure the workflow prints container names and states only, never logs or inspection output.
+
+## Chromium renderer suite
+
+`tests/browser/widgets.runtime.cjs` drives the widget runtime in a real Chromium against static fixtures; it needs no Zabbix. Playwright is locked in `tests/browser/package-lock.json` and runs in the `Checks` workflow:
+
+```sh
+cd tests/browser
+npm ci
+npx playwright install chromium
+node widgets.runtime.cjs
+```
+
+Set `NE_CHROMIUM` to use an already installed Chromium instead of Playwright's download.
+
 For local troubleshooting, run Docker Compose with the generated environment file and the correct project. Logs are not saved to the repository. Do not paste container inspection output or configuration dumps; those may contain generated passwords.
 
 The replay template includes an inherited host dashboard with Overview, Connectivity and Diagnostics pages. Production SNMP acquisition and vendor-specific templates are intentionally separate deliverables. Current tests use invented `192.0.2.0/24` identities; they perform no scans.
