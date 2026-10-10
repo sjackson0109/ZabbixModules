@@ -26,10 +26,10 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Tag matches VERSION, components and changelog
@@ -52,14 +52,22 @@ jobs:
     needs: verify
     uses: ./.github/workflows/checks.yml
 
+  # Real Zabbix 7.0, 7.2 and 7.4 labs; nothing is published unless all three pass.
+  compatibility:
+    needs: verify
+    uses: ./.github/workflows/compatibility.yml
+
   publish:
-    needs: checks
+    needs: [checks, compatibility]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # Build provenance: id-token signs through Sigstore, attestations stores the result.
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Generated files are current
@@ -72,6 +80,12 @@ jobs:
         run: |
           python scripts/package.py --output dist
           cd dist && sha256sum -c SHA256SUMS
+      - name: Build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar
+            dist/manifest.json
       - name: Release notes
         run: |
           version="${TAG#v}"
@@ -80,7 +94,7 @@ jobs:
             echo
             echo "## Install"
             echo
-            echo "Download the archives below and check them with \`sha256sum -c SHA256SUMS\`. Install the frontend and template packages together, following [INSTALL.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/INSTALL.md) or the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/DEPLOYMENT_GUIDE.md)."
+            echo "Download the archives below and check them with \`sha256sum -c SHA256SUMS\`. Each archive also carries a signed build-provenance attestation: \`gh attestation verify <archive> --repo $GITHUB_REPOSITORY\`. Install the frontend and template packages together, following [INSTALL.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/INSTALL.md) or the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/operations/DEPLOYMENT_GUIDE.md)."
           } > dist/RELEASE_NOTES.md
       - name: Tag (manual run)
         if: github.event_name == 'workflow_dispatch'

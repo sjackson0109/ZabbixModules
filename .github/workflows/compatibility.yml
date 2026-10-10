@@ -1,0 +1,53 @@
+name: Compatibility
+
+# Real Zabbix 7.0, 7.2 and 7.4 servers in disposable Docker labs (scripts/test-compatibility.sh):
+# module registration, replay ingestion, LLD, permissions, API and export behaviour.
+# It runs nightly, gates every release (release.yml calls it), and runs on pull requests
+# that change what it exercises. Other pull requests get the faster Checks workflow only.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "src/widget/**"
+      - "templates/**"
+      - "schemas/**"
+      - "lab/**"
+      - "tests/integration/**"
+      - "scripts/test-compatibility.sh"
+      - ".github/workflows/compatibility.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  zabbix:
+    name: zabbix (${{ matrix.version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["7.0", "7.2", "7.4"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Integration tests
+        run: sh scripts/test-compatibility.sh "${{ matrix.version }}"
+      # Container state only: logs and inspection output can carry the generated lab
+      # credentials, and this repository's Actions logs are public (lab/README.md).
+      - name: Container state
+        if: failure()
+        run: docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+      - name: Remove the lab
+        if: always()
+        run: python lab/lab.py destroy --version "${{ matrix.version }}" || true

@@ -17,8 +17,8 @@ The guiding principle is to polish and prove the existing architecture before wi
 |---|---|---|
 | Topology layout | `graphLayout()` in `src/widget/runtime.js`: breadth-first order placed on a square grid; positions kept in page state | Not topology-aware; no STP root-oriented layout; components not separated; no fit/zoom/reset controls; legend is a single text line |
 | Scope scaling | `Limits::HOSTS = 300` bounds both what is drawn and the candidate population used to resolve LLDP peers (`NetworkService::scopeHosts()` reads `HOSTS + 1`) | Display budget and identity-resolution budget are one number; peers can stay unresolved in large mixed estates; truncation is reported only as an info finding |
-| Browser tests in CI | `tests/browser/widgets.test.cjs` (Node, fast) runs in CI; `tests/browser/widgets.runtime.cjs` (Chromium) runs only by hand | Chromium suite not in CI; releases are not gated on the Zabbix 7.0/7.2/7.4 integration path |
-| Release supply chain | Deterministic packages, `VERSION`, version checks, changelog notes, `SHA256SUMS`, workflow_dispatch release | Actions pinned by tag, not SHA; no build provenance |
+| Browser tests in CI | `tests/browser/widgets.test.cjs` (Node, fast) runs in CI; `tests/browser/widgets.runtime.cjs` (Chromium) runs only by hand | Chromium suite not in CI; releases are not gated on the Zabbix 7.0/7.2/7.4 integration path. *Addressed by PR B* |
+| Release supply chain | Deterministic packages, `VERSION`, version checks, changelog notes, `SHA256SUMS`, workflow_dispatch release | Actions pinned by tag, not SHA; no build provenance. *Addressed by PR B* |
 | Browser source | One canonical `src/widget/runtime.js` (about 1,800 lines) and `widget.css`, copied by `scripts/sync_widget_assets.py` | Single file holds every concern |
 | Explorer UX | Selection, view, VLAN trace source dropdown, root marker | No scope summary, switch search/focus, STP path-to-root or click-to-trace; selected host/view/VLAN/interface already in the URL |
 | Hardware qualification | Family handoffs, `tools/inventory/` walk capture and inventory export; no real device qualified | No qualification matrix or evidence states |
@@ -30,8 +30,8 @@ Each unit is one pull request into `work`, stopped at review-ready and merged on
 
 | PR | Scope | State |
 |---|---|---|
-| A | Documentation convergence and 1.3.0 preparation: status, superseded decisions, this roadmap, release-immutability policy, collector boundary | This change |
-| B | Browser CI and release gate: Chromium suite in `Checks`, Zabbix 7.0/7.2/7.4 compatibility as a release/nightly gate, Actions pinned to commit SHAs, build provenance attestations alongside `SHA256SUMS` | Planned |
+| A | Documentation convergence and 1.3.0 preparation: status, superseded decisions, this roadmap, release-immutability policy, collector boundary | Merged (#13) |
+| B | Browser CI and release gate: Chromium suite in `Checks`, Zabbix 7.0/7.2/7.4 compatibility as a release/nightly gate, Actions pinned to commit SHAs, build provenance attestations alongside `SHA256SUMS` | In review |
 | C | Topology layout v2: topology-aware deterministic Layer 2 layout, STP root-oriented hierarchy from canonical STP evidence, separated components, stable positions, fit/zoom/reset with keyboard alternatives, stronger selection styling, compact legend | Planned |
 | D | Fleet scaling: separate display, identity-candidate, option and item budgets; domain-aware candidate retrieval; explicit oversized-scope message; tests with more than 300 candidates | Planned |
 | E | Explorer UX: scope summary, switch search/focus, STP path-to-root, VLAN click-to-trace, stable link selection in the URL where safe | Planned |

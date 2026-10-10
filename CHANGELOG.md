@@ -10,6 +10,10 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - `NetworkScope` and `NetworkService::buildScope()`, one validated scope for the page, the JSON route, exports and widgets.
 
 ### Changed
+- Pull-request CI runs the Chromium renderer suite, with Playwright locked in `tests/browser/package-lock.json`.
+- Zabbix 7.0, 7.2 and 7.4 compatibility labs run nightly, on pull requests that change the frontend, widgets, templates, schemas or lab, and before every release; a release is published only when all three pass.
+- Release archives and `manifest.json` carry a signed build-provenance attestation beside `SHA256SUMS` (`gh attestation verify`).
+- Every third-party GitHub Action is pinned to a commit SHA, with a test that keeps it so.
 - The default Layer 2 view (page and Topology widget) marks the observed spanning-tree root bridge when the visible switches in its domain agree on it and its data is current. A disagreement marks none and is explained.
 - The Topology widget's link details make both endpoint interfaces selectable; selecting one shows its interface detail and broadcasts its item, so a linked Interface Detail widget follows. Its view labels are now Layer 2, Spanning Tree and VLAN.
 - Documentation matches the implementation: build status, decisions, design pack, frontend architecture and test plan mark superseded passages, the release process states that published releases are immutable and that the next release is 1.3.0, and a [roadmap](docs/network-explorer/ROADMAP.md) records the improvement programme, the backlog and the boundary between the frozen schema 1.0 collector and a future acquisition agent.

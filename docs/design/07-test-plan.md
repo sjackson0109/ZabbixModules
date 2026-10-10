@@ -10,8 +10,8 @@ Status: **in force**, reviewed 10 October 2026 (spec §34, §35, §40.7). Each r
 | Unit: JavaScript (template preprocessing) | `node --test` | The exact JS embedded in templates turns captured walks into canonical envelopes |
 | Unit: PHP services | `php tests/php/run.php` | Policy, identity resolution, topology, VLAN/STP overlays, exports |
 | Unit: widget runtime | `node --test` | Rendering logic, layout, navigation, CSV escaping |
-| Integration | Docker lab: Zabbix 7.0, 7.2, 7.4 + proxy + **snmpsim** replaying captured walks | Real templates import, real SNMP polling through the proxy, preprocessing, LLD, triggers, widgets |
-| Browser: renderer | `tests/browser/widgets.runtime.cjs`, Playwright and Chromium against a static fixture | DOM, escaping, keyboard, selection, VLAN/STP views, root marker, LAG, Explorer selection, CSV. Run by hand today; CI is roadmap PR B |
+| Integration | Docker lab: Zabbix 7.0, 7.2, 7.4 + proxy + **snmpsim** replaying captured walks | Real templates import, real SNMP polling through the proxy, preprocessing, LLD, triggers, widgets. The replay suite (`scripts/test-compatibility.sh`) runs in the `Compatibility` workflow nightly, on relevant pull requests and as a release gate |
+| Browser: renderer | `tests/browser/widgets.runtime.cjs`, Playwright and Chromium against a static fixture | DOM, escaping, keyboard, selection, VLAN/STP views, root marker, LAG, Explorer selection, CSV. Runs in CI (`Checks`) with Playwright locked in `tests/browser/package-lock.json` |
 | Browser: lab | `lab/acceptance.cjs`, Playwright against the lab | Dashboards, Explorer page, navigation and highlight, permissions in the page |
 | Scale | Generated 300-switch fixture | Render and response budgets |
 
@@ -84,7 +84,7 @@ Each [roadmap](../network-explorer/ROADMAP.md) unit lands with its tests:
 
 | Unit | Tests |
 |---|---|
-| B | Chromium renderer suite in CI; release blocked unless the Zabbix 7.0/7.2/7.4 compatibility run passes |
+| B | *Done:* Chromium renderer suite in CI; release blocked unless the Zabbix 7.0/7.2/7.4 compatibility run passes; `tests/unit/test_workflows.py` keeps actions SHA-pinned and the gates wired |
 | C | Deterministic layout for identical input; STP root-oriented layout from canonical root evidence; disconnected components never overlap; positions stable across view, VLAN, selection, LAG and refresh changes; pan/zoom without page overflow; selected switch, link and link-end styling not carried by colour alone |
 | D | Peer resolution with more than 300 permitted candidates; display budget separate from the identity-candidate budget; oversized-scope message; permission and domain isolation unchanged |
 | E | Fleet summary counts only accessible objects; search focuses without filtering; STP path-to-root only from sufficient evidence; URL state round-trips and rejects unsafe values |

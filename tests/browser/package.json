@@ -1,0 +1,12 @@
+{
+  "name": "network-explorer-browser-tests",
+  "private": true,
+  "description": "Test-only dependencies for the Chromium renderer suite. Nothing here ships in a release package.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node widgets.runtime.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
