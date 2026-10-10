@@ -212,6 +212,64 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('.ne-drawer').innerText()).includes('Eth1 ·'));
     assert.deepEqual(await page.evaluate(() => window.testBroadcasts), [['101', '1000']]);
     assert.equal(await page.locator('svg .ne-edge-selected').count(), 1);
+    // The selected interface's own end of its link carries a ring, not only a colour change.
+    assert.equal(await page.locator('svg .ne-endpoint-selected').count(), 1);
+    // Fit, zoom, reset and keyboard alternatives work on the drawing's viewBox, never the page.
+    const svgView = () => page.locator('svg.ne-topology').getAttribute('viewBox');
+    const zoom = async () => Number(await page.locator('svg.ne-topology').getAttribute('data-zoom'));
+    const home = await svgView();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    assert.ok((await zoom()) > 1);
+    await page.getByRole('button', { name: 'Zoom out' }).click();
+    await page.getByRole('button', { name: 'Zoom out' }).click();
+    assert.ok((await zoom()) < 1);
+    await page.getByRole('button', { name: 'Reset view' }).click();
+    assert.equal(await svgView(), home);
+    await page.getByRole('button', { name: 'Fit topology' }).click();
+    assert.notEqual(await svgView(), home);
+    await page.getByRole('region', { name: /Topology canvas/ }).focus();
+    await page.keyboard.press('0');
+    assert.equal(await svgView(), home);
+    await page.keyboard.press('+');
+    assert.ok((await zoom()) > 1);
+    const zoomed = await svgView();
+    await page.keyboard.press('ArrowRight');
+    assert.notEqual(await svgView(), zoomed);
+    // The view survives a redraw such as a view change, and a switch never moves with it.
+    const positionOf = () => page.locator('svg .ne-node').first().getAttribute('transform');
+    const placedAt = await positionOf();
+    const panned = await svgView();
+    // Layer 2 and VLAN share a placement and a view; Spanning Tree has its own; returning restores both.
+    for (const view of ['vlan', 'stp', 'physical']) {
+      await page.getByRole('combobox', { name: 'View' }).selectOption(view);
+      if (view === 'stp') continue;
+      assert.equal(await svgView(), panned);
+      assert.equal(await positionOf(), placedAt);
+    }
+    await page.keyboard.press('0');
+    // Selection, search, LAG collapse and VLAN trace restyle the drawing but never re-place a switch.
+    const allPositions = () => page.locator('svg .ne-node').evaluateAll(n => n.map(g => g.getAttribute('transform')).join('|'));
+    const layoutBefore = await allPositions();
+    await page.locator('svg .ne-node').nth(1).click();
+    const halo = page.locator('svg .ne-node-selected .ne-node-halo');
+    assert.notEqual(await halo.evaluate(e => getComputedStyle(e).display), 'none', 'selected switch has a second outline');
+    await page.getByPlaceholder('Find visible host').fill('switch B');
+    assert.equal(await page.locator('svg .ne-node.ne-muted').count(), 1);
+    await page.getByPlaceholder('Find visible host').fill('');
+    await page.getByRole('button', { name: 'Collapse LAG member links' }).click();
+    await page.locator('svg .ne-edge').first().focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('svg .ne-link-end-selected').count(), 2, 'a selected link is marked at both ends');
+    assert.equal(await page.locator('svg .ne-endpoint-selected').count(), 0);
+    await page.getByRole('button', { name: 'Expand LAG member links' }).click();
+    await page.getByRole('combobox', { name: 'View' }).selectOption('vlan');
+    await page.getByRole('combobox', { name: 'Trace VLAN from' }).selectOption('101');
+    await page.getByRole('combobox', { name: 'View' }).selectOption('physical');
+    assert.equal(await allPositions(), layoutBefore);
+    // The legend lists only what this drawing shows.
+    const legendText = await page.getByRole('list', { name: 'Topology legend' }).innerText();
+    assert.ok(legendText.includes('Confirmed link'), legendText);
+    assert.ok(!legendText.includes('VLAN') && !legendText.includes('root'), legendText);
     // The default Layer 2 view marks a current, agreed root; disagreement marks none.
     await page.evaluate(() => {
       const p = window.testPayload;
@@ -223,6 +281,38 @@ const assert = require('node:assert/strict');
     });
     assert.equal(await page.getByRole('combobox', { name: 'View' }).inputValue(), 'physical');
     assert.ok((await page.locator('svg .ne-node-root').getAttribute('aria-label')).startsWith('Fixture switch B'));
+    // The observed root heads the layout although switch A is first by name.
+    const nodeY = name =>
+      page
+        .locator('svg .ne-node', { hasText: name })
+        .getAttribute('transform')
+        .then(t => Number(/,([-\d.]+)\)/.exec(t)[1]));
+    assert.ok((await nodeY('Fixture switch B')) < (await nodeY('Fixture switch A')));
+    assert.ok((await page.getByRole('list', { name: 'Topology legend' }).innerText()).includes('Observed spanning-tree root (agreed within its domain)'));
+    // Selecting the root keeps its root marking alongside the selection.
+    await page.locator('svg .ne-node-root').click();
+    assert.equal(await page.locator('svg .ne-node-root.ne-node-selected').count(), 1);
+    assert.ok((await page.locator('svg .ne-node-root').textContent()).startsWith('★'));
+    // Spanning Tree: A has no observed root port yet, so it is kept apart and labelled, never given a parent.
+    await page.getByRole('combobox', { name: 'View' }).selectOption('stp');
+    assert.equal(await page.locator('svg .ne-node-unresolved').count(), 1);
+    assert.ok((await page.locator('svg').textContent()).includes('Unresolved STP placement'));
+    assert.ok((await nodeY('Fixture switch A')) > (await nodeY('Fixture switch B')) + 120);
+    assert.equal(await page.locator('svg .ne-stp-block-mark').count(), 1, 'the blocked link is still drawn');
+    await page.evaluate(() => {
+      const p = window.testPayload;
+      p.edges[1].stp = { source: { role: 'root', state: 'forwarding' }, target: { role: 'designated', state: 'forwarding' } };
+      window.NEWidgetRuntime.render(document.querySelector('#widget'), p, 'topology', () => {}, { mode: 'stp' });
+    });
+    await page.getByRole('combobox', { name: 'View' }).selectOption('stp');
+    assert.equal(await page.locator('svg .ne-node-unresolved').count(), 0);
+    assert.equal(await page.locator('svg .ne-stp-block-mark').count(), 1);
+    // A root-port child sits directly below its parent.
+    assert.equal((await nodeY('Fixture switch A')) - (await nodeY('Fixture switch B')), 120);
+    await page.evaluate(() => {
+      delete window.testPayload.edges[1].stp;
+    });
+    await page.getByRole('combobox', { name: 'View' }).selectOption('physical');
     await page.evaluate(() => {
       const p = window.testPayload;
       p.hosts[0].stp = [{ instance: 0, bridge_id: '8000.a', root_bridge_id: '8000.a', is_root: true }];
@@ -233,6 +323,44 @@ const assert = require('node:assert/strict');
     await page.getByRole('combobox', { name: 'View' }).selectOption('stp');
     assert.equal(await page.locator('svg .ne-node-root').count(), 0);
     assert.equal(await page.locator('svg .ne-node-root-disputed').count(), 2);
+    // A large estate on a narrow screen: separated components, a capped row width and no sideways page scroll.
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.evaluate(() => {
+      const hosts = Array.from({ length: 60 }, (_, i) => ({ hostid: String(500 + i), name: `Scale ${i + 1}` }));
+      const edges = hosts.slice(1, 40).map((h, i) => ({
+        id: `s${i}`,
+        source: hosts[Math.floor(i / 3)].hostid,
+        target: h.hostid,
+        source_uid: `u${i}`,
+        target_uid: `v${i}`,
+        confidence: 'high',
+        freshness: 'current'
+      }));
+      window.NEWidgetRuntime.render(
+        document.querySelector('#widget'),
+        { scope: {}, hosts, interfaces: [], edges, lags: [], quality: [], findings: [] },
+        'topology',
+        () => {}
+      );
+    });
+    assert.equal(await page.locator('svg .ne-node').count(), 60);
+    // One linked network and 20 unlinked switches are 21 components, though the unlinked ones share a block.
+    assert.ok((await page.locator('svg.ne-topology').getAttribute('aria-label')).endsWith('60 permitted devices, 21 groups of connected devices'));
+    // No two switch boxes overlap, across separate components and the unlinked block.
+    const centres = await page
+      .locator('svg .ne-node')
+      .evaluateAll(n => n.map(g => /translate\(([-\d.]+),([-\d.]+)\)/.exec(g.getAttribute('transform')).slice(1).map(Number)));
+    for (let i = 0; i < centres.length; i++)
+      for (let j = i + 1; j < centres.length; j++)
+        assert.ok(
+          Math.abs(centres[i][0] - centres[j][0]) >= 180 || Math.abs(centres[i][1] - centres[j][1]) >= 50,
+          `switch boxes ${i} and ${j} overlap`
+        );
+    assert.ok(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      'the topology must not widen the page'
+    );
+    await page.setViewportSize({ width: 1500, height: 900 });
     // The Explorer page: one selection panel, findings and quality of the same payload, nothing broadcast.
     await page.evaluate(() => {
       const p = window.testPayload;
@@ -340,7 +468,7 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('#widget').innerText()).includes('Member 2 · slot 0 · Copper'));
     assert.deepEqual(errors, []);
     console.log(
-      'Chromium: Explorer page selection, Layer 2 root marker, link-end selection, physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
+      'Chromium: Explorer page selection, Layer 2 root marker and root-first layout, topology fit/zoom/reset with keyboard, legend, endpoint ring, no page overflow, link-end selection, physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
     );
   } finally {
     await browser.close();

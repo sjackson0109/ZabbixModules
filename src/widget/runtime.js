@@ -17,7 +17,9 @@
     nodeWidth: 180,
     nodeHeight: 50,
     labelChars: 26,
-    externalOffset: { x: 85, y: 52 },
+    maxRowNodes: 8,
+    componentGap: 110,
+    stubRadius: 100,
     parallelSpacing: 10,
     blockMarkGap: 14
   };
@@ -234,53 +236,251 @@
       if (/^[0-9A-Fa-f]{6}$/.test(value)) root.style.setProperty(`--ne-colour-${state}`, `#${value}`);
     }
   }
-  function graphLayout(hosts, edges, positions = new Map()) {
+  /**
+   * Deterministic, topology-aware hierarchical placement. Pure: hosts and links in, coordinates out; no DOM.
+   *
+   * - Only links whose two ends are visible switches shape the layout; external and undisclosed peers are drawn
+   *   afterwards as stubs and never move a switch.
+   * - Each connected component is placed on its own and never overlaps another. Components holding an anchor come
+   *   first, then larger before smaller, then by their first switch's natural name. Unlinked switches share a block
+   *   at the end.
+   * - Rows are levels below the component's anchors: observed root bridges from `options.anchors`, or, with none in
+   *   the component, its best-connected switch (natural name, then host ID, breaks ties). Placement never decides
+   *   which switch is a root; anchors come from canonical STP evidence (`stpRoots`).
+   * - Layer 2 levels are shortest hop counts from the anchors. With `options.parents` (child → upstream switch from
+   *   observed root ports, `stpParents`), a component that holds an anchor is a root-port hierarchy instead, and a
+   *   switch whose root-port chain does not reach an anchor goes to an "unresolved" area below it rather than being
+   *   given a parent. Links that are not part of the hierarchy are still drawn, as cross-links.
+   * - Within a level, a fixed number of barycentre sweeps (down, then up) reduces crossings; the starting order is
+   *   the previous x position from `options.previous` (hostid → {x}) when given, then natural name and host ID.
+   *   Levels wider than LAYOUT.maxRowNodes wrap onto extra rows.
+   *
+   * Returns {nodes: [{...host, x, y, component, block, level, order, unresolved}], components: [{index, size, anchors,
+   * block}], bounds: {x, y, width, height}}. `components` are the graph's connected components, one per unlinked
+   * switch too; `block` is only where a component is packed, and the unlinked switches share one block. The same
+   * input always gives the same output.
+   */
+  function layoutTopology(hosts, edges, options = {}) {
+    const anchors = options.anchors ?? new Set(),
+      parents = options.parents ?? null,
+      previous = options.previous ?? new Map();
     const ordered = hosts
       .slice()
       .sort((a, b) => natural(a.name, b.name) || natural(a.hostid, b.hostid))
       .slice(0, LAYOUT.maxNodes);
-    const columns = Math.max(2, Math.ceil(Math.sqrt(ordered.length || 1)));
+    const rank = new Map(ordered.map((h, index) => [id(h.hostid), index]));
+    const byRank = (a, b) => rank.get(a) - rank.get(b);
     const adjacency = new Map(ordered.map(h => [id(h.hostid), new Set()]));
     for (const edge of edges) {
-      if (adjacency.has(id(edge.source)) && adjacency.has(id(edge.target))) {
-        adjacency.get(id(edge.source)).add(id(edge.target));
-        adjacency.get(id(edge.target)).add(id(edge.source));
+      const a = id(edge.source),
+        b = id(edge.target);
+      if (a !== b && adjacency.has(a) && adjacency.has(b)) {
+        adjacency.get(a).add(b);
+        adjacency.get(b).add(a);
       }
     }
-    const pending = new Set(ordered.map(h => id(h.hostid))),
-      sequence = [];
-    while (pending.size) {
-      const queue = [pending.values().next().value];
-      pending.delete(queue[0]);
-      for (let index = 0; index < queue.length; index++) {
-        const current = queue[index];
-        sequence.push(current);
-        for (const neighbour of [...adjacency.get(current)].sort(natural)) {
-          if (pending.delete(neighbour)) queue.push(neighbour);
-        }
-      }
+    const neighbours = hostid => [...adjacency.get(hostid)].sort(byRank);
+    const seen = new Set(),
+      groups = [],
+      loose = [];
+    for (const h of ordered) {
+      const start = id(h.hostid);
+      if (seen.has(start)) continue;
+      seen.add(start);
+      const members = [start];
+      for (let i = 0; i < members.length; i++)
+        for (const next of neighbours(members[i])) if (!seen.has(next) && seen.add(next)) members.push(next);
+      (members.length > 1 ? groups : loose).push(members.sort(byRank));
     }
-    const byId = new Map(ordered.map(h => [id(h.hostid), h]));
-    const occupied = new Set(
-      sequence
-        .filter(hostid => positions.has(hostid))
-        .map(hostid => `${positions.get(hostid).x},${positions.get(hostid).y}`)
+    const anchored = members => members.some(h => anchors.has(h));
+    groups.sort((a, b) => anchored(b) - anchored(a) || b.length - a.length || byRank(a[0], b[0]));
+    const blocks = groups.map(members => ({
+      ...componentLevels(members, { neighbours, anchors, parents, previous, byRank }),
+      members: [members]
+    }));
+    if (loose.length)
+      blocks.push({
+        rows: chunk(loose.flat(), LAYOUT.maxRowNodes).map(row => ({ ids: row, level: 0 })),
+        anchors: [],
+        members: loose
+      });
+    // Graph components keep their own identity and count, whatever block they are packed into.
+    const components = [],
+      componentOf = new Map();
+    blocks.forEach((block, b) =>
+      block.members.forEach(members => {
+        const index = components.length;
+        components.push({
+          index,
+          size: members.length,
+          anchors: block.members.length === 1 ? block.anchors : members.filter(h => anchors.has(h)),
+          block: b
+        });
+        for (const hostid of members) componentOf.set(hostid, index);
+      })
     );
-    let cursor = 0;
-    return sequence.map(hostid => {
-      let position = positions.get(hostid);
-      if (!position) {
-        do {
-          position = {
-            x: LAYOUT.originX + (cursor % columns) * LAYOUT.columnGap,
-            y: LAYOUT.originY + Math.floor(cursor / columns) * LAYOUT.rowGap
-          };
-          cursor++;
-        } while (occupied.has(`${position.x},${position.y}`));
-        occupied.add(`${position.x},${position.y}`);
+    // Blocks run left to right and wrap into bands, so a wide estate stays readable.
+    const placed = new Map(),
+      bandLimit = LAYOUT.maxRowNodes * LAYOUT.columnGap;
+    let left = 0,
+      top = 0,
+      bandHeight = 0;
+    blocks.forEach((block, blockIndex) => {
+      const { rows } = block;
+      const width = Math.max(...rows.map(r => r.ids.length)) * LAYOUT.columnGap,
+        height = rows.reduce((sum, r) => sum + (r.gapBefore ? LAYOUT.rowGap : 0), rows.length * LAYOUT.rowGap);
+      if (left > 0 && left + width > bandLimit) {
+        left = 0;
+        top += bandHeight + LAYOUT.componentGap;
+        bandHeight = 0;
       }
-      return { ...byId.get(hostid), ...position };
+      let y = LAYOUT.originY + top;
+      for (const row of rows) {
+        if (row.gapBefore) y += LAYOUT.rowGap;
+        row.ids.forEach((hostid, c) =>
+          placed.set(hostid, {
+            x: LAYOUT.originX + left + (width - row.ids.length * LAYOUT.columnGap) / 2 + c * LAYOUT.columnGap,
+            y,
+            component: componentOf.get(hostid),
+            block: blockIndex,
+            level: row.level,
+            order: c,
+            unresolved: !!row.unresolved
+          })
+        );
+        y += LAYOUT.rowGap;
+      }
+      left += width + LAYOUT.componentGap;
+      bandHeight = Math.max(bandHeight, height);
     });
+    const byId = new Map(ordered.map(h => [id(h.hostid), h]));
+    const nodes = blocks.flatMap(b => b.rows.flatMap(r => r.ids)).map(hostid => ({ ...byId.get(hostid), ...placed.get(hostid) }));
+    const xs = nodes.map(n => n.x),
+      ys = nodes.map(n => n.y);
+    return {
+      nodes,
+      components,
+      bounds: nodes.length
+        ? {
+            x: Math.min(...xs) - LAYOUT.nodeWidth / 2,
+            y: Math.min(...ys) - LAYOUT.nodeHeight / 2,
+            width: Math.max(...xs) - Math.min(...xs) + LAYOUT.nodeWidth,
+            height: Math.max(...ys) - Math.min(...ys) + LAYOUT.nodeHeight
+          }
+        : { x: 0, y: 0, width: 0, height: 0 }
+    };
+  }
+  /** Placed hosts only, for callers that need no component or bounds data. */
+  function graphLayout(hosts, edges, options = {}) {
+    return layoutTopology(hosts, edges, options).nodes;
+  }
+  function chunk(list, size) {
+    const rows = [];
+    for (let i = 0; i < list.length; i += size) rows.push(list.slice(i, i + size));
+    return rows;
+  }
+  const CROSSING_SWEEPS = 4;
+  /** One component's levels and rows (see layoutTopology). */
+  function componentLevels(members, { neighbours, anchors, parents, previous, byRank }) {
+    const inside = new Set(members);
+    let tops = members.filter(h => anchors.has(h));
+    const hierarchy = !!parents && tops.length > 0;
+    if (!tops.length)
+      tops = [members.slice().sort((a, b) => neighbours(b).length - neighbours(a).length || byRank(a, b))[0]];
+    const depth = new Map(tops.map(h => [h, 0]));
+    const unresolved = [];
+    if (hierarchy) {
+      // A switch's level is its root-port hop count to an anchor; without a complete chain it is unresolved.
+      const treeDepth = (hostid, trail = new Set()) => {
+        if (depth.has(hostid)) return depth.get(hostid);
+        const parent = parents.get(hostid);
+        if (!parent || !inside.has(parent) || trail.has(hostid)) return null;
+        trail.add(hostid);
+        const above = treeDepth(parent, trail);
+        if (above === null) return null;
+        depth.set(hostid, above + 1);
+        return above + 1;
+      };
+      for (const hostid of members) if (treeDepth(hostid) === null) unresolved.push(hostid);
+    } else {
+      const queue = tops.slice();
+      for (let i = 0; i < queue.length; i++)
+        for (const next of neighbours(queue[i]))
+          if (!depth.has(next)) {
+            depth.set(next, depth.get(queue[i]) + 1);
+            queue.push(next);
+          }
+    }
+    const levels = [];
+    for (const hostid of members) if (depth.has(hostid)) (levels[depth.get(hostid)] ??= []).push(hostid);
+    const compact = levels.filter(Boolean);
+    // Starting order: where the switch was before (when known), then natural name and host ID.
+    const was = hostid => previous.get(hostid)?.x ?? Infinity;
+    for (const level of compact) level.sort((a, b) => was(a) - was(b) || byRank(a, b));
+    // Upward links follow root ports in a hierarchy, every physical link otherwise.
+    const linksTo = (hostid, level) =>
+      hierarchy && level === 'up'
+        ? parents.has(hostid)
+          ? [parents.get(hostid)]
+          : []
+        : hierarchy
+          ? members.filter(m => parents.get(m) === hostid)
+          : neighbours(hostid);
+    const position = new Map();
+    const index = level => level.forEach((h, i) => position.set(h, i - (level.length - 1) / 2));
+    compact.forEach(index);
+    const reorder = (level, towards, direction) => {
+      const placedIn = new Set(towards);
+      const weight = new Map(
+        level.map(h => {
+          const near = linksTo(h, direction).filter(n => placedIn.has(n));
+          return [h, near.length ? near.reduce((s, n) => s + position.get(n), 0) / near.length : position.get(h)];
+        })
+      );
+      // Array.prototype.sort is stable, so ties keep the current order and the result stays deterministic.
+      level.sort((a, b) => weight.get(a) - weight.get(b));
+      index(level);
+    };
+    for (let sweep = 0; sweep < CROSSING_SWEEPS; sweep++) {
+      for (let i = 1; i < compact.length; i++) reorder(compact[i], compact[i - 1], 'up');
+      for (let i = compact.length - 2; i >= 0; i--) reorder(compact[i], compact[i + 1], 'down');
+    }
+    const rows = [];
+    compact.forEach((level, l) => {
+      for (const ids of chunk(level, LAYOUT.maxRowNodes)) rows.push({ ids, level: l });
+    });
+    if (unresolved.length) {
+      unresolved.sort((a, b) => was(a) - was(b) || byRank(a, b));
+      chunk(unresolved, LAYOUT.maxRowNodes).forEach((ids, i) =>
+        rows.push({ ids, level: null, unresolved: true, gapBefore: i === 0 })
+      );
+    }
+    return { rows, anchors: hierarchy || tops.some(h => anchors.has(h)) ? tops : [] };
+  }
+  /**
+   * Child → parent hostid along observed STP root ports: a switch whose port on a link has the root role. Every
+   * distinct upstream switch observed is a candidate; LAG members towards one switch count once. A switch with
+   * conflicting candidates gets no parent, so the conflict stays visible as an unresolved placement and never
+   * depends on the order links arrive in.
+   */
+  function stpParents(edges) {
+    const candidates = new Map();
+    for (const edge of edges)
+      for (const member of asRows(edge.members ?? [edge])) {
+        if (!member.source || !member.target) continue;
+        for (const [side, other] of [
+          ['source', 'target'],
+          ['target', 'source']
+        ])
+          if (member.stp?.[side]?.role === 'root') {
+            const child = id(member[side]);
+            if (!candidates.has(child)) candidates.set(child, new Set());
+            candidates.get(child).add(id(member[other]));
+          }
+      }
+    const parents = new Map();
+    for (const [child, upstream] of candidates) if (upstream.size === 1) parents.set(child, [...upstream][0]);
+    return parents;
   }
   const LAG_MODES = { lacp: 'LACP', static: 'Static', pagp: 'PAgP' };
   // The aggregation mode of a link, from the LAG rows its members belong to; both ends normally agree.
@@ -1098,7 +1298,10 @@
       b = byId.get(id(edge.target));
     if (!a && !b) return null;
     let start = a ?? b,
-      end = a && b ? b : { x: start.x + LAYOUT.externalOffset.x, y: start.y + LAYOUT.externalOffset.y };
+      end = a && b ? b : stubPoint(context, start);
+    // Lines stop at the switch boxes rather than running underneath them.
+    if (a && b) [start, end] = [boxEdgePoint(start, end, 0), boxEdgePoint(end, start, 0)];
+    else start = boxEdgePoint(start, end, 0);
     // Parallel links between the same two switches (expanded LAG members) are drawn side by side.
     if (a && b && siblings.length > 1) {
       const dx = end.x - start.x,
@@ -1147,6 +1350,33 @@
     if (context.mode === 'stp' && a && b) drawBlockMarks(svg, byId, edge, a, b);
     return line;
   }
+  /**
+   * Where the next external or undisclosed peer of a switch is drawn: fanned around the switch in a fixed order
+   * so several stubs never sit on top of each other. Stubs are placed after the switches and never move them.
+   */
+  const STUB_ANGLES = [35, 145, -35, -145, 70, 110, -70, -110];
+  function stubPoint(context, host) {
+    const slots = (context.stubs ??= new Map()),
+      n = slots.get(id(host.hostid)) ?? 0;
+    slots.set(id(host.hostid), n + 1);
+    const angle = (STUB_ANGLES[n % STUB_ANGLES.length] * Math.PI) / 180,
+      radius = LAYOUT.stubRadius + Math.floor(n / STUB_ANGLES.length) * 22;
+    const point = { x: host.x + Math.cos(angle) * radius, y: host.y + Math.sin(angle) * radius };
+    (context.stubPoints ??= []).push(point);
+    return point;
+  }
+  /** The point `gap` units outside the switch box at `near`, on the straight line towards `far`. */
+  function boxEdgePoint(near, far, gap) {
+    const dx = far.x - near.x,
+      dy = far.y - near.y,
+      len = Math.hypot(dx, dy) || 1,
+      t = Math.min(
+        dx ? LAYOUT.nodeWidth / 2 / Math.abs(dx) : Infinity,
+        dy ? LAYOUT.nodeHeight / 2 / Math.abs(dy) : Infinity,
+        1
+      );
+    return { x: near.x + dx * t + (dx / len) * gap, y: near.y + dy * t + (dy / len) * gap };
+  }
   /** Marks each blocking port end just outside its switch box, on the link towards the peer. */
   function drawBlockMarks(svg, byId, edge, a, b) {
     for (const member of edge.members)
@@ -1155,25 +1385,148 @@
         const near = byId.get(id(member[side])),
           far = near === a ? b : a;
         if (!near) continue;
-        const dx = far.x - near.x,
-          dy = far.y - near.y,
-          len = Math.hypot(dx, dy) || 1,
-          halfWidth = LAYOUT.nodeWidth / 2,
-          halfHeight = LAYOUT.nodeHeight / 2,
-          t = Math.min(dx ? halfWidth / Math.abs(dx) : Infinity, dy ? halfHeight / Math.abs(dy) : Infinity, 1);
-        svg.appendChild(
-          svgEl(
-            'text',
-            {
-              x: near.x + dx * t + (dx / len) * LAYOUT.blockMarkGap,
-              y: near.y + dy * t + (dy / len) * LAYOUT.blockMarkGap + 4,
-              class: 'ne-svg-label ne-stp-block-mark'
-            },
-            '⊘'
-          )
-        );
+        const point = boxEdgePoint(near, far, LAYOUT.blockMarkGap);
+        svg.appendChild(svgEl('text', { x: point.x, y: point.y + 4, class: 'ne-svg-label ne-stp-block-mark' }, '⊘'));
       }
   }
+  /**
+   * Pan and zoom by changing the SVG viewBox, so the drawing never grows past its container. `views[key]` keeps
+   * the view for each placement (Layer 2/VLAN, Spanning Tree) across redraws.
+   */
+  function topologyViewport(graph, svg, arranged, views, key, stubs = []) {
+    const pad = 30;
+    // Switch boxes plus the external stubs drawn around them.
+    const boxes = [
+      ...arranged.map(h => [h.x, h.y, LAYOUT.nodeWidth / 2, LAYOUT.nodeHeight / 2]),
+      ...stubs.map(p => [p.x, p.y, 8, 8])
+    ];
+    const bounds = boxes.length
+      ? (() => {
+          const left = Math.min(...boxes.map(([x, , w]) => x - w)),
+            right = Math.max(...boxes.map(([x, , w]) => x + w)),
+            top = Math.min(...boxes.map(([, y, , h]) => y - h)),
+            bottom = Math.max(...boxes.map(([, y, , h]) => y + h));
+          return { x: left - pad, y: top - pad, w: right - left + 2 * pad, h: bottom - top + 2 * pad };
+        })()
+      : { x: 0, y: 0, w: 500, h: 180 };
+    const framed = (box, minW, minH) => {
+      const w = Math.max(box.w, minW),
+        h = Math.max(box.h, minH);
+      return { x: box.x - (w - box.w) / 2, y: box.y - (h - box.h) / 2, w, h };
+    };
+    // A small graph keeps its proportions instead of filling the canvas with two huge boxes.
+    const home = framed(bounds, 640, 240);
+    svg.style.aspectRatio = `${Math.round(home.w)} / ${Math.round(home.h)}`;
+    const smallest = 160,
+      largest = Math.max(home.w, home.h) * 4;
+    let view = views[key] ? { ...views[key] } : { ...home };
+    const viewport = {
+      apply() {
+        svg.setAttribute('viewBox', [view.x, view.y, view.w, view.h].map(v => Math.round(v * 10) / 10).join(' '));
+        svg.dataset.zoom = (home.w / view.w).toFixed(2);
+        views[key] = { ...view };
+      },
+      /** factor < 1 zooms in, around (cx, cy) in drawing units or the view centre. */
+      zoom(factor, cx = view.x + view.w / 2, cy = view.y + view.h / 2) {
+        const w = Math.min(largest, Math.max(smallest, view.w * factor)),
+          ratio = w / view.w;
+        view = { x: cx - (cx - view.x) * ratio, y: cy - (cy - view.y) * ratio, w, h: view.h * ratio };
+        viewport.apply();
+      },
+      /** Moves by a fraction of the visible width and height. */
+      pan(fx, fy) {
+        view = { ...view, x: view.x + view.w * fx, y: view.y + view.h * fy };
+        viewport.apply();
+      },
+      fit() {
+        view = framed(bounds, 0, 0);
+        viewport.apply();
+      },
+      reset() {
+        view = { ...home };
+        viewport.apply();
+      }
+    };
+    const unitsPerPixel = () => Math.max(view.w / (svg.clientWidth || 1), view.h / (svg.clientHeight || 1));
+    let drag = null;
+    svg.addEventListener('pointerdown', event => {
+      if (event.target !== svg || event.button !== 0) return; // switches and links keep their own clicks
+      drag = { x: event.clientX, y: event.clientY };
+      svg.setPointerCapture?.(event.pointerId);
+      svg.classList.add('ne-panning');
+    });
+    svg.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const scale = unitsPerPixel();
+      view = { ...view, x: view.x - (event.clientX - drag.x) * scale, y: view.y - (event.clientY - drag.y) * scale };
+      drag = { x: event.clientX, y: event.clientY };
+      viewport.apply();
+    });
+    const stop = () => {
+      drag = null;
+      svg.classList.remove('ne-panning');
+    };
+    svg.addEventListener('pointerup', stop);
+    svg.addEventListener('pointercancel', stop);
+    // Plain wheel scrolls the page as usual; Ctrl or Cmd with the wheel zooms around the pointer.
+    svg.addEventListener(
+      'wheel',
+      event => {
+        if (!(event.ctrlKey || event.metaKey)) return;
+        event.preventDefault();
+        const matrix = svg.getScreenCTM?.();
+        const point = matrix ? new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse()) : null;
+        viewport.zoom(event.deltaY < 0 ? 1 / 1.15 : 1.15, point?.x, point?.y);
+      },
+      { passive: false }
+    );
+    return viewport;
+  }
+  /** Heads each component's unresolved Spanning Tree area, so those switches never read as part of the tree. */
+  function drawUnresolvedLabels(svg, arranged) {
+    const areas = new Map();
+    for (const h of arranged.filter(h => h.unresolved)) areas.set(h.component, [...(areas.get(h.component) ?? []), h]);
+    for (const members of areas.values()) {
+      const x = (Math.min(...members.map(h => h.x)) + Math.max(...members.map(h => h.x))) / 2,
+        y = Math.min(...members.map(h => h.y)) - LAYOUT.nodeHeight / 2 - 14;
+      svg.appendChild(
+        svgEl('text', { x, y, class: 'ne-svg-label ne-unresolved-label' }, 'Unresolved STP placement: no root-port path to the root')
+      );
+    }
+  }
+  /** A legend of only what this drawing shows. */
+  function drawLegend(legend, context, arranged, lines) {
+    legend.replaceChildren();
+    const { svg, mode, stp } = context,
+      has = selector => !!svg.querySelector(selector);
+    const rootSet = mode === 'stp' ? stp.roots : stp.current;
+    const entries = [
+      [arranged.some(h => rootSet.has(id(h.hostid))), '★', 'Observed spanning-tree root (agreed within its domain)'],
+      [has('.ne-node-root-disputed'), '☆', 'Reports itself as root; the switches disagree'],
+      [lines.some(([, l]) => !l.classList.contains('ne-edge-uncertain')), 'solid', 'Confirmed link'],
+      [lines.some(([, l]) => l.classList.contains('ne-edge-uncertain')), 'dashed', 'One-sided, ambiguous, external or stale link'],
+      [has('.ne-edge-stp-rootpath'), 'rootpath', 'Link to a root port'],
+      [has('.ne-stp-block-mark'), '⊘', 'Blocking or discarding port'],
+      [has('.ne-edge-vlan-carried'), 'carried', `VLAN ${context.vlan} carried at both ends`],
+      [has('.ne-edge-vlan-stopped'), 'stopped', `Physical link; VLAN ${context.vlan} not permitted at one end`],
+      [lines.some(([edge]) => edge.members.length > 1), 'LAG', 'Aggregated link; members kept'],
+      [has('.ne-external'), '●', 'External or undisclosed peer'],
+      [has('.ne-node-context'), 'outside site', 'Connected neighbour outside the selected site'],
+      [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
+      [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
+      [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
+    ];
+    for (const [shown, key, label] of entries) {
+      if (!shown) continue;
+      const item = el('li');
+      const swatch = ['solid', 'dashed', 'rootpath', 'carried', 'stopped'].includes(key);
+      item.appendChild(el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : 'ne-legend-key'));
+      item.appendChild(el('span', label));
+      legend.appendChild(item);
+    }
+  }
+  /** A label cut to `size` characters with an ellipsis; the full name stays in the title and accessible name. */
+  const clip = (value, size) => (value.length > size ? `${value.slice(0, size - 1)}…` : value);
   function drawNode(context, host, matching) {
     const { svg } = context,
       hostid = id(host.hostid);
@@ -1193,6 +1546,7 @@
     if (claimsRoot)
       (classes.push('ne-node-root-disputed'), notes.push('reports itself as spanning-tree root; switches disagree'));
     if (unreachable) (classes.push('ne-node-unreachable'), notes.push('SNMP unreachable'));
+    if (host.unresolved) (classes.push('ne-node-unresolved'), notes.push('STP placement unresolved'));
     const group = svgEl('g', {
       transform: `translate(${host.x},${host.y})`,
       tabindex: 0,
@@ -1202,6 +1556,17 @@
       class: classes.join(' ')
     });
     group.dataset.hostid = hostid;
+    // Shown only while selected: a second outline around the box, so selection does not rest on colour.
+    group.appendChild(
+      svgEl('rect', {
+        x: -LAYOUT.nodeWidth / 2 - 6,
+        y: -LAYOUT.nodeHeight / 2 - 6,
+        width: LAYOUT.nodeWidth + 12,
+        height: LAYOUT.nodeHeight + 12,
+        rx: 9,
+        class: 'ne-node-halo'
+      })
+    );
     group.appendChild(
       svgEl('rect', {
         x: -LAYOUT.nodeWidth / 2,
@@ -1211,13 +1576,22 @@
         rx: 6
       })
     );
+    // Short words beside the colours, so no state depends on colour alone.
+    const badges = [
+      host.outside_site && 'outside site',
+      host.out_of_subnet && 'off subnet',
+      unreachable && 'unreachable',
+      host.unresolved && 'unresolved'
+    ].filter(Boolean);
     group.appendChild(
       svgEl(
         'text',
-        { 'text-anchor': 'middle', y: 4 },
-        `${isRoot ? '★ ' : claimsRoot ? '☆ ' : ''}${text(host.name)}`.slice(0, LAYOUT.labelChars)
+        { 'text-anchor': 'middle', y: badges.length ? -2 : 4 },
+        clip(`${isRoot ? '★ ' : claimsRoot ? '☆ ' : ''}${text(host.name)}`, LAYOUT.labelChars)
       )
     );
+    if (badges.length)
+      group.appendChild(svgEl('text', { 'text-anchor': 'middle', y: 15, class: 'ne-node-badge' }, badges.join(' · ')));
     group.appendChild(svgEl('title', {}, text(host.name)));
     onActivate(group, () => context.select.host(host));
     svg.appendChild(group);
@@ -1294,27 +1668,64 @@
     root.appendChild(toolbar);
     const overlayNote = el('div');
     root.appendChild(overlayNote);
-    const graph = el('div', undefined, 'ne-graph');
+    const controls = el('div', undefined, 'ne-toolbar ne-view-controls'),
+      graph = el('div', undefined, 'ne-graph'),
+      legend = el('ul', undefined, 'ne-topology-legend');
+    graph.tabIndex = 0;
+    graph.setAttribute('role', 'region');
+    graph.setAttribute(
+      'aria-label',
+      'Topology canvas. Plus and minus zoom, arrow keys pan, F fits the topology, 0 resets the view. Drag the background to pan; Ctrl and the mouse wheel zoom.'
+    );
+    legend.setAttribute('aria-label', 'Topology legend');
     let details = options.details;
     if (!details) {
       details = el('section', undefined, 'ne-drawer');
       details.setAttribute('aria-label', 'Topology selection details');
       details.setAttribute('aria-live', 'polite');
     }
-    root.appendChild(graph);
+    root.append(controls, graph, legend);
     if (!options.details) root.appendChild(details);
-    notice(
-      root,
-      'Solid: confirmed. Dashed: one-sided, ambiguous, external or stale. LAG grouping retains each member link.'
-    );
     const cidrs = payload.scope?.management_cidr || asRows(payload.scope?.management_cidrs).join(', ');
     if (cidrs)
       notice(
         root,
         `Management subnet ${cidrs} is an annotation; permitted connected neighbours outside it remain visible.`
       );
-    const positions = (state.positions ??= new Map());
-    const stp = stpRoots(payload);
+    const stp = stpRoots(payload),
+      parents = stpParents(edges);
+    const views = (state.views ??= {}),
+      layouts = (state.layouts ??= {});
+    /**
+     * The placement for one view: reused while the visible switches, their internal links and (for Spanning
+     * Tree) the root and root-port evidence are unchanged; otherwise laid out again with the old positions as an
+     * ordering hint, and the view refitted. Selection, search, VLAN and findings are not part of the signature.
+     */
+    function placementFor(key) {
+      const anchors = key === 'stp' ? stp.roots : stp.current,
+        visible = new Set(hosts.map(h => id(h.hostid)));
+      const pairs = edges
+        .filter(e => visible.has(id(e.source)) && visible.has(id(e.target)))
+        .map(e => [id(e.source), id(e.target)].sort().join('-'));
+      const signature = JSON.stringify([
+        key,
+        [...visible].sort(),
+        [...new Set(pairs)].sort(),
+        [...anchors].sort(),
+        key === 'stp' ? [...parents].sort() : []
+      ]);
+      const kept = layouts[key];
+      if (kept?.signature === signature) return kept.placement;
+      const placement = layoutTopology(hosts, edges, {
+        anchors,
+        parents: key === 'stp' ? parents : null,
+        previous: new Map(asRows(kept?.placement.nodes).map(n => [id(n.hostid), n]))
+      });
+      if (kept) delete views[key];
+      layouts[key] = { signature, placement };
+      return placement;
+    }
+    let viewport = null;
     let nodes = [],
       lines = [];
     const matches = host => !search.value || text(host.name).toLowerCase().includes(search.value.toLowerCase());
@@ -1336,6 +1747,32 @@
             (sel.kind === 'interface' && edge.members.some(m => isEnd(m, sel.hostid, sel.uid))));
         line.classList.toggle('ne-edge-selected', on);
         line.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
+      // End markers tell "this link" (a square at each end) from "this interface" (a ring at its own end only).
+      for (const marker of graph.querySelectorAll('.ne-endpoint-selected, .ne-link-end-selected')) marker.remove();
+      const svg = graph.querySelector('svg.ne-topology');
+      if (!svg || !sel || !['edge', 'interface'].includes(sel.kind)) return;
+      const endOf = (line, atSource) => {
+        const [x1, y1, x2, y2] = ['x1', 'y1', 'x2', 'y2'].map(k => Number(line.getAttribute(k))),
+          near = atSource ? { x: x1, y: y1 } : { x: x2, y: y2 },
+          far = atSource ? { x: x2, y: y2 } : { x: x1, y: y1 },
+          len = Math.hypot(far.x - near.x, far.y - near.y) || 1;
+        return { x: near.x + ((far.x - near.x) / len) * 9, y: near.y + ((far.y - near.y) / len) * 9 };
+      };
+      for (const [edge, line] of lines) {
+        if (line.getAttribute('aria-pressed') !== 'true') continue;
+        if (sel.kind === 'edge') {
+          for (const atSource of line.dataset.external === 'true' ? [true] : [true, false]) {
+            const p = endOf(line, atSource);
+            svg.appendChild(svgEl('rect', { x: p.x - 5, y: p.y - 5, width: 10, height: 10, class: 'ne-link-end-selected' }));
+          }
+          continue;
+        }
+        // x1/y1 is the source end, or the only visible end of a link to an external peer.
+        const p = endOf(line, id(edge.source) === sel.hostid || line.dataset.external === 'true');
+        const ring = svgEl('circle', { cx: p.x, cy: p.y, r: 7, class: 'ne-endpoint-selected' });
+        ring.appendChild(svgEl('title', {}, `Selected interface ${interfaceName(payload, sel.hostid, sel.uid)}`));
+        svg.appendChild(ring);
       }
     }
     const ctx = { stp, linked: options.linked, showHost: true, selectInterface: port => select.iface(port) };
@@ -1376,17 +1813,18 @@
         trace = mode.value === 'vlan' && tracePick.value ? vlanTrace(payload, tracePick.value, vlan) : null;
       if (mode.value === 'vlan') vlanNotes(overlayNote, payload, vlan, vlanNames.size > 0, trace, tracePick.value);
       stpNotes(overlayNote, stp, mode.value);
-      const arranged = graphLayout(hosts, edges, positions),
+      // Layer 2 and VLAN share one placement; Spanning Tree has its own root-port hierarchy. Each is kept while
+      // its topology is unchanged, so selection, VLAN, trace, LAG and refresh never move a switch.
+      const layoutKey = mode.value === 'stp' ? 'stp' : 'physical';
+      const placement = placementFor(layoutKey);
+      const arranged = placement.nodes,
         byId = new Map(arranged.map(h => [id(h.hostid), h]));
-      for (const h of arranged) positions.set(id(h.hostid), { x: h.x, y: h.y });
-      const width = Math.max(500, ...arranged.map(h => h.x + LAYOUT.nodeWidth / 2 + 30)),
-        height = Math.max(180, ...arranged.map(h => h.y + LAYOUT.nodeHeight / 2 + 50));
+      const componentCount = placement.components.length;
       const svg = svgEl('svg', {
-        viewBox: `0 0 ${width} ${height}`,
         role: 'group',
-        'aria-label': `${MODE_LABELS.find(([value]) => value === mode.value)?.[1] ?? 'Layer 2'} topology, ${arranged.length} permitted devices`
+        class: 'ne-topology',
+        'aria-label': `${MODE_LABELS.find(([value]) => value === mode.value)?.[1] ?? 'Layer 2'} topology, ${arranged.length} permitted devices, ${componentCount} ${componentCount === 1 ? 'group' : 'groups'} of connected devices`
       });
-      svg.style.maxWidth = `${width * 1.25}px`; // a small graph keeps its proportions instead of filling the widget
       const context = { payload, svg, byId, mode: mode.value, vlan, trace, stp, select };
       const drawn = groupedEdges(edges, collapse),
         parallel = new Map();
@@ -1402,7 +1840,11 @@
       }
       const externalCount = lines.filter(([, line]) => line.dataset.external === 'true').length;
       nodes = arranged.map(host => [host, drawNode(context, host, matches(host))]);
+      drawUnresolvedLabels(svg, arranged);
       graph.appendChild(svg);
+      viewport = topologyViewport(graph, svg, arranged, views, layoutKey, context.stubPoints);
+      viewport.apply();
+      drawLegend(legend, context, arranged, lines);
       mark();
       if (hosts.length > arranged.length)
         notice(graph, `The visible topology is capped at ${LAYOUT.maxNodes} nodes. Narrow the scope.`, 'warning');
@@ -1412,6 +1854,24 @@
           `${externalCount} unresolved endpoint observations. External, restricted and ambiguous peers use undisclosed placeholders.`
         );
     }
+    for (const [label, action] of [
+      ['Zoom in', () => viewport?.zoom(1 / 1.25)],
+      ['Zoom out', () => viewport?.zoom(1.25)],
+      ['Fit topology', () => viewport?.fit()],
+      ['Reset view', () => viewport?.reset()]
+    ])
+      controls.appendChild(button(label, action));
+    graph.addEventListener('keydown', event => {
+      if (event.target !== graph || !viewport) return;
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (step) viewport.pan(step[0] * 0.1, step[1] * 0.1);
+      else if (event.key === '+' || event.key === '=') viewport.zoom(1 / 1.25);
+      else if (event.key === '-' || event.key === '_') viewport.zoom(1.25);
+      else if (event.key === 'f' || event.key === 'F') viewport.fit();
+      else if (event.key === '0') viewport.reset();
+      else return;
+      event.preventDefault();
+    });
     // Searching only dims non-matching nodes, so it never rebuilds the drawing.
     search.addEventListener('input', () => {
       for (const [host, node] of nodes) node.classList.toggle('ne-muted', !matches(host));
@@ -1755,6 +2215,8 @@
     stpClass,
     groupPorts,
     graphLayout,
+    layoutTopology,
+    stpParents,
     groupedEdges,
     safeNavigation,
     fragmentContext,

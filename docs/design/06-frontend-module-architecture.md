@@ -8,7 +8,7 @@ Status: **implemented**, with the open items marked below (spec §24–29, §38,
 |---|---|---|---|---|
 | `networkexplorer` | module (page, services, exports) | data layer, Explorer page (network-wide view) | yes | *Implemented:* VLAN/STP readers and overlays, derived expected speed, the Explorer page as the fleet application (below). Open: default domain; separate display and identity budgets (roadmap PR D) |
 | `neportpanel` | widget | Port Panel (§3.1, §9, §25) | yes | *Implemented:* semantic layer switch, VLAN selector, configurable colours, media-aware layout and stack tabs |
-| `netopology` | widget | Physical Topology, VLAN and STP overlays (§6, §27–29) | yes | *Implemented:* VLAN and STP modes, VLAN path trace. Open: real graph layout (roadmap PR C) |
+| `netopology` | widget | Physical Topology, VLAN and STP overlays (§6, §27–29) | yes | *Implemented:* VLAN and STP modes, VLAN path trace, topology-aware layout with fit/zoom/reset (roadmap PR C) |
 | `neinterfacedetail` | widget | Interface Detail (§26) | yes | *Implemented:* VLAN, STP and capability sections; expected-speed source |
 | `nedataquality` | widget | freshness and capability (§23) | yes | *Implemented:* all seven datasets |
 | `nefindings` | widget | anomalies and exports | yes | *Implemented:* VLAN and STP findings |
@@ -51,7 +51,14 @@ Findings all come from `Finding::create()`: one shape (`id`, `hostid`, `interfac
 
 ### Physical Topology
 
-- **Layout engine**: ~~replace the current grid placement with **Cytoscape.js** (MIT licence, self-hosted inside the module, no CDN) using a force-directed layout (`cose`). Node positions persist per user in browser storage so a refresh does not reshuffle the graph.~~ **Superseded:** the renderer stays in-house SVG with no third-party graph library. Placement is still a deterministic breadth-first grid with positions kept in page state across refreshes; a topology-aware layout, root-oriented STP hierarchy, separated components and fit/zoom/reset are roadmap PR C. Manual dragging is optional and never required (spec §27).
+- **Layout engine**: ~~replace the current grid placement with **Cytoscape.js** (MIT licence, self-hosted inside the module, no CDN) using a force-directed layout (`cose`). Node positions persist per user in browser storage so a refresh does not reshuffle the graph.~~ **Superseded:** the renderer stays in-house SVG with no third-party graph library. Manual dragging is optional and never required (spec §27).
+- **Layout v2** (roadmap PR C). Network Explorer uses a deterministic topology-aware hierarchical layout. Layer 2 is arranged from a deterministic component anchor, preferring the current agreed STP root where available. Spanning Tree uses root-port evidence to form a root-oriented hierarchy. Physical cross-links remain visible and are never inferred from placement.
+  - `layoutTopology()` in `src/widget/runtime.js` is a pure function (no DOM): hosts and links in, `{nodes, components, bounds}` out. `graphLayout()` returns the nodes only.
+  - Only links between two visible switches shape it; external and undisclosed peers are drawn afterwards as stubs fanned around their switch.
+  - Connected components are placed separately and never overlap: rooted components first, then larger, then by natural name. Unlinked switches share a block at the end but remain separate components in the returned model. Blocks wrap into bands eight switches wide.
+  - Levels are shortest hop counts from the anchor (Layer 2), or root-port hop counts from the observed root (Spanning Tree). A switch whose root-port chain does not reach the root, or whose root ports point to different upstream switches, goes to a labelled unresolved area (conflicting evidence never picks a parent); a component with no agreed root uses the Layer 2 placement. Each level is ordered by four down-and-up barycentre sweeps, starting from the previous x position when there is one, then natural name and host ID.
+  - Layer 2 and VLAN share one placement, Spanning Tree has another; each is kept in page state with a signature of its visible switches, internal links and (Spanning Tree) root and root-port evidence, and laid out again only when that changes.
+  - Pan and zoom change only the SVG `viewBox` (world coordinates never change), kept per placement; the canvas is bounded, so the page never scrolls sideways.
 - **Scale**: at about 300 switches, collapse by site or stack, filter by scope and use level-of-detail labels. Budget: first render within 5 seconds at p95 for 300 nodes and 1,000 links. This must be measured with a generated fixture before release.
 - **VLAN mode** (spec §10, §28): select a VLAN, then:
   - participating switches are highlighted;
@@ -80,7 +87,7 @@ Host -> Host dashboard           one switch: Port panel, interface detail, host-
 - **One renderer, two hosts.** The topology engine in `src/widget/runtime.js` serves the Topology widget and the page (`render(…, 'explorer')`, started by `mountExplorer`). `scripts/sync_widget_assets.py` copies it into each widget and into `networkexplorer/assets/`; no module loads another module's assets.
 - **Selection model.** Switch nodes, links and link ends are buttons (pointer, Enter, Space). The selection lives in page state (`state.selection`): a switch shows identity, health and interfaces without choosing an interface; a link shows both endpoints per member; an endpoint shows interface detail for that exact `hostid` + `interface_uid`. On a dashboard the widget also broadcasts the standard `_hostid` / `_itemid`, so an Interface Detail widget follows a selected link end; the page uses direct callbacks and broadcasts nothing.
 - **Root bridge.** `stpRoots()` takes the root from `bridge_id == root_bridge_id` (`StpService::split()`), per matching domain. Layer 2 marks it only when every visible switch in the domain agrees and its STP data is current; Spanning Tree also marks a root with older data. A root outside the visible scope is named, not drawn; a disagreement marks none in Layer 2 and shows each self-declared root as disputed (☆) in Spanning Tree, alongside the `stp_root_disagreement` finding. Layout position never decides it.
-- **State in the address.** `site`, `domain`, `management_cidr`, `hostid`, `view`, `vlan`, `interface_hostid` and `interface_uid`. Graph positions, LAG expansion and the trace source stay in the page.
+- **State in the address.** `site`, `domain`, `management_cidr`, `hostid`, `view`, `vlan`, `interface_hostid` and `interface_uid`. Graph placements, the pan and zoom view, LAG expansion and the trace source stay in the page.
 
 ### Navigation (spec §5)
 
