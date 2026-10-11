@@ -1,0 +1,72 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "ok",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "ok",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 27,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 27,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 4,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [],
+        "rows": 26,
+        "status": "ok",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 10,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 28,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "Synthetic switch OS 1.2.3, 24-port",
+      "sys_object_id": "1.3.6.1.4.1.99999.1.1"
+    }
+  },
+  "description": "Synthetic 24-port switch: LACP uplink, RSTP, VLAN access and trunk ports, a 100M half-duplex port.",
+  "id": "lab-sw-core-01",
+  "kind": "synthetic",
+  "walk": "tests/fixtures/walks/sw-core-01.snmprec"
+}

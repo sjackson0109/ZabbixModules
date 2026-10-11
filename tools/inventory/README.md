@@ -151,6 +151,11 @@ python3 tools/inventory/capture_walk.py --host 10.0.0.10 --label cisco-c2960x-15
 - For each representative device, the sanitised `<label>.snmprec` and
   `<label>.manifest.json`.
 
+To turn a walk into qualification evidence, follow the workflow in
+[hardware qualification](../../docs/qualification/README.md): capture with
+`--sanitise --sanitise-serials --sanitise-aliases`, review the walk by hand,
+then classify and check it with `tools/qualification/qualify.py`.
+
 ## What NOT to share
 
 - API tokens, token files, SNMP credential files or environment dumps.

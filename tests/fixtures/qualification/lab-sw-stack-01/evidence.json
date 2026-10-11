@@ -1,0 +1,72 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "ok",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "ok",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 53,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 53,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [],
+        "rows": 52,
+        "status": "ok",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 12,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 54,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "Synthetic switch OS 1.2.3, 2-member stack",
+      "sys_object_id": "1.3.6.1.4.1.99999.1.1"
+    }
+  },
+  "description": "Synthetic two-member stack with ENTITY-MIB member/slot placement and a static LAG across members.",
+  "id": "lab-sw-stack-01",
+  "kind": "synthetic",
+  "walk": "tests/fixtures/walks/sw-stack-01.snmprec"
+}

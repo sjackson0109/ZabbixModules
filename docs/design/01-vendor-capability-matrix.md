@@ -2,6 +2,8 @@
 
 Status: **hypotheses only, for review** (spec §32, §33, §40.1). No vendor or model in this document has been verified. The spec says not to assume support without confirming SNMP/MIB behaviour, so every cell below is a *hypothesis to test* against a captured walk. The evidence record is [`docs/network-explorer/CAPABILITY_MATRIX.csv`](../network-explorer/CAPABILITY_MATRIX.csv), which is filled only from evidence.
 
+> **Superseded in part (PR F).** Steps 4 and 5, the `qualification_level` vocabulary and `CAPABILITY_MATRIX.csv` as the evidence record are replaced by [hardware qualification](../qualification/README.md): `tools/qualification/qualify.py` classifies walks, and [MATRIX.md](../qualification/MATRIX.md) records the qualification states with cited evidence. `walk-observed` and `lab-replayed` became Captured-walk tested; `field-validated` became Real-device qualified. Steps 1 to 3 and the family hypotheses below still apply.
+
 ## How the matrix gets filled
 
 | Step | Tool | Output |

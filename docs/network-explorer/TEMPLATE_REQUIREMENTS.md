@@ -44,7 +44,7 @@ Each qualification fixture contains sanitised numeric-OID walks for system/ENTIT
 
 Existing template exports are treated as reference data to catalogue coverage, not trusted executable instructions or a mandate to preserve every poll. Review any scripts/URLs before running them. The coverage comparison identifies each metric/trigger as retained, replaced, redundant, unsupported or explicitly deferred.
 
-Use the supplied header-only `VENDOR_INVENTORY.csv`, `CAPABILITY_MATRIX.csv` and `MONITORING_COVERAGE.csv` as intake/qualification formats. Capability values are `supported`, `partial`, `unsupported` or `unknown`; an untested model is `unknown`. Qualification values are `unqualified`, `fixture-tested`, `lab-tested` and `field-validated`. Coverage dispositions are `retained`, `replaced`, `redundant`, `unsupported` or `deferred`, with an explicit reason and impact. Do not place secret values in these files.
+Use the supplied header-only `VENDOR_INVENTORY.csv`, `CAPABILITY_MATRIX.csv` and `MONITORING_COVERAGE.csv` as intake/qualification formats. Capability values are `supported`, `partial`, `unsupported` or `unknown`; an untested model is `unknown`. Qualification values are `unqualified`, `fixture-tested`, `lab-tested` and `field-validated` (superseded by the states in [hardware qualification](../qualification/README.md); qualification claims go in [MATRIX.md](../qualification/MATRIX.md)). Coverage dispositions are `retained`, `replaced`, `redundant`, `unsupported` or `deferred`, with an explicit reason and impact. Do not place secret values in these files.
 
 ## 5. Mandatory acquisition and normalisation contracts
 

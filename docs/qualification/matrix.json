@@ -1,0 +1,174 @@
+{
+  "format": "network-explorer-qualification-matrix-1",
+  "comment": "Source of MATRIX.md. Change a state only with cited evidence; see README.md.",
+  "rows": [
+    {
+      "vendor": "Generic",
+      "family": "standard-MIB profile (synthetic lab)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Lab simulated",
+        "entity": "Lab simulated",
+        "mau": "Lab simulated",
+        "lldp": "Lab simulated",
+        "vlan": "Lab simulated",
+        "stp": "Lab simulated",
+        "lag": "Lab simulated"
+      },
+      "limitations": "Invented devices (tests/fixtures/walks), replayed through the native templates and the Zabbix 7.0/7.2/7.4 lab. Qualifies the parsers and templates only, never a vendor, model or firmware.",
+      "evidence": [
+        "lab-sw-core-01",
+        "lab-sw-access-17",
+        "lab-sw-dist-01",
+        "lab-sw-dist-02",
+        "lab-sw-stack-01"
+      ],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Cisco",
+      "family": "Small Business (SG / CBS)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Legacy SF/SG and CBS are separate profiles; no Catalyst assumptions.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Cisco",
+      "family": "Catalyst (IOS / IOS-XE)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. LLDP needs lldp run; PVST+ STP and VLAN data need per-VLAN contexts; CDP is not read yet.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Dell",
+      "family": "PowerConnect (legacy)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Older firmware may lack ifXTable columns.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Dell",
+      "family": "N-Series",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Must be split from PowerConnect by full sysObjectID.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Dell",
+      "family": "S-Series (OS9 / OS10)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Two operating systems; VLT needs a multi-chassis LAG representation.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Netgear",
+      "family": "M-series and smart switches",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Smart-managed models may lack LLDP or Q-BRIDGE over SNMP.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Zyxel",
+      "family": "GS / XGS managed",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. Smart-managed lines may expose a reduced set.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Ubiquiti",
+      "family": "UniFi and EdgeSwitch",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "interfaces": "Unqualified",
+        "entity": "Unqualified",
+        "mau": "Unqualified",
+        "lldp": "Unqualified",
+        "vlan": "Unqualified",
+        "stp": "Unqualified",
+        "lag": "Unqualified"
+      },
+      "limitations": "No captured walk yet. UniFi VLAN data may be available only from the controller.",
+      "evidence": [],
+      "qualified_on": null
+    }
+  ]
+}
