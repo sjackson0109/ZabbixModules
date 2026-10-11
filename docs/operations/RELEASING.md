@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are cut from the default branch (`work`), either from the Actions tab or by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the standard CI checks (including the Chromium renderer suite) and the Zabbix 7.0, 7.2 and 7.4 compatibility labs, builds the packages, attests their provenance and publishes a GitHub release. Nothing is published unless every step passes.
+Releases are cut from the default branch (`main`), either from the Actions tab or by pushing a `vX.Y.Z` tag. The [release workflow](../../.github/workflows/release.yml) checks the tag, runs the standard CI checks (including the Chromium renderer suite) and the Zabbix 7.0, 7.2 and 7.4 compatibility labs, builds the packages, attests their provenance and publishes a GitHub release. Nothing is published unless every step passes.
 
 ## Version policy
 
@@ -8,38 +8,38 @@ Releases are cut from the default branch (`work`), either from the Actions tab o
 - Work lands under *Unreleased* in the changelog and is released deliberately, not on every merge.
 - **Published releases are immutable.** Never delete, recreate, re-tag or overwrite a published version or its assets. A correction is a newer release.
 
-The latest published release is 1.2.0. The next is **1.3.0**, because Monitoring → Network Explorer as the network-wide application (PR #12) is a new feature; see the [roadmap](../network-explorer/ROADMAP.md).
+The latest release is 1.3.0 (11 October 2026), the first cut from `main`. The commands below use 1.4.0 as the example next version.
 
 ## 1. Prepare the version
 
-On a branch from `work`:
+On a branch from `main`:
 
 ```sh
-python3 scripts/release.py bump 1.3.0
+python3 scripts/release.py bump 1.4.0
 python3 -m pytest
 ```
 
 `bump` sets the version in `VERSION`, the six frontend module manifests, the collector and the template script library, regenerates the native and LAB templates, updates the version named in the install and deployment guides, and moves the changelog's *Unreleased* entries under `## [1.3.0] - <date>`. It refuses a version that is not newer than the current one, or an empty *Unreleased* section. Review the diff, open a pull request and merge it once CI is green.
 
-A version with a suffix, such as `1.3.0-rc.1`, is published as a pre-release.
+A version with a suffix, such as `1.4.0-rc.1`, is published as a pre-release.
 
 ## 2. Tag
 
-**From GitHub (no local clone needed):** Actions → Release → Run workflow, branch `work`, version `1.3.0`. The workflow runs every check below on the head of `work`, then creates the annotated `v1.3.0` tag as Simon Jackson and publishes. It refuses a version whose tag already exists.
+**From GitHub (no local clone needed):** Actions → Release → Run workflow, branch `main`, version `1.4.0`. The workflow runs every check below on the head of `main`, then creates the annotated `v1.3.0` tag as Simon Jackson and publishes. It refuses a version whose tag already exists.
 
-**Or from a clone**, on the merged commit of `work`:
+**Or from a clone**, on the merged commit of `main`:
 
 ```sh
-git checkout work && git pull
-git tag -a v1.3.0 -m "Network Explorer 1.3.0"
-git push origin v1.3.0
+git checkout main && git pull
+git tag -a v1.4.0 -m "Network Explorer 1.4.0"
+git push origin v1.4.0
 ```
 
 ## 3. What the workflow does
 
-1. **Verify.** `scripts/release.py check v1.3.0` fails unless the tag equals `v` + `VERSION`, every component carries that version and the changelog has a `1.3.0` section. The tagged commit must be on the default branch.
+1. **Verify.** `scripts/release.py check v1.4.0` fails unless the tag equals `v` + `VERSION`, every component carries that version and the changelog has a `1.4.0` section. The tagged commit must be on the default branch.
 2. **Checks.** The same Python, Node, Chromium and PHP jobs as pull-request CI ([checks.yml](../../.github/workflows/checks.yml)).
-3. **Compatibility.** Real Zabbix 7.0, 7.2 and 7.4 labs ([compatibility.yml](../../.github/workflows/compatibility.yml), `scripts/test-compatibility.sh`). The same workflow runs nightly on `work` and on pull requests that change the frontend, widget source, templates, schemas or the lab.
+3. **Compatibility.** Real Zabbix 7.0, 7.2 and 7.4 labs ([compatibility.yml](../../.github/workflows/compatibility.yml), `scripts/test-compatibility.sh`). The same workflow runs nightly on `main` and on pull requests that change the frontend, widget source, templates, schemas or the lab.
 4. **Publish.** Runs only when checks and all three Zabbix versions pass. Confirms the generated templates and widget assets are current, builds the archives with `scripts/package.py`, verifies `SHA256SUMS`, records a signed build-provenance attestation for every archive and `manifest.json`, and creates the GitHub release with the changelog section as its notes. Assets:
    - `network-explorer-frontend-<version>.tar`
    - `network-explorer-templates-<version>.tar`
@@ -66,6 +66,6 @@ Every third-party action is pinned to a full commit SHA, with its release in a c
 
 These apply only while nothing has been published.
 
-- **Verify failed:** the tag does not match the repository. Delete the unpublished tag (`git push --delete origin v1.3.0 && git tag -d v1.3.0`), fix the version on `work` through a pull request, and tag again. A manual run fails before tagging, so it leaves nothing to delete.
-- **Checks or publish failed before the release appeared:** fix the cause on `work`, delete and recreate the unpublished tag on the fixed commit. If the failure was transient, re-run the failed jobs from the Actions tab.
+- **Verify failed:** the tag does not match the repository. Delete the unpublished tag (`git push --delete origin v1.4.0 && git tag -d v1.4.0`), fix the version on `main` through a pull request, and tag again. A manual run fails before tagging, so it leaves nothing to delete.
+- **Checks or publish failed before the release appeared:** fix the cause on `main`, delete and recreate the unpublished tag on the fixed commit. If the failure was transient, re-run the failed jobs from the Actions tab.
 - **Once a release is published it is final.** `gh release create` refuses an existing release, and the release and its tag are never deleted or replaced. Fix the problem in the next patch version.

@@ -8,7 +8,7 @@ The guiding principle is to polish and prove the existing architecture before wi
 
 - **Monitoring → Network Explorer** is the network-wide application: default multi-switch Layer 2 topology with the agreed, current STP root marked; Layer 2 / Spanning Tree / VLAN views; site, domain, management-subnet and seed-device scope; selectable switches, links and link ends with Interface Detail; findings, collection quality and CSV/JSON exports for the same scope; restricted-user filtering; outside-site permitted neighbours kept as context. No global dashboard is required.
 - Template host dashboards (Ports, Topology, Findings) stay the single-switch experience. Global dashboards are optional compositions.
-- `v1.2.0` is the latest published release (8 October 2026). PR #12 landed after it and is a minor-version feature, so the next release is 1.3.0, not 1.2.1.
+- `v1.2.0` was the latest published release when the programme started (8 October 2026). PR #12 landed after it and is a minor-version feature, so the next release was 1.3.0, not 1.2.1. 1.3.0 was released on 11 October 2026 with PRs A to F.
 - Network Explorer is independent of `sjackson0109/ZabbixWidgets`: neither repository imports, packages or loads the other.
 
 ## Gap analysis against the programme (10 October 2026)
@@ -51,7 +51,7 @@ Internal source organisation (splitting `src/widget/` by responsibility while st
 
 - Published releases are immutable: never delete, recreate, re-tag or overwrite a published version or its assets. Corrections ship in a newer version.
 - A new user-facing capability is a minor version; fixes only are a patch.
-- 1.3.0 is cut when the units selected for it are merged and reviewed; see [RELEASING.md](../operations/RELEASING.md).
+- 1.3.0 was cut on 11 October 2026 with all six units; see [RELEASING.md](../operations/RELEASING.md).
 
 ## Future acquisition agent
 
@@ -81,4 +81,4 @@ Each needs a capability, security and retention contract, and real-device eviden
 These are evaluated separately and are not performed by any unit above.
 
 - **Repository name.** The current repository name, `ZabbixModules`, is generic. Renaming stays deferred until the broader product and module boundary is settled, since the repository may come to hold sibling applications beside Network Explorer. The repository is not renamed as part of this programme without explicit approval.
-- **Default branch.** `work` is the default branch. A move to `main` touches the `Checks` push trigger (already lists `main`), the release workflow (reads the default branch at run time), RELEASING.md and this documentation. A migration plan comes with the proposal.
+- **Default branch.** Done: `main` replaced `work` as the default branch on 11 October 2026, approved by the maintainer. `Checks` runs on pushes to `main`, the release workflow reads the default branch at run time, and RELEASING.md names `main`.
