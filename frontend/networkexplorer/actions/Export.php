@@ -13,6 +13,10 @@ final class Export extends Base {
                 throw new \InvalidArgumentException('invalid_format');
             }
             $network = $this->network();
+            // An oversized scope is never exported as if it were empty.
+            if (isset($network['scope']['oversized'])) {
+                throw new \InvalidArgumentException('scope_oversized');
+            }
             $service = new ReportService();
             $rows = $service->rows($network, $report);
             $content = $format === 'csv' ? $service->csv($service->contextualRows($network, $report)) : json_encode([

@@ -24,7 +24,10 @@ final class FixtureGateway implements DataGateway {
         foreach ($tags as $tag) {
             $byName[$tag['tag']][] = $tag['value'];
         }
-        return array_values(array_filter($this->hostRows, static function ($host) use ($hostids, $byName): bool {
+        // Like the API: sorted by host ID, at most one row more than the candidate budget.
+        $rows = $this->hostRows;
+        usort($rows, static fn($a, $b) => (int) $a['hostid'] <=> (int) $b['hostid']);
+        return array_slice(array_values(array_filter($rows, static function ($host) use ($hostids, $byName): bool {
             if ($hostids && !in_array((string) $host['hostid'], $hostids, true)) {
                 return false;
             }
@@ -35,16 +38,49 @@ final class FixtureGateway implements DataGateway {
                 }
             }
             return true;
-        }));
+        })), 0, \Modules\NetworkExplorer\Services\Limits::CANDIDATE_HOSTS + 1);
     }
     public function tagged(array $names): array {
         return array_values(array_filter(array_map(static fn($host) => ['hostid'=>$host['hostid'],
             'tags'=>array_values(array_filter($host['tags'] ?? [], static fn($t) => in_array($t['tag'], $names, true)))],
             $this->hostRows), static fn($row) => $row['tags'] !== []));
     }
-    public function items(array $hostids): array {
+    public array $idQueries = [];
+    public function hostids(array $tags, int $limit): array {
+        $this->idQueries[] = ['tags'=>$tags, 'limit'=>$limit];
+        $byName = [];
+        foreach ($tags as $tag) {
+            $byName[$tag['tag']][] = $tag['value'];
+        }
+        $ids = [];
+        foreach ($this->hostRows as $host) {
+            foreach ($byName as $name => $values) {
+                if (!array_filter($host['tags'] ?? [], static fn($t) => $t['tag'] === $name
+                        && in_array($t['value'], $values, true))) {
+                    continue 2;
+                }
+            }
+            $ids[] = (string) $host['hostid'];
+        }
+        usort($ids, static fn($a, $b) => (int) $a <=> (int) $b);
+        return array_slice($ids, 0, $limit);
+    }
+    public array $itemQueries = [];
+    public array $membershipQueries = [];
+    public function networkHostids(array $keys, int $limit, ?array $hostids = null): array {
+        $this->membershipQueries[] = ['hostids'=>$hostids, 'limit'=>$limit];
+        $within = $hostids === null ? null : array_fill_keys($hostids, true);
+        $rows = array_slice(array_values(array_filter($this->itemRows, static fn($item) =>
+            in_array($item['key_'], $keys, true) && ($within === null || isset($within[(string) $item['hostid']])))),
+            0, $limit);
+        $ids = array_values(array_unique(array_map(static fn($item) => (string) $item['hostid'], $rows)));
+        usort($ids, static fn($a, $b) => strnatcmp($a, $b));
+        return $ids;
+    }
+    public function items(array $hostids, array $keys = []): array {
+        $this->itemQueries[] = ['hostids'=>$hostids, 'keys'=>$keys];
         return array_values(array_filter($this->itemRows, static fn($item) =>
-            in_array((string) $item['hostid'], $hostids, true)));
+            in_array((string) $item['hostid'], $hostids, true) && (!$keys || in_array($item['key_'], $keys, true))));
     }
     public function history(array $items, int $limit): array {
         $this->requestedHistory = $items;

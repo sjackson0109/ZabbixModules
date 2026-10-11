@@ -3,14 +3,17 @@ declare(strict_types=1);
 /**
  * Reader budget at the spec's scale: 300 switches, 15,000 physical ports, 1,000 links, with VLAN and STP data.
  * Synthetic envelopes in memory; measures NetworkService::build() only (no Zabbix API or history latency).
- * Usage: php -d memory_limit=2G tests/perf/scale.php [runs] [payload.json]   (the payload feeds tests/perf/render.cjs)
+ * Usage: php -d memory_limit=2G tests/perf/scale.php [runs] [payload.json] [switches] [seed]
+ *   (the payload feeds tests/perf/render.cjs). With `seed`, builds one switch's neighbourhood instead of the fleet,
+ *   so every other switch in the domain is an identity candidate: e.g. `... 3 /dev/null 1000 seed`.
  */
 require __DIR__.'/../php/services.php';
 
 use Modules\NetworkExplorer\Services\NetworkService;
 
 $runs = (int) ($argv[1] ?? 5);
-$switches = 300; $ports = 50; $links = 1000;
+$switches = (int) ($argv[3] ?? 300); $ports = 50; $links = 1000;
+$seed = ($argv[4] ?? '') === 'seed' ? ['10001'] : [];
 $now = strtotime('2026-10-07T12:00:00Z');
 $time = gmdate('Y-m-d\TH:i:s\Z', $now);
 $envelope = static fn(string $dataset, array $data) => ['schema_version'=>'1.1','dataset'=>$dataset,'generation_id'=>'perf',
@@ -76,12 +79,12 @@ $times = [];
 for ($r = 0; $r < $runs; ++$r) {
     gc_collect_cycles();
     $start = hrtime(true);
-    $network = (new NetworkService($gateway, $now + 5))->build();
+    $network = (new NetworkService($gateway, $now + 5))->build($seed);
     $times[] = (hrtime(true) - $start) / 1e9;
 }
 sort($times);
 $payload = strlen(json_encode($network));
-printf("hosts=%d interfaces=%d edges=%d findings=%d payload=%.1fMB\n", count($network['hosts']), count($network['interfaces']),
+printf("candidates=%d hosts=%d interfaces=%d edges=%d findings=%d payload=%.1fMB\n", $network['budgets']['identity_candidates'] ?? count($network['hosts']), count($network['hosts']), count($network['interfaces']),
     count($network['edges']), count($network['findings']), $payload / 1048576);
 printf("build seconds: median=%.2f max=%.2f over %d runs; peak memory=%.0fMB\n", $times[intdiv(count($times), 2)],
     end($times), $runs, memory_get_peak_usage(true) / 1048576);

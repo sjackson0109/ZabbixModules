@@ -41,7 +41,7 @@ final class NetworkScope {
                 throw new \InvalidArgumentException('invalid_hostid');
             }
         }
-        if (count($seedHostids) > Limits::HOSTS) {
+        if (count($seedHostids) > Limits::DISPLAY_HOSTS) {
             throw new \InvalidArgumentException('host_budget_exceeded');
         }
         foreach ([$site, $domain] as $value) {

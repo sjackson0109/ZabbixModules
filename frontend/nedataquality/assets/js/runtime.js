@@ -2189,8 +2189,11 @@
       notice(root, payload.message, 'warning');
       if (!asRows(payload.hosts).length) return;
     }
-    if (payload.truncated || payload.scope?.truncated)
-      notice(root, 'Observation scope was truncated. Narrow the host selection to see complete coverage.', 'warning');
+    // A scope too large to draw is not drawn; its message says how many devices it holds and how to narrow it.
+    if (payload.scope?.oversized) {
+      notice(root, text(payload.scope.oversized.message), 'warning');
+      return;
+    }
     const handlers = {
       ports: renderPorts,
       topology: renderTopology,
