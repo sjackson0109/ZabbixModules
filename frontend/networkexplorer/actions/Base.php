@@ -18,6 +18,7 @@ abstract class Base extends \CController {
         $valid = $this->validateInput(['hostid'=>'db hosts.hostid', 'hostids'=>'array_db hosts.hostid',
             'interface_uid'=>'string', 'interface_hostid'=>'db hosts.hostid', 'management_cidr'=>'string',
             'site'=>'string', 'domain'=>'string', 'view'=>'in layer2,stp,vlan', 'vlan'=>'int32',
+            'selected_hostid'=>'db hosts.hostid', 'link'=>'string', 'trace'=>'db hosts.hostid',
             'report'=>'string', 'format'=>'string']);
         if (!$valid) {
             $this->setResponse(new \CControllerResponseFatal());

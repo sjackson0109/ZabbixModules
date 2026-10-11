@@ -253,9 +253,22 @@ const assert = require('node:assert/strict');
     await page.locator('svg .ne-node').nth(1).click();
     const halo = page.locator('svg .ne-node-selected .ne-node-halo');
     assert.notEqual(await halo.evaluate(e => getComputedStyle(e).display), 'none', 'selected switch has a second outline');
-    await page.getByPlaceholder('Find visible host').fill('switch B');
+    await page.getByPlaceholder('Find switch').fill('switch B');
     assert.equal(await page.locator('svg .ne-node.ne-muted').count(), 1);
-    await page.getByPlaceholder('Find visible host').fill('');
+    // Enter focuses and selects the match without hiding or moving anything.
+    await page.getByPlaceholder('Find switch').press('Enter');
+    assert.equal(await page.locator('svg .ne-node-selected').getAttribute('data-hostid'), '102');
+    assert.equal(await page.locator('.ne-search-status').innerText(), 'Showing Fixture switch B.');
+    await page.getByPlaceholder('Find switch').fill('switch');
+    await page.getByRole('button', { name: 'Focus', exact: true }).click();
+    assert.ok((await page.locator('.ne-search-status').innerText()).startsWith('2 switches match; showing 1: Fixture switch A.'));
+    await page.getByRole('button', { name: 'Focus', exact: true }).click();
+    assert.equal(await page.locator('svg .ne-node-selected').getAttribute('data-hostid'), '102', 'Focus again steps to the next match');
+    await page.getByPlaceholder('Find switch').fill('no such switch');
+    await page.getByPlaceholder('Find switch').press('Enter');
+    assert.equal(await page.locator('.ne-search-status').innerText(), 'No visible switch matches "no such switch".');
+    assert.equal(await page.locator('svg .ne-node').count(), 2, 'searching never hides a switch');
+    await page.getByPlaceholder('Find switch').fill('');
     await page.getByRole('button', { name: 'Collapse LAG member links' }).click();
     await page.locator('svg .ne-edge').first().focus();
     await page.keyboard.press('Enter');
@@ -263,6 +276,15 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('svg .ne-endpoint-selected').count(), 0);
     await page.getByRole('button', { name: 'Expand LAG member links' }).click();
     await page.getByRole('combobox', { name: 'View' }).selectOption('vlan');
+    // Selecting a switch in VLAN view does not change the trace; its explicit action does.
+    await page.getByRole('combobox', { name: 'Trace VLAN from' }).selectOption('');
+    await page.locator('svg .ne-node', { hasText: 'Fixture switch A' }).click();
+    assert.equal(await page.getByRole('combobox', { name: 'Trace VLAN from' }).inputValue(), '');
+    await page.getByRole('button', { name: /^Trace VLAN \d+ from this switch$/ }).click();
+    assert.equal(await page.getByRole('combobox', { name: 'Trace VLAN from' }).inputValue(), '101');
+    assert.equal(await page.locator('svg .ne-node-selected').getAttribute('data-hostid'), '101');
+    await page.getByRole('button', { name: 'Stop tracing' }).click();
+    assert.equal(await page.getByRole('combobox', { name: 'Trace VLAN from' }).inputValue(), '');
     await page.getByRole('combobox', { name: 'Trace VLAN from' }).selectOption('101');
     await page.getByRole('combobox', { name: 'View' }).selectOption('physical');
     assert.equal(await allPositions(), layoutBefore);
@@ -299,6 +321,11 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('svg').textContent()).includes('Unresolved STP placement'));
     assert.ok((await nodeY('Fixture switch A')) > (await nodeY('Fixture switch B')) + 120);
     assert.equal(await page.locator('svg .ne-stp-block-mark').count(), 1, 'the blocked link is still drawn');
+    // Without a root port the path to the root says where it stops instead of guessing.
+    await page.locator('svg .ne-node', { hasText: 'Fixture switch A' }).click();
+    await page.getByRole('button', { name: 'Show path to root' }).click();
+    assert.ok((await page.locator('.ne-stp-path').innerText()).includes('The path stops at Fixture switch A: no root port is observed'));
+    assert.equal(await page.locator('svg .ne-edge-path').count(), 0);
     await page.evaluate(() => {
       const p = window.testPayload;
       p.edges[1].stp = { source: { role: 'root', state: 'forwarding' }, target: { role: 'designated', state: 'forwarding' } };
@@ -309,6 +336,21 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('svg .ne-stp-block-mark').count(), 1);
     // A root-port child sits directly below its parent.
     assert.equal((await nodeY('Fixture switch A')) - (await nodeY('Fixture switch B')), 120);
+    // Path to root follows the observed root port to the agreed root.
+    await page.locator('svg .ne-node', { hasText: 'Fixture switch A' }).click();
+    assert.equal(await page.locator('svg .ne-node-path').count(), 0, 'a plain selection shows no path');
+    await page.getByRole('button', { name: 'Show path to root' }).click();
+    const pathText = await page.locator('.ne-stp-path').innerText();
+    assert.ok(pathText.includes('Fixture switch A root port') && pathText.includes('★ Fixture switch B: root bridge'), pathText);
+    assert.equal(await page.locator('svg .ne-node-path').count(), 2);
+    assert.equal(await page.locator('svg .ne-edge-path').count(), 1);
+    assert.ok((await page.getByRole('list', { name: 'Topology legend' }).innerText()).includes('Path to the root bridge'));
+    await page.getByRole('button', { name: 'Hide path to root' }).click();
+    assert.equal(await page.locator('svg .ne-edge-path').count(), 0);
+    await page.getByRole('button', { name: 'Show path to root' }).click();
+    await page.getByRole('combobox', { name: 'View' }).selectOption('physical');
+    assert.equal(await page.locator('svg .ne-edge-path').count(), 0, 'the path belongs to the Spanning Tree view');
+    assert.equal(await page.getByRole('button', { name: /path to root/ }).count(), 0);
     await page.evaluate(() => {
       delete window.testPayload.edges[1].stp;
     });
@@ -374,6 +416,53 @@ const assert = require('node:assert/strict');
     });
     const selection = page.locator('.ne-explorer-selection');
     assert.ok((await selection.innerText()).includes('Eth3 ·'), 'A deep-linked interface opens selected');
+    assert.equal(
+      await page.locator('.ne-scope-summary').innerText(),
+      '2 switches · 2 links · 1 LAG · 2 findings (2 info) · 1 stale dataset'
+    );
+    // The selection and trace go into the scope form (and the address) as opaque IDs only.
+    await page.evaluate(() => {
+      const form = document.createElement('form');
+      form.className = 'ne-scope';
+      for (const name of ['view', 'vlan', 'trace', 'selected_hostid', 'link', 'interface_hostid', 'interface_uid']) {
+        const input = document.createElement('input');
+        input.dataset.neState = name;
+        input.name = name;
+        form.appendChild(input);
+      }
+      document.body.appendChild(form);
+    });
+    const formState = () =>
+      page.evaluate(() =>
+        Object.fromEntries([...document.querySelectorAll('form.ne-scope input')].filter(i => !i.disabled).map(i => [i.name, i.value]))
+      );
+    await page.locator('svg .ne-node', { hasText: 'Fixture switch B' }).click();
+    assert.deepEqual(await formState(), { view: 'layer2', selected_hostid: '102' });
+    await page.locator('svg .ne-edge').first().focus();
+    await page.keyboard.press('Enter');
+    assert.deepEqual(await formState(), { view: 'layer2', link: 'one' });
+    await page.evaluate(() => {
+      window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), window.testPayload, {
+        view: 'layer2',
+        link: 'two'
+      });
+    });
+    assert.equal(await page.evaluate(() => window.testExplorer.selection.kind), 'edge');
+    assert.ok((await selection.innerText()).includes('Individual observed members'));
+    await page.evaluate(() => {
+      window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), window.testPayload, {
+        view: 'layer2',
+        selected_hostid: '999'
+      });
+    });
+    assert.ok((await selection.innerText()).includes('The selected switch is not in the current scope.'));
+    await page.evaluate(() => {
+      window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), window.testPayload, {
+        view: 'layer2',
+        interface_hostid: '101',
+        interface_uid: 'port:3'
+      });
+    });
     assert.equal(await selection.getByRole('button', { name: 'Select interface in linked widgets' }).count(), 0);
     assert.ok((await page.locator('svg .ne-node-root').getAttribute('aria-label')).startsWith('Fixture switch B'));
     await page.locator('svg .ne-node', { hasText: 'Fixture switch B' }).click();
@@ -494,7 +583,7 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('#widget').innerText()).includes('Member 2 · slot 0 · Copper'));
     assert.deepEqual(errors, []);
     console.log(
-      'Chromium: Explorer page selection, Layer 2 root marker and root-first layout, topology fit/zoom/reset with keyboard, legend, endpoint ring, no page overflow, link-end selection, physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
+      'Chromium: Explorer page selection, scope summary, switch search and focus, path to root, VLAN click-to-trace, selection in the address, Layer 2 root marker and root-first layout, topology fit/zoom/reset with keyboard, legend, endpoint ring, no page overflow, link-end selection, physical, VLAN and STP layers, stack member tabs, state colours, VLAN trace, physical layouts, safe detail rendering, keyboard navigation, peer context, LAG expansion, quality and CSV export passed.'
     );
   } finally {
     await browser.close();
