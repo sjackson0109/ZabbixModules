@@ -8,7 +8,7 @@ Prepared 6 October 2026 as the build baseline; kept as the design record. The im
 - [Decisions and deployment inputs](DECISIONS.md): defaults for autonomous development and facts required for real deployment.
 - [Roadmap](ROADMAP.md): the post-PR #12 improvement programme, gap analysis, backlog and proposals awaiting approval.
 - [Research provenance](research/sources.json): immutable official Zabbix source URLs and local SHA-256 hashes.
-- Inventory inputs: [vendor inventory](VENDOR_INVENTORY.csv), [capability matrix](CAPABILITY_MATRIX.csv), [monitoring migration coverage](MONITORING_COVERAGE.csv). These are header-only intake templates, not populated or verified inventories.
+- Inventory inputs: [vendor inventory](VENDOR_INVENTORY.csv), [capability matrix](CAPABILITY_MATRIX.csv), [monitoring migration coverage](MONITORING_COVERAGE.csv). These are header-only intake templates, not populated or verified inventories. Qualification claims are recorded in [the qualification matrix](../qualification/MATRIX.md), not in `CAPABILITY_MATRIX.csv`.
 
 This pack interprets the uploaded requirements specification. It does not authorise access to a customer environment, production changes, automatic enrolment of neighbours, or report delivery. Source inspection is evidence of framework contracts, not runtime validation. Do not modify installed Zabbix core.
 

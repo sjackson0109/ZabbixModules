@@ -1,0 +1,72 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "absent",
+      "interfaces": "ok",
+      "lag": "empty",
+      "lldp": "ok",
+      "mau": "ok",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 0,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 3,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 5,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "Synthetic switch OS 1.2.3, distribution",
+      "sys_object_id": "1.3.6.1.4.1.99999.1.1"
+    }
+  },
+  "description": "Synthetic distribution switch without port entities or LAG; holds the blocking alternate port of the triangle.",
+  "id": "lab-sw-dist-01",
+  "kind": "synthetic",
+  "walk": "tests/fixtures/walks/sw-dist-01.snmprec"
+}

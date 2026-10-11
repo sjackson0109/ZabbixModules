@@ -20,8 +20,8 @@ The guiding principle is to polish and prove the existing architecture before wi
 | Browser tests in CI | `tests/browser/widgets.test.cjs` (Node, fast) runs in CI; `tests/browser/widgets.runtime.cjs` (Chromium) runs only by hand | Chromium suite not in CI; releases are not gated on the Zabbix 7.0/7.2/7.4 integration path. *Addressed by PR B* |
 | Release supply chain | Deterministic packages, `VERSION`, version checks, changelog notes, `SHA256SUMS`, workflow_dispatch release | Actions pinned by tag, not SHA; no build provenance. *Addressed by PR B* |
 | Browser source | One canonical `src/widget/runtime.js` (about 1,800 lines) and `widget.css`, copied by `scripts/sync_widget_assets.py` | Single file holds every concern |
-| Explorer UX | Selection, view, VLAN trace source dropdown, root marker | No scope summary, switch search/focus, STP path-to-root or click-to-trace; selected host/view/VLAN/interface already in the URL. *Addressed by PR E* |
-| Hardware qualification | Family handoffs, `tools/inventory/` walk capture and inventory export; no real device qualified | No qualification matrix or evidence states |
+| Explorer UX | Selection, view, VLAN trace source dropdown, root marker | No scope summary, switch search/focus, STP path-to-root or click-to-trace; selected host/view/VLAN/interface already in the URL. *Addressed by PR E (#17)* |
+| Hardware qualification | Family handoffs, `tools/inventory/` walk capture and inventory export; no real device qualified | No qualification matrix or evidence states. *Addressed by PR F* |
 | Collector strategy | Python collector frozen as a schema 1.0 fallback | Future non-native acquisition had no documented home (now [below](#future-acquisition-agent)) |
 
 ## Delivery sequence
@@ -34,8 +34,8 @@ Each unit is one pull request into `work`, stopped at review-ready and merged on
 | B | Browser CI and release gate: Chromium suite in `Checks`, Zabbix 7.0/7.2/7.4 compatibility as a release/nightly gate, Actions pinned to commit SHAs, build provenance attestations alongside `SHA256SUMS` | Merged (#14) |
 | C | Topology layout v2: topology-aware deterministic Layer 2 layout, STP root-oriented hierarchy from canonical STP evidence, separated components, stable positions, fit/zoom/reset with keyboard alternatives, stronger selection styling, compact legend | Merged (#15) |
 | D | Fleet scaling: separate display, identity-candidate, option and item budgets; domain-aware candidate retrieval; explicit oversized-scope message; tests with more than 300 candidates | Merged (#16) |
-| E | Explorer UX: scope summary, switch search/focus, STP path-to-root, VLAN click-to-trace, stable link selection in the URL where safe | In review |
-| F | Hardware qualification framework: `docs/qualification/MATRIX.md`, sanitised evidence workflow, qualification states | Planned |
+| E | Explorer UX: scope summary, switch search/focus, STP path-to-root, VLAN click-to-trace, stable link selection in the URL where safe | Merged (#17) |
+| F | Hardware qualification framework: `docs/qualification/MATRIX.md`, sanitised evidence workflow, qualification states | In review |
 
 Internal source organisation (splitting `src/widget/` by responsibility while still shipping one `runtime.js` per module) is done alongside C and E where it reduces risk, not as a separate rewrite.
 
