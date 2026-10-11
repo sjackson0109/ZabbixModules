@@ -34,7 +34,7 @@ python3 lab/lab.py destroy --version 7.4
 
 Startup does not copy modules automatically. The integration command copies the current frontend files into the web container and registers/enables them through the official Zabbix module API. This avoids assumptions about bind-mount ownership and makes each integration run exercise the current source. Installing different files with the same module identifier remains limited to these disposable labs.
 
-The same commands run in GitHub Actions (`.github/workflows/compatibility.yml`): nightly on `work`, on pull requests that change the frontend, widget source, templates, schemas or this lab, and before every release. Each runner generates its own credentials and is discarded afterwards; on failure the workflow prints container names and states only, never logs or inspection output.
+The same commands run in GitHub Actions (`.github/workflows/compatibility.yml`): nightly on `main`, on pull requests that change the frontend, widget source, templates, schemas or this lab, and before every release. Each runner generates its own credentials and is discarded afterwards; on failure the workflow prints container names and states only, never logs or inspection output.
 
 ## Chromium renderer suite
 

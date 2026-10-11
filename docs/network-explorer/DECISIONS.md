@@ -57,12 +57,12 @@ No answer is required to continue shared design, schema/policy/parser developmen
 
 ## Programme decisions (10 October 2026)
 
-1. The next release is **1.3.0**, not 1.2.1: PR #12's network-wide application is a new user-facing feature. Changes stay under *Unreleased* until the release is cut.
+1. The release after 1.2.0 is **1.3.0**, not 1.2.1: PR #12's network-wide application is a new user-facing feature. It was released on 11 October 2026.
 2. Published releases are immutable. `v1.2.0` and later tags, releases and assets are never deleted, recreated, moved or overwritten; corrections go in a newer release.
 3. Monitoring → Network Explorer is the network-wide application, template host dashboards are the single-switch experience, and global dashboards are optional. None of these is replaced by another.
 4. Network Explorer and `sjackson0109/ZabbixWidgets` stay independent: no shared source, runtime dependency or asset loading in either direction.
 5. The frozen schema 1.0 Python collector is not extended. Acquisition native Zabbix items cannot express goes to a future, separately designed acquisition agent (see the [roadmap](ROADMAP.md#future-acquisition-agent)).
-6. Renaming the repository and changing the default branch from `work` are proposals that need explicit approval; no code change performs them.
+6. Renaming the repository needs explicit approval; no code change performs it. The default branch moved from `work` to `main` on 11 October 2026 with the maintainer's approval.
 
 ## Build gates requiring facts or capabilities
 

@@ -1,6 +1,6 @@
 # Offline continuation handoff
 
-Status, 10 October 2026: **1.2.0** is the latest published release (8 October 2026). The `work` branch is ahead of it: PR #12 made Monitoring → Network Explorer the network-wide application, a minor-version feature, so the next release is **1.3.0**. Its changes are under *Unreleased* in the [changelog](../../CHANGELOG.md) until it is cut. The improvement programme in the [roadmap](../network-explorer/ROADMAP.md) is complete: PRs A to F are merged (#13 to #18).
+Status, 11 October 2026: **1.3.0** is the latest release (11 October 2026), cut from `main`, which replaced `work` as the default branch. It includes Monitoring → Network Explorer as the network-wide application (PR #12) and the improvement programme in the [roadmap](../network-explorer/ROADMAP.md), PRs A to F (#13 to #18). The [changelog](../../CHANGELOG.md) lists what changed.
 
 Everything below is tested against simulated switches only; no vendor or model has been qualified on real hardware. The [qualification matrix](../qualification/MATRIX.md) records every claim with its evidence.
 
@@ -28,7 +28,7 @@ Everything below is tested against simulated switches only; no vendor or model h
 
 ## Continue locally
 
-Check out the `work` branch. Start at the root README, then use:
+Check out the `main` branch. Start at the root README, then use:
 
 ```sh
 scripts/setup-dev.sh
