@@ -363,3 +363,53 @@ test('the Explorer page module ships the same shared runtime and stylesheet as t
       hash(fs.readFileSync(path.join(__dirname, '../../src/widget', name)))
     );
 });
+test('path to root follows observed root ports only and says where evidence stops', () => {
+  const hosts = ['1', '2', '3', '4'].map(n => ({ hostid: n, name: `S${n}`, domain: 'd' }));
+  const rootEdge = (eid, child, parent) => ({
+    id: eid,
+    source: child,
+    target: parent,
+    source_uid: `${child}-up`,
+    target_uid: `${parent}-down`,
+    stp: rootPort('source')
+  });
+  const payload = { hosts, edges: [rootEdge('e1', '2', '1'), rootEdge('e2', '3', '2'), rootEdge('e2b', '3', '2'), link('4', '1')] };
+  const stp = { roots: new Set(['1']), current: new Set(['1']), claimed: new Set(['1']), outside: [], disputed: [] };
+  const path = runtime.stpPathToRoot(payload, stp, '3');
+  assert.equal(path.complete, true);
+  assert.equal(path.root, '1');
+  assert.deepEqual(path.hops.map(h => [h.hostid, h.parent]), [['3', '2'], ['2', '1']]);
+  assert.deepEqual(path.hops[0].edge_ids, ['e2', 'e2b'], 'both LAG members to the same parent are on the path');
+  assert.equal(path.hops[0].uid, '3-up');
+  assert.deepEqual(runtime.stpPathToRoot(payload, stp, '1').hops, []);
+  assert.equal(runtime.stpPathToRoot(payload, stp, '1').complete, true, 'the root is its own path');
+  // A plain link to the root is not a root port: no path is invented from adjacency.
+  assert.deepEqual(
+    (({ complete, stop, reason }) => ({ complete, stop, reason }))(runtime.stpPathToRoot(payload, stp, '4')),
+    { complete: false, stop: '4', reason: 'no_root_port' }
+  );
+  const conflicting = { hosts, edges: [rootEdge('a', '3', '2'), rootEdge('b', '3', '4')] };
+  assert.equal(runtime.stpPathToRoot(conflicting, stp, '3').reason, 'conflicting');
+  const loop = { hosts, edges: [rootEdge('a', '2', '3'), rootEdge('b', '3', '2')] };
+  assert.equal(runtime.stpPathToRoot(loop, stp, '2').reason, 'loop');
+  const disputed = { ...stp, roots: new Set(), disputed: [{ domain: 'd', roots: ['x', 'y'] }] };
+  assert.equal(runtime.stpPathToRoot(payload, disputed, '3').reason, 'disputed');
+  assert.equal(runtime.stpPathToRoot(payload, disputed, '3').hops.length, 0);
+});
+test('scope summary counts only what the payload returned', () => {
+  assert.equal(
+    runtime.scopeSummary({
+      hosts: [{ hostid: '1' }, { hostid: '2' }, { hostid: '3' }],
+      edges: [link('1', '2'), link('2', '3'), { source: '3', target: null }],
+      lags: [{ id: 'l1' }],
+      findings: [{ severity: 'info' }, { severity: 'warning' }, { severity: 'warning' }],
+      quality: [
+        { freshness: 'stale', status: 'ok' },
+        { freshness: 'current', status: 'failed' },
+        { freshness: 'current', status: 'ok' }
+      ]
+    }),
+    '3 switches · 2 links · 1 LAG · 3 findings (2 warning, 1 info) · 1 stale dataset · 1 failed dataset · 1 unresolved neighbour'
+  );
+  assert.equal(runtime.scopeSummary({ hosts: [{ hostid: '1' }] }), '1 switch · 0 links · no findings');
+});

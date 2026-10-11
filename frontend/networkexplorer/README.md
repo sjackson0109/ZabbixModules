@@ -13,7 +13,7 @@ Opening Monitoring → Network Explorer with no parameters shows every permitted
 - **Selection**: a switch shows identity, health, collection state, its interfaces and *Open host dashboard*; a link shows each member's two endpoints, LAG, VLANs, native VLAN, STP role and state, confidence and freshness; a link end or interface shows the full interface detail, with its LLDP peers selectable in place. Everything is keyboard-activatable.
 - **Findings and collection quality** cover the same scope as the graph; the view only changes the drawing. *Exports and tables* has CSV and JSON for every report in the same scope, and the device and interface tables.
 
-The address keeps `site`, `domain`, `management_cidr`, `hostid` (seed), `view` (`layer2`, `stp`, `vlan`), `vlan`, `interface_hostid` and `interface_uid`, so a view can be bookmarked or shared; every load re-checks the viewer's permissions. The page draws with the same `runtime.js` as the widgets (copied into `assets/js/` by `scripts/sync_widget_assets.py`) and uses no dashboard broadcasts.
+The address keeps `site`, `domain`, `management_cidr`, `hostid` (seed), `view` (`layer2`, `stp`, `vlan`), `vlan`, `trace`, and the selection (`selected_hostid`, `link` or `interface_hostid` + `interface_uid`), so a view can be bookmarked or shared; every load re-checks the viewer's permissions. The page draws with the same `runtime.js` as the widgets (copied into `assets/js/` by `scripts/sync_widget_assets.py`) and uses no dashboard broadcasts.
 
 ### Routes
 

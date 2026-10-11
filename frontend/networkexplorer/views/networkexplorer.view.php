@@ -38,8 +38,9 @@ $form->addItem((new CDiv([new CLabel(_('Management subnet'), 'management_cidr'),
     (new CTextBox('management_cidr', $request['management_cidr']))->setAttribute('placeholder', _('All (for example 10.1.0.0/16)'))
         ->setWidth(ZBX_TEXTAREA_MEDIUM_WIDTH)]))->addClass('ne-scope-field'));
 $form->addItem($select('hostid', _('Seed device'), $devices, $request['hostid']));
-// The page keeps the view and VLAN in these as they change, so Apply keeps them; empty ones are not sent.
-foreach (['view'=>$request['view'], 'vlan'=>(string) ($request['vlan'] ?? '')] as $name => $value) {
+// The page keeps the view, VLAN and trace source in these as they change, so Apply keeps them; empty ones are
+// not sent. A selection belongs to one scope, so Apply drops it.
+foreach (['view'=>$request['view'], 'vlan'=>(string) ($request['vlan'] ?? ''), 'trace'=>$request['trace']] as $name => $value) {
     $form->addItem((new CInput('hidden', $name, $value))->setAttribute('data-ne-state', $name)
         ->setEnabled($value !== ''));
 }

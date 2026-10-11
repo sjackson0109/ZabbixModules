@@ -323,6 +323,16 @@ def run(version: str, require_frontend: bool = True) -> dict:
         assert_that('id="ne-explorer-app"' in fleet_page and "mountExplorer" in fleet_page
                     and "ne-lab-hidden" not in fleet_page, "Explorer fleet page did not render without a host.")
         result["checks"].append("explorer-html-page")
+        # Selection and trace deep links carry opaque IDs only; a malformed link ID is dropped, not echoed.
+        linked = frontend(user_browser, config, "networkexplorer.view", {
+            "view": "vlan", "trace": hostids["ne-lab-a"], "selected_hostid": hostids["ne-lab-hidden"],
+            "link": links[0]["id"],
+        })
+        assert_that('"link":"%s"' % links[0]["id"] in linked and '"trace":"%s"' % hostids["ne-lab-a"] in linked
+                    and "ne-lab-hidden" not in linked, "Explorer deep link did not keep the selection IDs safely.")
+        malformed = frontend(user_browser, config, "networkexplorer.view", {"link": "edge-<x>"})
+        assert_that('"link":""' in malformed, "A malformed link ID reached the page state.")
+        result["checks"].append("explorer-selection-deep-link")
         for report in ["inventory", "peers", "addressing", "degradation", "quality", "findings"]:
             exported = frontend(user_browser, config, "networkexplorer.export", {"format": "json", "report": report, "hostids[]": list(hostids.values())})
             assert_that("ne-lab-hidden" not in exported and "192.0.2.3" not in exported, f"Private peer leaked through {report} report.")

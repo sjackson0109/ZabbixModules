@@ -482,6 +482,82 @@
     for (const [child, upstream] of candidates) if (upstream.size === 1) parents.set(child, [...upstream][0]);
     return parents;
   }
+  /**
+   * The spanning-tree path (instance 0) from a switch up to its observed root, from root-port evidence only:
+   * each hop follows the visible link(s) whose near end is that switch's root port. Never from layout or
+   * proximity. It stops, with a reason, where the evidence does: switches disagree about the root
+   * ('disputed'), no root port on a link to a visible switch ('no_root_port'), root-port links to more than one
+   * switch ('conflicting'), or a loop ('loop').
+   */
+  function stpPathToRoot(payload, stp, hostid) {
+    const start = id(hostid),
+      ports = new Map();
+    for (const edge of asRows(payload.edges))
+      for (const member of asRows(edge.members ?? [edge])) {
+        if (!member.source || !member.target) continue;
+        for (const [side, other] of [
+          ['source', 'target'],
+          ['target', 'source']
+        ])
+          if (member.stp?.[side]?.role === 'root') {
+            const child = id(member[side]);
+            if (!ports.has(child)) ports.set(child, []);
+            ports.get(child).push({
+              hostid: child,
+              parent: id(member[other]),
+              uid: member[`${side}_uid`],
+              parent_uid: member[`${other}_uid`],
+              edge_id: id(member.id)
+            });
+          }
+      }
+    const result = { start, hops: [], complete: false, root: null, stop: null, reason: null };
+    const domain = findHost(payload, start)?.domain;
+    if (domain && stp.disputed.some(d => d.domain === domain)) return { ...result, stop: start, reason: 'disputed' };
+    const seen = new Set([start]);
+    let current = start;
+    while (!stp.roots.has(current)) {
+      const found = ports.get(current) ?? [],
+        upstream = new Set(found.map(p => p.parent));
+      if (upstream.size !== 1)
+        return { ...result, stop: current, reason: upstream.size ? 'conflicting' : 'no_root_port' };
+      result.hops.push({ ...found[0], edge_ids: found.map(p => p.edge_id) });
+      if (seen.has(found[0].parent)) return { ...result, stop: found[0].parent, reason: 'loop' };
+      current = found[0].parent;
+      seen.add(current);
+    }
+    return { ...result, complete: true, root: current };
+  }
+  /**
+   * One line of counts for the scope: drawn switches, observed links between them, LAGs, findings by severity,
+   * stale or failed datasets and unresolved neighbour observations. Only permitted, returned objects are counted.
+   */
+  function scopeSummary(payload) {
+    const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+    const edges = asRows(payload.edges),
+      findings = asRows(payload.findings),
+      quality = asRows(payload.quality);
+    const parts = [
+      count(asRows(payload.hosts).length, 'switch', 'switches'),
+      count(edges.filter(e => e.source != null && e.target != null).length, 'link')
+    ];
+    const lags = asRows(payload.lags).length;
+    if (lags) parts.push(count(lags, 'LAG'));
+    const severities = new Map();
+    for (const finding of findings) severities.set(text(finding.severity), (severities.get(text(finding.severity)) ?? 0) + 1);
+    const order = ['critical', 'high', 'warning', 'info'];
+    const bySeverity = [...severities]
+      .sort(([a], [b]) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || natural(a, b))
+      .map(([severity, n]) => `${n} ${severity}`);
+    parts.push(findings.length ? `${count(findings.length, 'finding')} (${bySeverity.join(', ')})` : 'no findings');
+    const stale = quality.filter(q => q.freshness === 'stale').length,
+      failed = quality.filter(q => q.status === 'failed').length,
+      unresolved = edges.filter(e => e.source == null || e.target == null).length;
+    if (stale) parts.push(count(stale, 'stale dataset'));
+    if (failed) parts.push(count(failed, 'failed dataset'));
+    if (unresolved) parts.push(count(unresolved, 'unresolved neighbour'));
+    return parts.join(' · ');
+  }
   const LAG_MODES = { lacp: 'LACP', static: 'Static', pagp: 'PAgP' };
   // The aggregation mode of a link, from the LAG rows its members belong to; both ends normally agree.
   function lagModeLabel(payload, edge) {
@@ -1442,6 +1518,12 @@
         view = framed(bounds, 0, 0);
         viewport.apply();
       },
+      /** Centres the view on a point, keeping the zoom (zooming in to the home scale when further out). */
+      centre(x, y) {
+        const scale = view.w > home.w ? home.w / view.w : 1;
+        view = { x: x - (view.w * scale) / 2, y: y - (view.h * scale) / 2, w: view.w * scale, h: view.h * scale };
+        viewport.apply();
+      },
       reset() {
         view = { ...home };
         viewport.apply();
@@ -1506,6 +1588,7 @@
       [lines.some(([, l]) => !l.classList.contains('ne-edge-uncertain')), 'solid', 'Confirmed link'],
       [lines.some(([, l]) => l.classList.contains('ne-edge-uncertain')), 'dashed', 'One-sided, ambiguous, external or stale link'],
       [has('.ne-edge-stp-rootpath'), 'rootpath', 'Link to a root port'],
+      [has('.ne-edge-path'), 'path', 'Path to the root bridge, from observed root ports'],
       [has('.ne-stp-block-mark'), '⊘', 'Blocking or discarding port'],
       [has('.ne-edge-vlan-carried'), 'carried', `VLAN ${context.vlan} carried at both ends`],
       [has('.ne-edge-vlan-stopped'), 'stopped', `Physical link; VLAN ${context.vlan} not permitted at one end`],
@@ -1519,7 +1602,7 @@
     for (const [shown, key, label] of entries) {
       if (!shown) continue;
       const item = el('li');
-      const swatch = ['solid', 'dashed', 'rootpath', 'carried', 'stopped'].includes(key);
+      const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
       item.appendChild(el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : 'ne-legend-key'));
       item.appendChild(el('span', label));
       legend.appendChild(item);
@@ -1597,6 +1680,7 @@
     svg.appendChild(group);
     return group;
   }
+  let listCount = 0;
   const MODE_LABELS = [
     ['physical', 'Layer 2'],
     ['stp', 'Spanning Tree'],
@@ -1621,9 +1705,20 @@
     const toolbar = el('div', undefined, 'ne-toolbar'),
       search = el('input');
     search.type = 'search';
-    search.placeholder = 'Find visible host';
-    search.setAttribute('aria-label', 'Find visible host');
-    toolbar.appendChild(search);
+    search.placeholder = 'Find switch';
+    search.setAttribute('aria-label', 'Find switch');
+    // Suggestions are the visible switch names already in this payload; nothing new is requested.
+    const names = el('datalist');
+    names.id = `ne-switch-names-${++listCount}`;
+    for (const name of [...new Set(hosts.map(h => text(h.name)))].sort(natural)) {
+      const option = el('option');
+      option.value = name;
+      names.appendChild(option);
+    }
+    search.setAttribute('list', names.id);
+    const searchStatus = el('span', undefined, 'ne-search-status');
+    searchStatus.setAttribute('role', 'status');
+    toolbar.append(search, names, button('Focus', () => focusMatch()), searchStatus);
     let collapse = state.collapse_lag ?? true;
     const lagToggle = button(collapse ? 'Expand LAG member links' : 'Collapse LAG member links', () => {
       collapse = !collapse;
@@ -1732,9 +1827,21 @@
     const isEnd = (member, hostid, uid) =>
       (id(member.source) === hostid && id(member.source_uid) === uid) ||
       (id(member.target) === hostid && id(member.target_uid) === uid);
+    let drawnLegend = null;
+    /** The shown path to the root: only in Spanning Tree, and only for the selected switch. */
+    const shownPath = () =>
+      mode.value === 'stp' && state.path && state.selection?.kind === 'host' && state.selection.hostid === state.path
+        ? stpPathToRoot(payload, stp, state.path)
+        : null;
     /** Reflects state.selection on the drawing: the selected switch, link, or interface's switch and links. */
     function mark() {
       const sel = state.selection;
+      const path = shownPath(),
+        onPath = new Set(path ? [path.start, ...path.hops.map(h => h.parent)] : []),
+        pathEdges = new Set(path ? path.hops.flatMap(h => h.edge_ids) : []);
+      for (const [host, node] of nodes) node.classList.toggle('ne-node-path', onPath.has(id(host.hostid)));
+      for (const [edge, line] of lines) line.classList.toggle('ne-edge-path', edge.members.some(m => pathEdges.has(id(m.id))));
+      if (drawnLegend) drawLegend(legend, ...drawnLegend, lines);
       for (const [host, node] of nodes) {
         const on = !!sel && ['host', 'interface'].includes(sel.kind) && id(host.hostid) === sel.hostid;
         node.classList.toggle('ne-node-selected', on);
@@ -1778,21 +1885,25 @@
     const ctx = { stp, linked: options.linked, showHost: true, selectInterface: port => select.iface(port) };
     const select = {
       host(host, quiet) {
+        if (state.path !== id(host.hostid)) state.path = null;
         state.selection = { kind: 'host', hostid: id(host.hostid) };
         mark();
         showHost(details, payload, host, ctx);
+        hostActions(host);
         if (!quiet) {
           broadcast(host.hostid);
           changed();
         }
       },
       edge(edge, quiet) {
+        state.path = null;
         state.selection = { kind: 'edge', edge_ids: edge.members.map(m => id(m.id)) };
         mark();
         showEdgeDetails(details, payload, edge, ctx);
         if (!quiet) changed();
       },
       iface(port, quiet) {
+        state.path = null;
         state.selection = { kind: 'interface', hostid: id(port.hostid), uid: id(port.uid) };
         mark();
         showDetail(details, payload, port, broadcast, ctx);
@@ -1802,6 +1913,111 @@
         }
       }
     };
+    /**
+     * Actions for the selected switch in the current view, shown at the top of its details: the path to the root
+     * in Spanning Tree, and tracing the chosen VLAN from it in VLAN. Each is an explicit button; a plain selection
+     * never changes the trace or the drawing.
+     */
+    function hostActions(host) {
+      const hostid = id(host.hostid),
+        bar = el('div', undefined, 'ne-toolbar ne-host-actions');
+      const reselect = () => {
+        select.host(host, true);
+        changed();
+      };
+      if (mode.value === 'stp') {
+        const shown = state.path === hostid;
+        bar.appendChild(
+          button(shown ? 'Hide path to root' : 'Show path to root', () => {
+            state.path = shown ? null : hostid;
+            reselect();
+          })
+        );
+      }
+      if (mode.value === 'vlan' && vlanPick.value && [...tracePick.options].some(o => o.value === hostid)) {
+        const tracing = tracePick.value === hostid;
+        bar.appendChild(
+          button(tracing ? 'Stop tracing' : `Trace VLAN ${vlanPick.value} from this switch`, () => {
+            tracePick.value = tracing ? '' : hostid;
+            draw();
+            reselect();
+          })
+        );
+      }
+      if (!bar.childNodes.length) return;
+      details.insertBefore(bar, details.firstChild?.nextSibling ?? null);
+      const path = shownPath();
+      if (path) bar.after(pathNotes(path));
+    }
+    /** The path as an ordered list of root-port hops, or why it stops. */
+    function pathNotes(path) {
+      const box = el('div', undefined, 'ne-stp-path');
+      box.setAttribute('aria-label', 'Path to the spanning-tree root');
+      const name = hostid => text(hostName(payload, hostid));
+      if (!path.hops.length && path.complete) {
+        notice(box, `${name(path.start)} is the observed spanning-tree root bridge (instance 0).`);
+        return box;
+      }
+      if (path.hops.length) {
+        const list = el('ol');
+        for (const hop of path.hops)
+          list.appendChild(
+            el(
+              'li',
+              `${name(hop.hostid)} root port ${text(interfaceName(payload, hop.hostid, hop.uid))} → ${name(hop.parent)} port ${text(interfaceName(payload, hop.parent, hop.parent_uid))}`
+            )
+          );
+        if (path.complete) list.appendChild(el('li', `★ ${name(path.root)}: root bridge`));
+        box.appendChild(list);
+      }
+      const reasons = {
+        disputed: 'Switches in this domain disagree about the spanning-tree root, so no path to it is shown.',
+        no_root_port: `The path stops at ${name(path.stop)}: no root port is observed on a link to a visible switch, so the rest of the path is unknown.`,
+        conflicting: `The path stops at ${name(path.stop)}: its root-port observations name more than one upstream switch.`,
+        loop: `The root-port observations loop back to ${name(path.stop)}, so the path cannot be trusted.`
+      };
+      if (!path.complete) {
+        let reason = reasons[path.reason];
+        if (path.reason === 'no_root_port' && !stp.roots.size && stp.outside.length)
+          reason += ' The root bridge is not a visible switch.';
+        notice(box, reason, 'warning');
+      }
+      return box;
+    }
+    let focusCursor = -1,
+      focusQuery = '';
+    /**
+     * Finds a visible switch by name, centres the view on it and selects it. Repeating the search steps through
+     * further matches. Nothing is hidden: non-matching switches are only dimmed.
+     */
+    function focusMatch() {
+      const query = search.value.trim().toLowerCase();
+      if (!query) {
+        searchStatus.textContent = 'Type a switch name to find it.';
+        return;
+      }
+      const found = nodes
+        .filter(([host]) => text(host.name).toLowerCase().includes(query))
+        .sort(
+          ([a], [b]) =>
+            Number(text(b.name).toLowerCase() === query) - Number(text(a.name).toLowerCase() === query) ||
+            natural(a.name, b.name)
+        );
+      if (!found.length) {
+        searchStatus.textContent = `No visible switch matches "${search.value.trim()}".`;
+        return;
+      }
+      focusCursor = query === focusQuery ? (focusCursor + 1) % found.length : 0;
+      focusQuery = query;
+      const [host, node] = found[focusCursor];
+      viewport?.centre(host.x, host.y);
+      select.host(findHost(payload, host.hostid) ?? host);
+      node.focus?.({ preventScroll: true });
+      searchStatus.textContent =
+        found.length > 1
+          ? `${found.length} switches match; showing ${focusCursor + 1}: ${text(host.name)}. Focus again for the next.`
+          : `Showing ${text(host.name)}.`;
+    }
     function draw() {
       graph.replaceChildren();
       overlayNote.replaceChildren();
@@ -1844,7 +2060,7 @@
       graph.appendChild(svg);
       viewport = topologyViewport(graph, svg, arranged, views, layoutKey, context.stubPoints);
       viewport.apply();
-      drawLegend(legend, context, arranged, lines);
+      drawnLegend = [context, arranged];
       mark();
       if (hosts.length > arranged.length)
         notice(graph, `The visible topology is capped at ${LAYOUT.maxNodes} nodes. Narrow the scope.`, 'warning');
@@ -1872,24 +2088,36 @@
       else return;
       event.preventDefault();
     });
-    // Searching only dims non-matching nodes, so it never rebuilds the drawing.
+    // Searching only dims non-matching nodes, so it never rebuilds the drawing; Enter focuses a match.
     search.addEventListener('input', () => {
       for (const [host, node] of nodes) node.classList.toggle('ne-muted', !matches(host));
+      searchStatus.textContent = '';
+    });
+    search.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      focusMatch();
     });
     for (const control of [mode, vlanPick, tracePick])
       control.addEventListener('change', () => {
         draw();
+        // The selected switch's actions follow the view (path to root, trace from it).
+        const sel = state.selection;
+        if (sel?.kind === 'host' && findHost(payload, sel.hostid)) select.host(findHost(payload, sel.hostid), true);
         changed();
       });
     draw();
     // A kept selection (widget refresh, or the Explorer's URL) is shown again without broadcasting.
     const kept = state.selection;
-    if (kept?.kind === 'host' && findHost(payload, kept.hostid)) select.host(findHost(payload, kept.hostid), true);
-    else if (kept?.kind === 'edge') {
+    if (kept?.kind === 'host') {
+      if (findHost(payload, kept.hostid)) select.host(findHost(payload, kept.hostid), true);
+      else notice(details, 'The selected switch is not in the current scope.', 'warning');
+    } else if (kept?.kind === 'edge') {
       const edge = groupedEdges(edges, collapse).find(e =>
         e.members.some(m => asRows(kept.edge_ids).includes(id(m.id)))
       );
       if (edge) select.edge(edge, true);
+      else notice(details, 'The selected link is not in the current scope or observation.', 'warning');
     } else if (kept?.kind === 'interface') {
       const port = findInterface(payload, kept.hostid, kept.uid);
       if (port) select.iface(port, true);
@@ -1939,6 +2167,9 @@
     details.setAttribute('aria-live', 'polite');
     notice(details, 'Select a switch, a link or a link end in the topology to see its details here.');
     selection.appendChild(details);
+    const summary = el('p', scopeSummary(payload), 'ne-scope-summary');
+    summary.setAttribute('aria-label', `Scope summary: ${scopeSummary(payload)}`);
+    graph.appendChild(summary);
     const topology = renderTopology(graph, payload, () => {}, state, {
       details,
       linked: false,
@@ -1959,25 +2190,35 @@
   }
   const VIEW_MODES = { layer2: 'physical', stp: 'stp', vlan: 'vlan' };
   /**
-   * Starts the Explorer page from the server's request, and keeps the view, VLAN and selected interface in the
-   * address (for bookmarks and sharing; the server re-checks permissions on every load) and in the scope form.
+   * Starts the Explorer page from the server's request, and keeps the view, VLAN, trace source and selection
+   * (switch, link or interface) in the address (for bookmarks and sharing) and in the scope form. Only opaque IDs
+   * go in the address, never names or LLDP data; the server validates them and re-checks permissions on every
+   * load, and an ID not in the permitted payload simply selects nothing.
    */
   function mountExplorer(root, payload, request = {}) {
+    const selection = request.interface_uid && request.interface_hostid
+      ? { kind: 'interface', hostid: id(request.interface_hostid), uid: id(request.interface_uid) }
+      : request.link
+        ? { kind: 'edge', edge_ids: [id(request.link)] }
+        : request.selected_hostid
+          ? { kind: 'host', hostid: id(request.selected_hostid) }
+          : undefined;
     const state = {
       mode: VIEW_MODES[request.view] ?? 'physical',
       vlan: request.vlan ? String(request.vlan) : undefined,
-      selection:
-        request.interface_uid && request.interface_hostid
-          ? { kind: 'interface', hostid: id(request.interface_hostid), uid: id(request.interface_uid) }
-          : undefined
+      trace: request.trace ? id(request.trace) : undefined,
+      selection
     };
     state.onChange = () => {
-      const sel = state.selection?.kind === 'interface' ? state.selection : null;
+      const sel = state.selection;
       const values = {
         view: Object.keys(VIEW_MODES).find(key => VIEW_MODES[key] === state.mode) ?? 'layer2',
         vlan: state.mode === 'vlan' ? id(state.vlan) : '',
-        interface_hostid: sel ? sel.hostid : '',
-        interface_uid: sel ? sel.uid : ''
+        trace: state.mode === 'vlan' && state.trace ? id(state.trace) : '',
+        selected_hostid: sel?.kind === 'host' ? sel.hostid : '',
+        link: sel?.kind === 'edge' ? id(asRows(sel.edge_ids)[0]) : '',
+        interface_hostid: sel?.kind === 'interface' ? sel.hostid : '',
+        interface_uid: sel?.kind === 'interface' ? sel.uid : ''
       };
       for (const input of document.querySelectorAll('form.ne-scope input[data-ne-state]')) {
         const value = values[input.dataset.neState] ?? '';
@@ -2220,6 +2461,8 @@
     graphLayout,
     layoutTopology,
     stpParents,
+    stpPathToRoot,
+    scopeSummary,
     groupedEdges,
     safeNavigation,
     fragmentContext,

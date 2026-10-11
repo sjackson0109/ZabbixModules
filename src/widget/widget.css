@@ -268,6 +268,9 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-swatch-rootpath {
   border-top: 5px solid #2676b9;
 }
+.ne-widget .ne-swatch-path {
+  border-top: 6px double #b8620b;
+}
 .ne-widget .ne-swatch-carried {
   border-top: 4px solid #287e3f;
 }
@@ -480,4 +483,24 @@ html[color-scheme='dark'] .ne-widget {
   display: inline-block;
   margin: 4px 0 8px;
   font-weight: bold;
+}
+/* Path to the root bridge: a double-weight dashed amber line and a dashed outline, so it never rests on colour. */
+.ne-widget .ne-edge-path {
+  stroke: #b8620b;
+  stroke-width: 7;
+  stroke-dasharray: 14 5;
+}
+.ne-widget .ne-node-path rect:not(.ne-node-halo) {
+  stroke: #b8620b;
+  stroke-width: 4;
+}
+.ne-widget .ne-scope-summary {
+  margin: 0 0 6px;
+  font-weight: bold;
+}
+.ne-widget .ne-search-status {
+  align-self: center;
+}
+.ne-widget .ne-stp-path ol {
+  margin: 4px 0 8px 20px;
 }
