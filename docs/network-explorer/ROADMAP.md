@@ -1,6 +1,6 @@
 # Roadmap: post-PR #12 improvement and hardening
 
-Status: active programme, started 10 October 2026 from `work` at `a0bc11f` (PR #12 merged). The next release is **1.3.0**; its changes collect under *Unreleased* in the [changelog](../../CHANGELOG.md) until it is deliberately cut.
+Status: **complete**. The programme started 10 October 2026 from `work` at `a0bc11f` (PR #12 merged), and all six units, A to F, were merged by 11 October 2026 (#13 to #18). The next release is **1.3.0**; its changes collect under *Unreleased* in the [changelog](../../CHANGELOG.md) until it is deliberately cut.
 
 The guiding principle is to polish and prove the existing architecture before widening the feature surface. Network Explorer reports observed evidence and never manufactures network state.
 
@@ -15,13 +15,13 @@ The guiding principle is to polish and prove the existing architecture before wi
 
 | Area | Current implementation | Gap |
 |---|---|---|
-| Topology layout | `graphLayout()` in `src/widget/runtime.js`: breadth-first order placed on a square grid; positions kept in page state | Not topology-aware; no STP root-oriented layout; components not separated; no fit/zoom/reset controls; legend is a single text line. *Addressed by PR C* |
+| Topology layout | `graphLayout()` in `src/widget/runtime.js`: breadth-first order placed on a square grid; positions kept in page state | Not topology-aware; no STP root-oriented layout; components not separated; no fit/zoom/reset controls; legend is a single text line. *Addressed by PR C (#15)* |
 | Scope scaling | `Limits::HOSTS = 300` bounds both what is drawn and the candidate population used to resolve LLDP peers (`NetworkService::scopeHosts()` reads `HOSTS + 1`) | Display budget and identity-resolution budget are one number; peers can stay unresolved in large mixed estates; truncation is reported only as an info finding. *Addressed by PR D (#16)* |
-| Browser tests in CI | `tests/browser/widgets.test.cjs` (Node, fast) runs in CI; `tests/browser/widgets.runtime.cjs` (Chromium) runs only by hand | Chromium suite not in CI; releases are not gated on the Zabbix 7.0/7.2/7.4 integration path. *Addressed by PR B* |
-| Release supply chain | Deterministic packages, `VERSION`, version checks, changelog notes, `SHA256SUMS`, workflow_dispatch release | Actions pinned by tag, not SHA; no build provenance. *Addressed by PR B* |
+| Browser tests in CI | `tests/browser/widgets.test.cjs` (Node, fast) runs in CI; `tests/browser/widgets.runtime.cjs` (Chromium) runs only by hand | Chromium suite not in CI; releases are not gated on the Zabbix 7.0/7.2/7.4 integration path. *Addressed by PR B (#14)* |
+| Release supply chain | Deterministic packages, `VERSION`, version checks, changelog notes, `SHA256SUMS`, workflow_dispatch release | Actions pinned by tag, not SHA; no build provenance. *Addressed by PR B (#14)* |
 | Browser source | One canonical `src/widget/runtime.js` (about 1,800 lines) and `widget.css`, copied by `scripts/sync_widget_assets.py` | Single file holds every concern |
 | Explorer UX | Selection, view, VLAN trace source dropdown, root marker | No scope summary, switch search/focus, STP path-to-root or click-to-trace; selected host/view/VLAN/interface already in the URL. *Addressed by PR E (#17)* |
-| Hardware qualification | Family handoffs, `tools/inventory/` walk capture and inventory export; no real device qualified | No qualification matrix or evidence states. *Addressed by PR F* |
+| Hardware qualification | Family handoffs, `tools/inventory/` walk capture and inventory export; no real device qualified | No qualification matrix or evidence states. *Addressed by PR F (#18)* |
 | Collector strategy | Python collector frozen as a schema 1.0 fallback | Future non-native acquisition had no documented home (now [below](#future-acquisition-agent)) |
 
 ## Delivery sequence
@@ -35,7 +35,7 @@ Each unit is one pull request into `work`, stopped at review-ready and merged on
 | C | Topology layout v2: topology-aware deterministic Layer 2 layout, STP root-oriented hierarchy from canonical STP evidence, separated components, stable positions, fit/zoom/reset with keyboard alternatives, stronger selection styling, compact legend | Merged (#15) |
 | D | Fleet scaling: separate display, identity-candidate, option and item budgets; domain-aware candidate retrieval; explicit oversized-scope message; tests with more than 300 candidates | Merged (#16) |
 | E | Explorer UX: scope summary, switch search/focus, STP path-to-root, VLAN click-to-trace, stable link selection in the URL where safe | Merged (#17) |
-| F | Hardware qualification framework: `docs/qualification/MATRIX.md`, sanitised evidence workflow, qualification states | In review |
+| F | Hardware qualification framework: `docs/qualification/MATRIX.md`, sanitised evidence workflow, qualification states | Merged (#18) |
 
 Internal source organisation (splitting `src/widget/` by responsibility while still shipping one `runtime.js` per module) is done alongside C and E where it reduces risk, not as a separate rewrite.
 
