@@ -45,10 +45,34 @@ final class FixtureGateway implements DataGateway {
             'tags'=>array_values(array_filter($host['tags'] ?? [], static fn($t) => in_array($t['tag'], $names, true)))],
             $this->hostRows), static fn($row) => $row['tags'] !== []));
     }
+    public array $idQueries = [];
+    public function hostids(array $tags, int $limit): array {
+        $this->idQueries[] = ['tags'=>$tags, 'limit'=>$limit];
+        $byName = [];
+        foreach ($tags as $tag) {
+            $byName[$tag['tag']][] = $tag['value'];
+        }
+        $ids = [];
+        foreach ($this->hostRows as $host) {
+            foreach ($byName as $name => $values) {
+                if (!array_filter($host['tags'] ?? [], static fn($t) => $t['tag'] === $name
+                        && in_array($t['value'], $values, true))) {
+                    continue 2;
+                }
+            }
+            $ids[] = (string) $host['hostid'];
+        }
+        usort($ids, static fn($a, $b) => (int) $a <=> (int) $b);
+        return array_slice($ids, 0, $limit);
+    }
     public array $itemQueries = [];
-    public function networkHostids(array $keys, int $limit): array {
+    public array $membershipQueries = [];
+    public function networkHostids(array $keys, int $limit, ?array $hostids = null): array {
+        $this->membershipQueries[] = ['hostids'=>$hostids, 'limit'=>$limit];
+        $within = $hostids === null ? null : array_fill_keys($hostids, true);
         $rows = array_slice(array_values(array_filter($this->itemRows, static fn($item) =>
-            in_array($item['key_'], $keys, true))), 0, $limit);
+            in_array($item['key_'], $keys, true) && ($within === null || isset($within[(string) $item['hostid']])))),
+            0, $limit);
         $ids = array_values(array_unique(array_map(static fn($item) => (string) $item['hostid'], $rows)));
         usort($ids, static fn($a, $b) => strnatcmp($a, $b));
         return $ids;

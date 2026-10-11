@@ -147,6 +147,7 @@ use Modules\NetworkExplorer\Services\NetworkService;
     $switch($gateway, 2, $domain('wide'), [1]);
     for ($id = 3; $id <= Limits::CANDIDATE_HOSTS + 10; ++$id) {
         $gateway->hostRows[] = ['hostid'=>(string) $id, 'host'=>'sw-'.$id, 'name'=>'Switch '.$id, 'tags'=>$domain('wide')];
+        $gateway->add((string) $id, 'ne.device.snapshot', [$envelope('device', [])]);
     }
     $wide = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create(['1']));
     $assert($ids($wide) === ['1', '2'], 'The seed and its neighbour are drawn.');
@@ -163,5 +164,51 @@ use Modules\NetworkExplorer\Services\NetworkService;
     $star = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create(['1']));
     $assert(($star['scope']['oversized']['devices'] ?? null) === 301 && $star['hosts'] === [],
         'A seed with 300 neighbours is 301 devices: oversized, not cut.');
+
+    // A mixed domain: 1,250 ordinary servers sort before 80 switches. The servers never use the candidate budget,
+    // the late switch stays a candidate and resolves as the early switch's peer, and nothing is called oversized.
+    $gateway = new FixtureGateway();
+    for ($id = 1; $id <= 1250; ++$id) {
+        $server($gateway, $id, $domain('campus-a'));
+    }
+    $switch($gateway, 1300, $site('core', 'campus-a'), [1379]);
+    for ($id = 1301; $id <= 1379; ++$id) {
+        $switch($gateway, $id, $domain('campus-a'), $id === 1379 ? [1300] : []);
+    }
+    $mixed = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create([], '', 'core'));
+    $assert($ids($mixed) === ['1300', '1379'] && !isset($mixed['scope']['oversized']),
+        'A late switch in a server-heavy domain resolves as the peer of an early one.');
+    $assert($mixed['budgets']['identity_candidates'] === 80 && !$mixed['scope']['candidates_truncated']
+        && !array_filter($mixed['findings'], static fn($f) => $f['rule'] === 'identity_candidates_truncated'),
+        'Only the 80 switches are identity candidates; the servers take none of the budget.');
+    $read = [];
+    foreach ($gateway->itemQueries as $query) {
+        $read = array_merge($read, $query['hostids']);
+    }
+    $assert(!array_filter($read, static fn($id) => (int) $id <= 1250), 'No server\'s items are read.');
+    $rows = [];
+    foreach ($gateway->hostQueries as $query) {
+        $rows = array_merge($rows, $query['hostids']);
+    }
+    $assert(!array_filter($rows, static fn($id) => (int) $id <= 1250) && !array_filter($gateway->hostQueries,
+        static fn($query) => $query['hostids'] === []), 'Full host rows are fetched only for Network Explorer hosts.');
+    $campus = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create([], '', '', 'campus-a'));
+    $assert(count($campus['hosts']) === 80 && !isset($campus['scope']['oversized']),
+        'Filtering by the domain draws its 80 switches, not an oversized count of servers.');
+    $seededMixed = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create(['1379']));
+    $assert($ids($seededMixed) === ['1300', '1379'], 'A seeded switch resolves its peer the same way.');
+
+    // More permitted hosts carry the filter's tag than can be listed: membership is unknown, so nothing is drawn
+    // and the message says what is actually known.
+    $gateway = new FixtureGateway();
+    for ($id = 1; $id <= Limits::SCOPE_HOSTS + 1; ++$id) {
+        $server($gateway, $id, $domain('vast'));
+    }
+    $switch($gateway, Limits::SCOPE_HOSTS + 2, $domain('vast'));
+    $vast = (new NetworkService($gateway, $now))->buildScope(NetworkScope::create([], '', '', 'vast'));
+    $assert(($vast['scope']['oversized']['hosts_truncated'] ?? false) && $vast['hosts'] === []
+        && str_contains($vast['scope']['oversized']['message'], 'More than '.Limits::SCOPE_HOSTS.' permitted hosts')
+        && !str_contains($vast['scope']['oversized']['message'], 'visible Network Explorer devices'),
+        'A filter matching more hosts than can be listed is not claimed to hold a known number of devices.');
     echo "Scale checks passed ($checks checks).\n";
 })();

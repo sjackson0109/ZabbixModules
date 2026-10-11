@@ -16,8 +16,7 @@ final class ApiGateway implements DataGateway {
         }
         if ($tags) {
             $options['evaltype'] = TAG_EVAL_TYPE_AND_OR;
-            $options['tags'] = array_map(static fn($tag) => ['tag'=>(string) $tag['tag'], 'value'=>(string) $tag['value'],
-                'operator'=>TAG_OPERATOR_EQUAL], $tags);
+            $options['tags'] = self::tagFilter($tags);
         }
         $rows = \API::Host()->get($options);
         foreach ($rows as &$row) {
@@ -30,9 +29,22 @@ final class ApiGateway implements DataGateway {
         return $rows;
     }
 
-    public function networkHostids(array $keys, int $limit): array {
-        $rows = \API::Item()->get(['output'=>['hostid'], 'monitored'=>true, 'filter'=>['key_'=>array_values($keys)],
-            'sortfield'=>'itemid', 'limit'=>$limit]);
+    public function hostids(array $tags, int $limit): array {
+        $rows = \API::Host()->get(['output'=>['hostid'], 'monitored_hosts'=>true, 'evaltype'=>TAG_EVAL_TYPE_AND_OR,
+            'tags'=>self::tagFilter($tags), 'sortfield'=>'hostid', 'limit'=>$limit]);
+        return array_map(static fn($row) => (string) $row['hostid'], $rows);
+    }
+
+    public function networkHostids(array $keys, int $limit, ?array $hostids = null): array {
+        if ($hostids === []) {
+            return [];
+        }
+        $options = ['output'=>['hostid'], 'monitored'=>true, 'filter'=>['key_'=>array_values($keys)],
+            'sortfield'=>'itemid', 'limit'=>$limit];
+        if ($hostids !== null) {
+            $options['hostids'] = array_values($hostids);
+        }
+        $rows = \API::Item()->get($options);
         $ids = array_values(array_unique(array_map(static fn($row) => (string) $row['hostid'], $rows)));
         usort($ids, static fn($a, $b) => strnatcmp($a, $b));
         return $ids;
@@ -82,5 +94,11 @@ final class ApiGateway implements DataGateway {
             $result += \Manager::History()->getLastValues($batch, $limit, Limits::HISTORY_PERIOD);
         }
         return $result;
+    }
+
+    /** Exact tag equality conditions; the same tag ORs, different tags AND (with TAG_EVAL_TYPE_AND_OR). */
+    private static function tagFilter(array $tags): array {
+        return array_map(static fn($tag) => ['tag'=>(string) $tag['tag'], 'value'=>(string) $tag['value'],
+            'operator'=>TAG_OPERATOR_EQUAL], $tags);
     }
 }

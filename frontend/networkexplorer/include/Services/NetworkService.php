@@ -179,13 +179,15 @@ final class NetworkService {
             $plan['primary'] = array_map('strval', array_keys($plan['hosts']));
             return $plan;
         }
-        $rows = $scope->seeded()
+        // A filter is resolved to Network Explorer hosts before anything is bounded by the candidate budget, so
+        // servers and other hosts sharing a site or domain tag never take a candidate's place.
+        $found = $scope->seeded() ? null : $this->members($scope->tagConditions());
+        $rows = $found === null
             ? $this->gateway->hosts($scope->seedHostids)
-            : $this->gateway->hosts([], $scope->tagConditions());
-        $rowsTruncated = !$scope->seeded() && count($rows) > Limits::CANDIDATE_HOSTS;
+            : ($found['ids'] ? $this->gateway->hosts($found['ids']) : []);
         $hosts = [];
         $domains = [];
-        foreach (array_slice($rows, 0, Limits::CANDIDATE_HOSTS) as $row) {
+        foreach ($rows as $row) {
             $host = $this->host($row);
             // An inaccessible seed, or one outside the filters, never turns into a wider request.
             if (!$scope->matches($host)) {
@@ -196,35 +198,53 @@ final class NetworkService {
                 $domains[$host['domain']] = true;
             }
         }
+        if ($found !== null && ($found['hosts_truncated'] || $found['truncated'] || count($hosts) > Limits::DISPLAY_HOSTS)) {
+            // Too many to draw, or too many permitted hosts to know them all: host rows only, nothing read.
+            ksort($hosts, SORT_NATURAL);
+            return ['primary'=>array_map('strval', array_keys($hosts)), 'hosts'=>$hosts, 'identity'=>[],
+                'candidates_truncated'=>false, 'oversized'=>['devices'=>count($hosts),
+                    'at_least'=>$found['hosts_truncated'] || $found['truncated'], 'hosts_truncated'=>$found['hosts_truncated']]];
+        }
         $primary = array_fill_keys(array_map('strval', array_keys($hosts)), true);
         $candidatesTruncated = false;
         if ($domains) {
-            $domainRows = !$scope->seeded() && $scope->site === ''
-                ? $rows
-                : $this->gateway->hosts([], array_map(static fn($domain) => ['tag'=>NetworkScope::DOMAIN_TAG,
+            $extra = $found !== null && $scope->site === ''
+                ? $found
+                : $this->members(array_map(static fn($domain) => ['tag'=>NetworkScope::DOMAIN_TAG,
                     'value'=>(string) $domain], array_keys($domains)));
-            $candidatesTruncated = count($domainRows) > Limits::CANDIDATE_HOSTS;
-            foreach (array_slice($domainRows, 0, Limits::CANDIDATE_HOSTS) as $row) {
+            $candidatesTruncated = $extra['truncated'] || $extra['hosts_truncated'];
+            $new = array_values(array_diff($extra['ids'], array_map('strval', array_keys($hosts))));
+            foreach ($new ? $this->gateway->hosts($new) : [] as $row) {
                 $host = $this->host($row);
-                if (!isset($hosts[$host['hostid']]) && isset($domains[$host['domain']])) {
+                if (isset($domains[$host['domain']])) {
                     $hosts[$host['hostid']] = $host;
                 }
             }
         }
         // Device and LLDP snapshots only: enough to tell Network Explorer hosts apart and to resolve peers.
         $identity = $reader->read($hosts, DatasetReader::IDENTITY);
-        // Hosts without any Network Explorer item (servers, other devices) are not part of the network view,
-        // unless explicitly selected.
+        // Hosts without collected Network Explorer data are not part of the network view, unless explicitly selected.
         $seedIds = array_fill_keys($scope->seedHostids, true);
         $hosts = array_filter($hosts, static fn($host) => isset($identity['collected'][$host['hostid']])
             || isset($seedIds[$host['hostid']]));
         $primary = array_values(array_map('strval', array_keys(array_intersect_key($primary, $hosts))));
-        $oversized = null;
-        if ($rowsTruncated || count($primary) > Limits::DISPLAY_HOSTS) {
-            $oversized = ['devices'=>count($primary), 'at_least'=>$rowsTruncated];
-        }
         return ['primary'=>$primary, 'hosts'=>$hosts, 'identity'=>$identity['datasets'],
-            'candidates_truncated'=>$candidatesTruncated, 'oversized'=>$oversized];
+            'candidates_truncated'=>$candidatesTruncated, 'oversized'=>null];
+    }
+
+    /**
+     * Network Explorer hosts among the permitted hosts carrying these tags. Host IDs are listed first (bounded by
+     * SCOPE_HOSTS), then the exact membership keys are looked up among them, and only then is the candidate budget
+     * applied, so it counts Network Explorer hosts, never arbitrary hosts met before membership was known.
+     * @return array{ids: string[], truncated: bool, hosts_truncated: bool}
+     */
+    private function members(array $tags): array {
+        $ids = $this->gateway->hostids($tags, Limits::SCOPE_HOSTS + 1);
+        $hostsTruncated = count($ids) > Limits::SCOPE_HOSTS;
+        $members = $ids ? $this->gateway->networkHostids(DatasetReader::MEMBERSHIP,
+            (Limits::CANDIDATE_HOSTS + 1) * count(DatasetReader::MEMBERSHIP), array_slice($ids, 0, Limits::SCOPE_HOSTS)) : [];
+        return ['ids'=>array_slice($members, 0, Limits::CANDIDATE_HOSTS),
+            'truncated'=>count($members) > Limits::CANDIDATE_HOSTS, 'hosts_truncated'=>$hostsTruncated];
     }
 
     /** Hosts linked to the drawn ones by LLDP from either end, resolved against every identity candidate. */
@@ -248,9 +268,12 @@ final class NetworkService {
     private function oversized(NetworkScope $scope, array $oversized, array $candidates): array {
         $count = $oversized['devices'];
         $limit = Limits::DISPLAY_HOSTS;
-        $message = ($oversized['at_least']
-            ? 'This scope contains more than '.$count.' visible Network Explorer devices.'
-            : 'This scope contains '.$count.' visible Network Explorer devices.')
+        $message = (!empty($oversized['hosts_truncated'])
+            ? 'More than '.Limits::SCOPE_HOSTS.' permitted hosts match this scope, so its Network Explorer devices'
+                .' cannot all be identified.'
+            : ($oversized['at_least']
+                ? 'This scope contains more than '.$count.' visible Network Explorer devices.'
+                : 'This scope contains '.$count.' visible Network Explorer devices.'))
             .' The interactive topology is limited to '.$limit.' devices. Select a site, domain or seed device'
             .' to narrow the view. Findings and collection quality are not evaluated for this scope.';
         $result = ['schema_version'=>'1.1', 'generated_at'=>gmdate('c', $this->now ?? time()),

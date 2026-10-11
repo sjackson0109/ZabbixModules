@@ -82,6 +82,21 @@ final class Manager {
     $assert($ids === ['3', '12'] && $call['filter'] === ['key_'=>['ne.device.snapshot']] && $call['monitored']
         && $call['limit'] === 50 && !isset($call['hostids']),
         'Network Explorer hosts are found through the user\'s own item.get by exact key, bounded and in host order.');
+    (new ApiGateway())->networkHostids(['ne.device.snapshot'], 50, ['3', '12']);
+    $call = end(API::$objects['Item']->calls);
+    $assert($call['hostids'] === ['3', '12'] && $call['filter'] === ['key_'=>['ne.device.snapshot']],
+        'Membership within a filter is looked up only among the hosts that filter listed.');
+    $before = count(API::$objects['Item']->calls);
+    $assert((new ApiGateway())->networkHostids(['ne.device.snapshot'], 50, []) === []
+        && count(API::$objects['Item']->calls) === $before, 'An empty host list never widens to every host.');
+    API::$objects['Host'] = new StubApiObject([['hostid'=>'4'], ['hostid'=>'9']]);
+    $ids = (new ApiGateway())->hostids([['tag'=>'ne.domain', 'value'=>'d-a']], 20001);
+    $call = end(API::$objects['Host']->calls);
+    $assert($ids === ['4', '9'] && $call['output'] === ['hostid'] && $call['limit'] === 20001 && $call['monitored_hosts']
+        && $call['tags'] === [['tag'=>'ne.domain', 'value'=>'d-a', 'operator'=>TAG_OPERATOR_EQUAL]]
+        && !isset($call['selectMacros']) && !isset($call['selectTags']),
+        'Scope enumeration lists only host IDs, by exact tag, through the user\'s own host.get.');
+    API::$objects['Host'] = new StubApiObject([['hostid'=>'1','host'=>'a','name'=>'a','macros'=>[]]]);
     API::$objects['Item'] = new StubApiObject([['itemid'=>'10','hostid'=>'1','key_'=>'ne.raw.lldp','value_type'=>'4']]);
     (new ApiGateway())->hosts([], [['tag'=>'site', 'value'=>'east'], ['tag'=>'ne.domain', 'value'=>'d-a']]);
     $call = end(API::$objects['Host']->calls);
