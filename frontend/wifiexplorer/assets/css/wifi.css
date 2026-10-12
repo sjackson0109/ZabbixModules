@@ -1,0 +1,19 @@
+/* Wi-Fi Explorer page. Colours come from Zabbix's theme where possible, so dark and high-contrast themes work. */
+.we-explorer .we-scope { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; margin: 0 0 12px; }
+.we-explorer .we-scope-field { display: flex; flex-direction: column; gap: 4px; }
+.we-explorer .we-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 0 0 8px; }
+.we-explorer .we-tile { border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 2px; padding: 8px 10px; }
+.we-explorer .we-tile-warning { border-left: 4px solid #e45959; }
+.we-explorer .we-tile-title { font-weight: bold; opacity: 0.8; }
+.we-explorer .we-tile-value { font-size: 20px; margin: 4px 0; }
+.we-explorer .we-tile-detail { opacity: 0.8; }
+.we-explorer .we-not-available { opacity: 0.8; font-style: italic; margin: 0 0 12px; }
+.we-explorer h2 { margin: 16px 0 6px; font-size: 14px; }
+.we-explorer h3 { margin: 10px 0 6px; font-size: 13px; }
+.we-explorer .we-detail { border: 1px solid rgba(128, 128, 128, 0.35); padding: 8px 10px; margin: 0 0 12px; }
+.we-explorer .we-status-down, .we-explorer .we-severity-warning { color: #e45959; font-weight: bold; }
+.we-explorer .we-status-unknown { opacity: 0.75; font-style: italic; }
+.we-explorer .we-row-warning td, .we-explorer .we-selected td { background: rgba(255, 200, 89, 0.15); }
+.we-explorer .we-empty { padding: 16px 0; }
+.we-explorer .we-quality { margin: 16px 0 0; }
+.we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }

@@ -1,0 +1,60 @@
+{
+  "classification": {
+    "capabilities": {
+      "ap_inventory": "unsupported",
+      "ap_state": "unsupported",
+      "controller": "absent",
+      "radio_inventory": "unsupported",
+      "radio_state": "unsupported"
+    },
+    "datasets": {
+      "ap_inventory": {
+        "errors": [
+          "not_virtual_controller"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "ap_state": {
+        "errors": [
+          "not_virtual_controller"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "radio_inventory": {
+        "errors": [
+          "not_virtual_controller"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "radio_state": {
+        "errors": [
+          "not_virtual_controller"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      }
+    },
+    "format": "wifi-explorer-classification-1",
+    "system": {
+      "sys_descr": "Synthetic Aruba Instant lab agent (invented)",
+      "sys_object_id": "1.3.6.1.4.1.14823.1.2.999"
+    }
+  },
+  "description": "Synthetic Aruba Instant member AP (virtual-controller address 0.0.0.0): the cluster tables are absent, so every cluster dataset is unsupported.",
+  "id": "lab-aruba-instant-member",
+  "kind": "synthetic",
+  "walk": "tests/fixtures/wifi/walks/aruba-instant-member.snmprec"
+}

@@ -7,3 +7,4 @@ require __DIR__.'/fixtures.php';
 require __DIR__.'/gateway.php';
 require __DIR__.'/scope.php';
 require __DIR__.'/scale.php';
+require __DIR__.'/wifi.php';

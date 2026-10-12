@@ -1,0 +1,53 @@
+{
+  "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs.",
+  "templates": {
+    "Aruba Instant VC": {
+      "description": "Aruba Instant cluster inventory and state from AI-AP-MIB, read from the elected virtual controller. Link it to one host per cluster, pointed at the cluster's floating virtual controller (AVC) address. On a member AP every AP and radio dataset reports unsupported (not_virtual_controller) instead of an empty site."
+    }
+  },
+  "datasets": [
+    {
+      "dataset": "device", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
+      "call": "ARUBA.device(w, e)", "adapter": "aruba-instant-device",
+      "raw_key": "we.raw.aruba.system", "attempt_key": "we.device.attempt", "snapshot_keys": ["we.device.snapshot"],
+      "interval_macro": "{$WE.DEVICE.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
+      "walk": ["1.3.6.1.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.1.4", "1.3.6.1.4.1.14823.2.3.3.1.1.5"]
+    },
+    {
+      "dataset": "ap_inventory", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
+      "call": "ARUBA.apInventory(w, e)", "adapter": "aruba-instant-ap-inventory",
+      "raw_key": "we.raw.aruba.ap.inventory", "attempt_key": "we.ap.inventory.attempt", "snapshot_keys": ["we.ap.inventory"],
+      "interval_macro": "{$WE.AP.INVENTORY.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.3",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.4", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.6"]
+    },
+    {
+      "dataset": "ap_state", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
+      "call": "ARUBA.apState(w, e)", "adapter": "aruba-instant-ap-state",
+      "raw_key": "we.raw.aruba.ap.state", "attempt_key": "we.ap.state.attempt", "snapshot_keys": ["we.ap.state"],
+      "interval_macro": "{$WE.AP.STATE.INTERVAL}", "interval": "5m", "stale": "15m", "history": "1d",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.7", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.8",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.9", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.10", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.11"]
+    },
+    {
+      "dataset": "radio_inventory", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
+      "call": "ARUBA.radioInventory(w, e)", "adapter": "aruba-instant-radio-inventory",
+      "raw_key": "we.raw.aruba.radio.inventory", "attempt_key": "we.radio.inventory.attempt", "snapshot_keys": ["we.radio.inventory"],
+      "interval_macro": "{$WE.RADIO.INVENTORY.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.3"]
+    },
+    {
+      "dataset": "radio_state", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
+      "call": "ARUBA.radioState(w, e)", "adapter": "aruba-instant-radio-state",
+      "raw_key": "we.raw.aruba.radio.state", "attempt_key": "we.radio.state.attempt", "snapshot_keys": ["we.radio.state"],
+      "interval_macro": "{$WE.RADIO.STATE.INTERVAL}", "interval": "5m", "stale": "15m", "history": "1d",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.4",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.5", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.6", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.8",
+               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.20"]
+    }
+  ]
+}

@@ -11,6 +11,8 @@ Applies to release 1.3.0 on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before
 5. Configure authorised hosts and their controlled `ne.domain` tags, and link a dataset producer (see Templates below); without data, widgets show missing/unknown observations rather than invented ports.
 6. Open **Monitoring → Network Explorer** for the network-wide view; it needs no dashboard. For one switch, use the inherited host dashboard (see Templates below). The widgets can also be added to any dashboard you build, selecting a host or using native Host navigator communication. Validate with an ordinary scoped user as well as an administrator.
 
+Wi-Fi Explorer is an optional seventh directory, `frontend/wifiexplorer`. Copy it beside `networkexplorer` (it uses that module's services), enable it, import `templates/native/<version>/wifi_explorer_snmp.yaml` and link that template to one host per Aruba Instant cluster, pointed at the virtual-controller address. See the [Wi-Fi Explorer README](../wifi-explorer/README.md).
+
 `/usr/share/zabbix/modules` is verified in the included official-container labs; it is not assumed to be the path of every package installation.
 
 ## Python collector

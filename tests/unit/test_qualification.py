@@ -204,3 +204,41 @@ def test_rendered_matrix_has_every_capability_column():
                   "Qualified on"):
         assert label in header
     assert copy.deepcopy(rendered) == qualify.MATRIX_MD.read_text()
+
+
+# --- Wi-Fi Explorer --------------------------------------------------------------------------------------------------
+
+WIFI_WALKS = ROOT / "tests/fixtures/wifi/walks"
+
+
+@needs_node
+def test_wifi_matrix_is_current_and_backed_by_its_evidence():
+    assert qualify.main(["--product", "wifi", "matrix", "--check"]) == 0
+
+
+@needs_node
+def test_wifi_classification_tells_a_controller_from_a_member():
+    vc = qualify.classify_wifi(WIFI_WALKS / "aruba-instant-vc.snmprec")["capabilities"]
+    member = qualify.classify_wifi(WIFI_WALKS / "aruba-instant-member.snmprec")["capabilities"]
+    assert set(vc.values()) == {"ok"}
+    assert member == {"controller": "absent", "ap_inventory": "unsupported", "ap_state": "unsupported",
+                      "radio_inventory": "unsupported", "radio_state": "unsupported"}
+
+
+def test_wifi_claims_need_wifi_evidence():
+    states = {c: "Unqualified" for c in qualify.WIFI_CAPABILITIES}
+    claim = {"vendor": "Aruba", "family": "Instant", "model": "AP-515", "firmware": "8.10",
+             "states": {**states, "ap_state": "Captured-walk tested"}, "limitations": "", "evidence": []}
+    errors = qualify.validate_matrix({"rows": [claim]}, qualify.evidence_index("wifi"), "wifi")
+    assert any("ap_state is 'Captured-walk tested'" in e for e in errors)
+    switch_states = {"rows": [{**claim, "states": {c: "Unqualified" for c in qualify.CAPABILITIES}}]}
+    assert any("states must name exactly controller" in e
+               for e in qualify.validate_matrix(switch_states, {}, "wifi"))
+
+
+def test_unsanitised_aruba_ap_names_and_serials_are_rejected():
+    ap = qualify.ARUBA_AI + ".2.1.1"
+    errors, _ = qualify.check_walk([(f"{ap}.2.0.0.94.0.83.1", "4", "Reception-AP"),
+                                    (f"{ap}.4.0.0.94.0.83.1", "4", "CNJ7KSV123"),
+                                    (f"{ap}.2.0.0.94.0.83.2", "4", "device-002")])
+    assert len(errors) == 2 and "AP name" in errors[0] and "AP serial" in errors[1]

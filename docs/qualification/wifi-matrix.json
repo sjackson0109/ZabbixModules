@@ -1,0 +1,73 @@
+{
+  "format": "wifi-explorer-qualification-matrix-1",
+  "comment": "Source of WIFI_MATRIX.md. Change a state only with cited evidence; see README.md.",
+  "rows": [
+    {
+      "vendor": "Aruba",
+      "family": "Instant virtual controller (synthetic lab)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "controller": "Lab simulated",
+        "ap_inventory": "Lab simulated",
+        "ap_state": "Lab simulated",
+        "radio_inventory": "Lab simulated",
+        "radio_state": "Lab simulated"
+      },
+      "limitations": "Invented AI-AP-MIB walks (tests/fixtures/wifi/walks) replayed through the Wi-Fi Explorer template normalisers. Qualifies the parsers and templates only, never a model or firmware.",
+      "evidence": [
+        "lab-aruba-instant-vc",
+        "lab-aruba-instant-member"
+      ],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Aruba",
+      "family": "Instant (IAP) virtual controller",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "controller": "Unqualified",
+        "ap_inventory": "Unqualified",
+        "ap_state": "Unqualified",
+        "radio_inventory": "Unqualified",
+        "radio_state": "Unqualified"
+      },
+      "limitations": "No sanitised captured walk yet (capture_walk.py --profile aruba-instant). Only the virtual controller lists the cluster; radio bands are proven only for unambiguous channels; WLSX-WLAN-MIB is not read.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Ubiquiti",
+      "family": "UniFi",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "controller": "Unqualified",
+        "ap_inventory": "Unqualified",
+        "ap_state": "Unqualified",
+        "radio_inventory": "Unqualified",
+        "radio_state": "Unqualified"
+      },
+      "limitations": "No adapter or captured evidence yet. Cluster state is likely controller-API only.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
+      "vendor": "Cisco",
+      "family": "Wireless LAN controllers",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "controller": "Unqualified",
+        "ap_inventory": "Unqualified",
+        "ap_state": "Unqualified",
+        "radio_inventory": "Unqualified",
+        "radio_state": "Unqualified"
+      },
+      "limitations": "No adapter or captured evidence yet.",
+      "evidence": [],
+      "qualified_on": null
+    }
+  ]
+}

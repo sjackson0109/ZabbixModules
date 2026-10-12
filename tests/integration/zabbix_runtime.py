@@ -17,6 +17,7 @@ from pathlib import Path
 import secrets
 import socket
 import struct
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -77,6 +78,83 @@ def canonical(dataset: str, rows: list, status: str = "ok", complete: bool = Tru
             "status": status, "complete": complete,
             "source": {"method": "fixture", "adapter": "integration-lab", "version": "0.1.0"},
             "capability": {"state": "supported", "reason": None}, "errors": [], "data": rows}
+
+
+def wifi_envelope(raw_key: str, walk: str) -> dict:
+    """A Wi-Fi envelope from the real template normaliser over a synthetic walk, stamped now."""
+    out = subprocess.run(["node", str(ROOT / "tests/js/run_normaliser.cjs"), raw_key,
+                          str(ROOT / "tests/fixtures/wifi/walks" / walk)], check=True, capture_output=True, text=True)
+    envelope = json.loads(out.stdout)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    envelope.update({"generation_id": secrets.token_hex(16), "attempted_at": now,
+                     "observed_at": now if envelope["observed_at"] else None})
+    return envelope
+
+
+WIFI_DATASETS = {"device": ("we.device.snapshot", "we.raw.aruba.system"),
+                 "ap_inventory": ("we.ap.inventory", "we.raw.aruba.ap.inventory"),
+                 "ap_state": ("we.ap.state", "we.raw.aruba.ap.state"),
+                 "radio_inventory": ("we.radio.inventory", "we.raw.aruba.radio.inventory"),
+                 "radio_state": ("we.radio.state", "we.raw.aruba.radio.state")}
+
+
+def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result: dict) -> None:
+    """Wi-Fi Explorer: the generated template imports, and the page and data route show only readable owners."""
+    rules = {k: {"createMissing": True, "updateExisting": True} for k in ["template_groups", "templates", "items", "triggers", "valueMaps"]}
+    native = ROOT / "templates/native" / config["version"] / "wifi_explorer_snmp.yaml"
+    assert_that(api("configuration.import", {"format": "yaml", "source": native.read_text(), "rules": rules}) is True,
+                "Wi-Fi Explorer template import failed.")
+    result["checks"].append("wifi-template-import")
+    # The lab cannot run SNMP against an Aruba controller, so a replay template receives the same keys by trapper.
+    lab = api("template.get", {"output": ["templateid"], "filter": {"host": "Wi-Fi Explorer LAB replay"}})
+    if lab:
+        templateid = lab[0]["templateid"]
+    else:
+        groupid = api("templategroup.get", {"output": ["groupid"], "filter": {"name": "Templates/Wi-Fi Explorer"}})[0]["groupid"]
+        templateid = api("template.create", {"host": "Wi-Fi Explorer LAB replay",
+                                             "groups": [{"groupid": groupid}]})["templateids"][0]
+        api("item.create", [{"hostid": templateid, "name": key, "key_": key, "type": 2, "value_type": 4, "history": "7d"}
+                            for key, _ in WIFI_DATASETS.values()])
+    hostids = {}
+    for name, groupid, site in [("we-lab-vc", groups[0], "lab-west"), ("we-lab-hidden-vc", groups[1], "lab-secret")]:
+        found = api("host.get", {"output": ["hostid"], "filter": {"host": name}})
+        hostids[name] = found[0]["hostid"] if found else api("host.create", {
+            "host": name, "name": name, "groups": [{"groupid": groupid}], "templates": [{"templateid": templateid}],
+            "tags": [{"tag": "site", "value": site}]})["hostids"][0]
+    compose(config, "exec", "-T", "server", "zabbix_server", "-R", "config_cache_reload", capture=True)
+    for name in hostids:
+        for dataset, (key, raw_key) in WIFI_DATASETS.items():
+            envelope = wifi_envelope(raw_key, "aruba-instant-vc.snmprec")
+            if name == "we-lab-hidden-vc" and dataset == "ap_inventory":
+                for row in envelope["data"]:
+                    row["name"] = "secret-" + row["name"]
+            poll(lambda: deliver(config, name, key, envelope))
+    result["checks"].append("wifi-sender-five-datasets-two-owners")
+    if user_browser is None:
+        return
+    menu = frontend(user_browser, config, "wifiexplorer.view", {})
+    assert_that("action=wifiexplorer.view" in menu, "Monitoring menu has no Wi-Fi Explorer entry for a permitted user.")
+
+    def visible():
+        data = json.loads(frontend(user_browser, config, "wifiexplorer.data", {}))
+        return data if len(data.get("aps", [])) == 6 else None
+
+    data = poll(visible)
+    encoded = json.dumps(data)
+    assert_that([o["name"] for o in data["owners"]] == ["we-lab-vc"] and "secret-" not in encoded
+                and "lab-secret" not in encoded and hostids["we-lab-hidden-vc"] not in [q["hostid"] for q in data["quality"]],
+                "A Wi-Fi source the viewer cannot read reached the data route.")
+    assert_that(data["overview"]["aps"]["down"] == 1 and data["overview"]["high_utilisation_radios"] == 1,
+                f"Wi-Fi overview does not match the lab walk: {data['overview']}")
+    result["checks"].append("wifi-data-permission-filtered")
+    selected = next(ap for ap in data["aps"] if ap["name"] == "lab-ap-02")
+    page = frontend(user_browser, config, "wifiexplorer.view", {"site": "lab-west", "ap": selected["ap_uid"]})
+    assert_that("Wi-Fi Explorer" in page and "lab-ap-02" in page and "channel utilisation 82%" in page
+                and "secret-" not in page, "Wi-Fi Explorer page did not render the selected AP.")
+    hidden_site = frontend(user_browser, config, "wifiexplorer.view", {"site": "lab-secret"})
+    assert_that("No Wi-Fi data source is visible to you in this scope." in hidden_site and "secret-" not in hidden_site,
+                "An unreadable site showed Wi-Fi data.")
+    result["checks"].append("wifi-explorer-html-page")
 
 
 def interface(uid: str, index: int, name: str) -> dict:
@@ -367,6 +445,7 @@ def run(version: str, require_frontend: bool = True) -> dict:
         result["checks"].append("native-rejected-master-marks-health-failed")
         send(config, "ne-lab-a", "ne.interfaces.attempt", saved[("ne-lab-a", "interfaces")])
         poll(lambda: items(hostids["ne-lab-a"]).get("ne.interfaces.attempt", {}).get("state") == "0")
+    wifi_checks(config, api, (visible_group, private_group), user_browser if require_frontend else None, result)
     reportfile = config["state"] / "integration-result.json"
     reportfile.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2), flush=True)

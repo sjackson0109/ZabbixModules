@@ -16,18 +16,24 @@ const SOURCE = path.join(ROOT, 'templates', 'source');
 
 global.sha256 = (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex');
 
+// Network Explorer producers, then Wi-Fi Explorer producers (which list their scripts and run through WE.run).
+const MANIFESTS = [path.join(SOURCE, 'datasets.json'), path.join(SOURCE, 'wifi', 'datasets.json')];
+
 function datasetFor(rawKey) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(SOURCE, 'datasets.json'), 'utf8'));
-  const entry = manifest.datasets.find((d) => d.raw_key === rawKey);
-  if (!entry) throw new Error(`unknown raw key ${rawKey}`);
-  return entry;
+  for (const file of MANIFESTS) {
+    const entry = JSON.parse(fs.readFileSync(file, 'utf8')).datasets.find((d) => d.raw_key === rawKey);
+    if (entry) return entry;
+  }
+  throw new Error(`unknown raw key ${rawKey}`);
 }
 
-// Same composition as templates/generate_snmp.py.
+// Same composition as templates/generate_snmp.py and templates/generate_wifi.py.
 function compose(entry) {
   const read = (name) => fs.readFileSync(path.join(SOURCE, 'js', name), 'utf8');
-  return [read('lib.js'), read(entry.script),
-    `return JSON.stringify(NE.run('${entry.dataset}', '${entry.adapter}', value, function (w, e) { return ${entry.call}; }));`,
+  const scripts = entry.scripts || ['lib.js', entry.script];
+  const runner = entry.scripts ? 'WE.run' : 'NE.run';
+  return [...scripts.map(read),
+    `return JSON.stringify(${runner}('${entry.dataset}', '${entry.adapter}', value, function (w, e) { return ${entry.call}; }));`,
   ].join('\n');
 }
 

@@ -99,6 +99,28 @@ The stored classification must equal a fresh replay; a pytest re-runs every comm
 - Captured or field evidence without a vendor, family, model and firmware, and field evidence without `observed_on`, `zabbix_version` and `verified`.
 - A walk path that leaves its evidence directory, or the repository for synthetic evidence.
 
+## Wi-Fi evidence
+
+Wi-Fi Explorer sources use the same states, evidence kinds and checks, with their own matrix and evidence root:
+
+| | Network Explorer | Wi-Fi Explorer |
+|---|---|---|
+| Matrix | `matrix.json` → [MATRIX.md](MATRIX.md) | `wifi-matrix.json` → [WIFI_MATRIX.md](WIFI_MATRIX.md) |
+| Evidence | `tests/fixtures/qualification/<id>/` | `tests/fixtures/wifi/qualification/<id>/` |
+| Capabilities | Interfaces, ENTITY, MAU, LLDP, VLAN, STP, LAG | Controller, AP inventory, AP state, Radio inventory, Radio state |
+| Commands | `qualify.py classify`, `check-evidence`, `matrix` | the same with `--product wifi` |
+
+For Aruba Instant, capture the elected virtual controller (or the cluster's floating AVC address) and, separately, one member AP:
+
+```sh
+python3 tools/inventory/capture_walk.py --host <avc-address> --label aruba-iap-515-8.13.2.0-vc \
+  --profile aruba-instant --sanitise --sanitise-serials --sanitise-aliases --sanitise-map <private-map.json>
+```
+
+`--profile aruba-instant` adds only the AI-AP-MIB objects Wi-Fi Explorer reads (VC version and address, `aiAccessPointTable`, `aiRadioTable`), never the client or rogue tables. The sanitiser replaces AP names (`device-NNN`) and AP serial numbers (`SERIAL-NNNN`), and IP addresses as usual; `check-evidence --product wifi` rejects a walk that still holds a real AP name or serial. AP MAC addresses are kept, as for switches, because AP identities are derived from them.
+
+The *Controller* capability is `ok` only for a walk from a virtual controller; a member AP classifies as `absent` with its cluster datasets `unsupported`, which is expected evidence rather than a failure.
+
 ## Never commit
 
 - Credentials, community strings, SNMPv3 users or passphrases, API tokens or environment dumps.
