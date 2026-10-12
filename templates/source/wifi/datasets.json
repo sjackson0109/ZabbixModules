@@ -2,52 +2,259 @@
   "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs.",
   "templates": {
     "Aruba Instant VC": {
-      "description": "Aruba Instant cluster inventory and state from AI-AP-MIB, read from the elected virtual controller. Link it to one host per cluster, pointed at the cluster's floating virtual controller (AVC) address. On a member AP every AP and radio dataset reports unsupported (not_virtual_controller) instead of an empty site."
+      "description": "Aruba Instant cluster inventory and state from AI-AP-MIB, read from the elected virtual controller. Link it to one host per cluster, pointed at the cluster's floating virtual controller (AVC) address. On a member AP every AP and radio dataset reports unsupported (not_virtual_controller) instead of an empty site.",
+      "macros": [
+        {
+          "macro": "{$WE.CLIENT.IDENTIFIERS}",
+          "value": "partial",
+          "description": "Client identifiers kept in the client snapshot: full (MAC, IP address and name), partial (manufacturer prefix of the MAC only) or pseudonymised (keyed client ID only; needs {$WE.CLIENT.KEY}). Applied before anything is stored."
+        },
+        {
+          "macro": "{$WE.CLIENT.KEY}",
+          "value": "",
+          "type": "SECRET_TEXT",
+          "description": "Secret key for client IDs. Set it (as a secret macro on the host or globally) so client IDs cannot be reversed by trying every MAC address. Changing it changes every client ID."
+        }
+      ]
+    },
+    "Aruba Instant AP": {
+      "description": "One Aruba Instant AP's own RF view from AI-AP-MIB: the neighbouring and interfering access points this AP detects (aiInterferAccessPointTable). Link it to a host per AP, pointed at that AP's own address (not the virtual controller address). Detections keep the AP's own classification; Wi-Fi Explorer never calls a detection malicious."
     }
   },
   "datasets": [
     {
-      "dataset": "device", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
-      "call": "ARUBA.device(w, e)", "adapter": "aruba-instant-device",
-      "raw_key": "we.raw.aruba.system", "attempt_key": "we.device.attempt", "snapshot_keys": ["we.device.snapshot"],
-      "interval_macro": "{$WE.DEVICE.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
-      "walk": ["1.3.6.1.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.1.4", "1.3.6.1.4.1.14823.2.3.3.1.1.5"]
+      "dataset": "device",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.device(w, e)",
+      "adapter": "aruba-instant-device",
+      "raw_key": "we.raw.aruba.system",
+      "attempt_key": "we.device.attempt",
+      "snapshot_keys": [
+        "we.device.snapshot"
+      ],
+      "interval_macro": "{$WE.DEVICE.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5"
+      ]
     },
     {
-      "dataset": "ap_inventory", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
-      "call": "ARUBA.apInventory(w, e)", "adapter": "aruba-instant-ap-inventory",
-      "raw_key": "we.raw.aruba.ap.inventory", "attempt_key": "we.ap.inventory.attempt", "snapshot_keys": ["we.ap.inventory"],
-      "interval_macro": "{$WE.AP.INVENTORY.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
-      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.3",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.4", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.6"]
+      "dataset": "ap_inventory",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.apInventory(w, e)",
+      "adapter": "aruba-instant-ap-inventory",
+      "raw_key": "we.raw.aruba.ap.inventory",
+      "attempt_key": "we.ap.inventory.attempt",
+      "snapshot_keys": [
+        "we.ap.inventory"
+      ],
+      "interval_macro": "{$WE.AP.INVENTORY.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.6"
+      ]
     },
     {
-      "dataset": "ap_state", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
-      "call": "ARUBA.apState(w, e)", "adapter": "aruba-instant-ap-state",
-      "raw_key": "we.raw.aruba.ap.state", "attempt_key": "we.ap.state.attempt", "snapshot_keys": ["we.ap.state"],
-      "interval_macro": "{$WE.AP.STATE.INTERVAL}", "interval": "5m", "stale": "15m", "history": "1d",
-      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.7", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.8",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.9", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.10", "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.11"]
+      "dataset": "ap_state",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.apState(w, e)",
+      "adapter": "aruba-instant-ap-state",
+      "raw_key": "we.raw.aruba.ap.state",
+      "attempt_key": "we.ap.state.attempt",
+      "snapshot_keys": [
+        "we.ap.state"
+      ],
+      "interval_macro": "{$WE.AP.STATE.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.7",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.8",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.9",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.10",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.11"
+      ]
     },
     {
-      "dataset": "radio_inventory", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
-      "call": "ARUBA.radioInventory(w, e)", "adapter": "aruba-instant-radio-inventory",
-      "raw_key": "we.raw.aruba.radio.inventory", "attempt_key": "we.radio.inventory.attempt", "snapshot_keys": ["we.radio.inventory"],
-      "interval_macro": "{$WE.RADIO.INVENTORY.INTERVAL}", "interval": "1h", "stale": "3h", "history": "7d",
-      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.3"]
+      "dataset": "radio_inventory",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.radioInventory(w, e)",
+      "adapter": "aruba-instant-radio-inventory",
+      "raw_key": "we.raw.aruba.radio.inventory",
+      "attempt_key": "we.radio.inventory.attempt",
+      "snapshot_keys": [
+        "we.radio.inventory"
+      ],
+      "interval_macro": "{$WE.RADIO.INVENTORY.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.3"
+      ]
     },
     {
-      "dataset": "radio_state", "template": "Aruba Instant VC", "scripts": ["lib.js", "wifi/wifi.js", "wifi/aruba_instant.js"],
-      "call": "ARUBA.radioState(w, e)", "adapter": "aruba-instant-radio-state",
-      "raw_key": "we.raw.aruba.radio.state", "attempt_key": "we.radio.state.attempt", "snapshot_keys": ["we.radio.state"],
-      "interval_macro": "{$WE.RADIO.STATE.INTERVAL}", "interval": "5m", "stale": "15m", "history": "1d",
-      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.14823.2.3.3.1.1.5",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.4",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.5", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.6", "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.8",
-               "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.20"]
+      "dataset": "radio_state",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.radioState(w, e)",
+      "adapter": "aruba-instant-radio-state",
+      "raw_key": "we.raw.aruba.radio.state",
+      "attempt_key": "we.radio.state.attempt",
+      "snapshot_keys": [
+        "we.radio.state"
+      ],
+      "interval_macro": "{$WE.RADIO.STATE.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.6",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.8",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.2.1.20"
+      ]
+    },
+    {
+      "dataset": "ssid",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.ssids(w, e)",
+      "adapter": "aruba-instant-ssid",
+      "raw_key": "we.raw.aruba.ssid",
+      "attempt_key": "we.ssid.attempt",
+      "snapshot_keys": [
+        "we.ssid.snapshot"
+      ],
+      "interval_macro": "{$WE.SSID.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.7.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.7.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.7.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.7.1.5"
+      ]
+    },
+    {
+      "dataset": "client",
+      "template": "Aruba Instant VC",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.clients(w, e, '{$WE.CLIENT.IDENTIFIERS}', '{$WE.CLIENT.KEY}')",
+      "adapter": "aruba-instant-client",
+      "raw_key": "we.raw.aruba.client",
+      "attempt_key": "we.client.attempt",
+      "snapshot_keys": [
+        "we.client.snapshot"
+      ],
+      "interval_macro": "{$WE.CLIENT.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.1",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.7",
+        "1.3.6.1.4.1.14823.2.3.3.1.2.4.1.16"
+      ]
+    },
+    {
+      "dataset": "rf_neighbour",
+      "template": "Aruba Instant AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/aruba_instant.js"
+      ],
+      "call": "ARUBA.rfNeighbours(w, e)",
+      "adapter": "aruba-instant-rf-neighbour",
+      "raw_key": "we.raw.aruba.rf.neighbour",
+      "attempt_key": "we.rf.neighbour.attempt",
+      "snapshot_keys": [
+        "we.rf.neighbour"
+      ],
+      "interval_macro": "{$WE.RF.NEIGHBOUR.INTERVAL}",
+      "interval": "15m",
+      "stale": "45m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.2",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.3",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.4",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.5",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.6",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.7",
+        "1.3.6.1.4.1.14823.2.3.3.1.1.8.1.8"
+      ]
     }
   ]
 }

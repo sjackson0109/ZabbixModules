@@ -25,7 +25,8 @@ use Modules\WifiExplorer\Services\WifiService;
     $walks = $root.'/tests/fixtures/wifi/walks/';
     $raw = ['device'=>'we.raw.aruba.system', 'ap_inventory'=>'we.raw.aruba.ap.inventory',
         'ap_state'=>'we.raw.aruba.ap.state', 'radio_inventory'=>'we.raw.aruba.radio.inventory',
-        'radio_state'=>'we.raw.aruba.radio.state'];
+        'radio_state'=>'we.raw.aruba.radio.state', 'ssid'=>'we.raw.aruba.ssid', 'client'=>'we.raw.aruba.client',
+        'rf_neighbour'=>'we.raw.aruba.rf.neighbour'];
     $snapshot = array_flip(WifiDatasetReader::KEYS);
     $attemptKey = array_flip(WifiDatasetReader::ATTEMPTS);
     // The normaliser stamps the current time; the fixtures pin it so freshness is deterministic.
