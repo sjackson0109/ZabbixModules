@@ -17,3 +17,40 @@
 .we-explorer .we-empty { padding: 16px 0; }
 .we-explorer .we-quality { margin: 16px 0 0; }
 .we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
+.we-explorer .we-configure { margin-left: auto; align-self: center; }
+.we-explorer .we-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.35); }
+.we-explorer .we-tabs li a { display: inline-block; padding: 6px 10px; }
+.we-explorer .we-tabs .we-tab-active a { font-weight: bold; border-bottom: 2px solid currentColor; }
+.we-explorer .we-note, .we-explorer .we-hint { opacity: 0.85; }
+.we-explorer .we-muted { opacity: 0.7; font-style: italic; }
+.we-explorer .we-kind { display: inline-block; padding: 0 5px; border-radius: 2px; font-size: 11px;
+    border: 1px solid rgba(128, 128, 128, 0.5); white-space: nowrap; }
+.we-explorer .we-kind-interpolated, .we-explorer .we-kind-inferred, .we-explorer .we-kind-estimated { border-style: dashed; }
+.we-explorer .we-kind-declared, .we-explorer .we-kind-configured { background: rgba(128, 128, 128, 0.12); }
+.we-explorer .we-kind-not_collected { opacity: 0.7; }
+.we-explorer .we-class-flagged { color: #e45959; font-weight: bold; }
+.we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 6px; align-items: center; }
+.we-explorer .we-overlay-label { font-weight: bold; }
+.we-explorer .we-overlay-active { font-weight: bold; text-decoration: underline; }
+.we-explorer .we-legend { margin: 0 0 8px; }
+.we-explorer .we-floor-canvas { max-width: 1100px; border: 1px solid rgba(128, 128, 128, 0.35); }
+.we-explorer svg.we-floor { display: block; width: 100%; height: auto; }
+.we-explorer svg.we-floor-placing { cursor: crosshair; }
+.we-explorer .we-floor-paper { fill: rgba(128, 128, 128, 0.06); }
+.we-explorer .we-field rect { fill: #3f88c5; }
+.we-explorer .we-field-utilisation rect { fill: #e45959; }
+.we-explorer .we-field-neighbours rect { fill: #f2a541; }
+.we-explorer .we-reuse { stroke: #8a8a8a; stroke-width: 2; stroke-dasharray: 8 6; }
+.we-explorer .we-reuse-heard { stroke: #e45959; stroke-width: 3; }
+.we-explorer .we-marker circle { fill: #59db8f; stroke: #1f1f1f; stroke-width: 2; }
+.we-explorer .we-marker-down circle { fill: #e45959; }
+.we-explorer .we-marker-unknown circle { fill: #b0b0b0; stroke-dasharray: 3 3; }
+.we-explorer .we-marker-up-degraded circle { fill: #f2a541; }
+.we-explorer .we-marker-selected circle { stroke-width: 5; stroke: #3f88c5; }
+.we-explorer .we-marker text { font-size: 18px; text-anchor: middle; fill: currentColor; paint-order: stroke;
+    stroke: rgba(255, 255, 255, 0.85); stroke-width: 4px; }
+.we-explorer .we-marker .we-marker-value { font-weight: bold; }
+.we-explorer .we-placement { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.we-explorer .we-config-text { width: 100%; max-width: 1100px; min-height: 420px; font-family: monospace; }
+.we-explorer .we-config-example, .we-explorer .we-mono { font-family: monospace; }
