@@ -1,0 +1,16 @@
+<?php
+declare(strict_types=1);
+namespace Modules\WifiExplorer\Services;
+
+/** Read budgets for one Wi-Fi Explorer request, enforced on the server. Network Explorer's Limits cover the rest. */
+final class WifiLimits {
+    /** Acquisition owners (controllers, virtual controllers, standalone APs) read in one request. */
+    public const OWNER_HOSTS = 500;
+    /** APs shown in one view. A scope with more is not drawn: the page asks for a site instead of truncating. */
+    public const DISPLAY_APS = 5000;
+    /** Radio utilisation (observed, per the source's sampling window) at or above which a radio is highly utilised. */
+    public const HIGH_UTILISATION = 70;
+
+    private function __construct() {
+    }
+}

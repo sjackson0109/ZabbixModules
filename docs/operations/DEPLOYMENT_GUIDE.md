@@ -16,6 +16,7 @@ The most important fact first: **with the native SNMP templates, nothing has to 
 | Frontend package (6 module directories) | Every Zabbix frontend (web) container or server | PHP module and five dashboard widgets. Reads item values through the logged-in user's permissions. |
 | Native SNMP templates | Imported once, through the frontend, into the Zabbix database | Standard-MIB `walk[]` SNMP items with JavaScript preprocessing. They run on whichever proxy monitors the host, using the proxy's built-in SNMP poller and JavaScript engine. |
 | Host dashboard template (optional) | Imported once, after the modules are enabled | An inherited host dashboard built from the five widgets. |
+| Wi-Fi Explorer module and template (optional) | The `wifiexplorer` directory beside the others; the template imported once | Monitoring → Wi-Fi Explorer for Aruba Instant clusters, read through Network Explorer's services. See the [Wi-Fi Explorer README](../wifi-explorer/README.md). |
 | Python collector (optional fallback) | Only proxies that must reach devices native SNMP items can't | Frozen schema 1.0 fallback. **Not needed for normal operation.** See section 8. |
 
 So the custom Python libraries and OpenSSL builds in your proxy Dockerfiles are not required by Network Explorer. The proxies need only:
@@ -56,6 +57,7 @@ modules/netopology
 modules/neinterfacedetail
 modules/nedataquality
 modules/nefindings
+modules/wifiexplorer        (optional: Wi-Fi Explorer)
 ```
 
 In the official `zabbix/zabbix-web-*` images the frontend root is `/usr/share/zabbix`, so the target is `/usr/share/zabbix/modules/` (verified on 7.0.20, 7.2.7 and 7.4.3). On a package-installed frontend, find the directory that contains `zabbix.php` and use its `modules/` subdirectory; do not assume the path.
@@ -86,6 +88,8 @@ services:
       - /opt/zabbix/network-explorer/current/frontend/neinterfacedetail:/usr/share/zabbix/modules/neinterfacedetail:ro
       - /opt/zabbix/network-explorer/current/frontend/nedataquality:/usr/share/zabbix/modules/nedataquality:ro
       - /opt/zabbix/network-explorer/current/frontend/nefindings:/usr/share/zabbix/modules/nefindings:ro
+      # Optional: Wi-Fi Explorer
+      - /opt/zabbix/network-explorer/current/frontend/wifiexplorer:/usr/share/zabbix/modules/wifiexplorer:ro
 ```
 
 Mount the six directories individually, not the whole `modules/` directory: a single mount over `modules/` hides any other modules or widgets you have installed there.
@@ -118,7 +122,7 @@ Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the im
 Module state is stored in the Zabbix database, so this is done once per installation, not per container.
 
 1. Log in as a Super admin and open **Administration → General → Modules**.
-2. Click **Scan directory**. Six entries appear: *Network Explorer* and five *Network Explorer: …* widgets.
+2. Click **Scan directory**. Six entries appear: *Network Explorer* and five *Network Explorer: …* widgets, plus *Wi-Fi Explorer* if you copied it. Enable Wi-Fi Explorer only together with Network Explorer, whose services it uses.
 3. Enable **Network Explorer** first, then the five widgets. The widgets show an installation message while the base module is disabled; that is expected.
 4. Check that **Monitoring → Network Explorer** now appears in the menu. That page is the network-wide view; no global dashboard has to be created or imported. Dashboard recipes in `dashboards/` are optional examples.
 
@@ -127,7 +131,7 @@ If you run more than one frontend against the same database, every frontend must
 ### 3.4 User roles
 
 - The **Network Explorer** menu entry is shown only to roles with access to *Monitoring → Hosts*.
-- In **Users → User roles**, each role that should use it must allow the six modules under *Access to modules*. Roles with *Default access to new modules* enabled get them automatically; check restricted roles explicitly.
+- In **Users → User roles**, each role that should use it must allow the six modules (seven with Wi-Fi Explorer) under *Access to modules*. Roles with *Default access to new modules* enabled get them automatically; check restricted roles explicitly.
 - What each user sees is limited by their host group permissions, exactly as elsewhere in Zabbix. No API token or privileged account is used.
 
 ## 4. Import the templates
@@ -136,6 +140,7 @@ Unpack `network-explorer-templates-1.3.0.tar` on your workstation and use the fi
 
 1. **Data collection → Templates → Import**, choose `network_explorer_snmp.yaml`. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import). This creates the template group `Templates/Network Explorer` and eight templates: `Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG` and the profile `Network Explorer - Profile - Generic standard MIB`.
 2. Only after the modules are enabled (3.3): import `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a host dashboard (Ports, Topology, Findings) and no items.
+3. Optional, for Wi-Fi Explorer: import `wifi_explorer_snmp.yaml`. It creates `Wi-Fi Explorer - Aruba Instant VC by SNMP` in `Templates/Wi-Fi Explorer`. Link it to one host per Aruba Instant cluster, pointed at the cluster's virtual-controller address, not to every AP.
 
 Templates live in the database, so import once from the single frontend; every proxy receives the item configuration through the normal proxy configuration sync.
 

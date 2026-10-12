@@ -13,6 +13,19 @@ final class EnvelopeValidator {
         '1.1'=>['device','interfaces','lldp','lag','port_capability','vlan','stp']];
 
     public function decode(string $value, string $dataset): array {
+        $envelope = $this->envelope($value, $dataset, self::SCHEMAS);
+        $this->rows($envelope, $dataset);
+        return $envelope;
+    }
+
+    /**
+     * The envelope rules every canonical dataset shares: bounded JSON, a known schema version listing the dataset,
+     * the common fields, and the outcome invariants (a failure carries no data, ok is complete and supported).
+     * Rows are not checked. Wi-Fi Explorer validates its own datasets through this with its own schema map.
+     *
+     * @param array<string, string[]> $schemas schema version => datasets it defines
+     */
+    public function envelope(string $value, string $dataset, array $schemas): array {
         if (strlen($value) > self::MAX_BYTES) {
             throw new \InvalidArgumentException('payload_too_large');
         }
@@ -23,7 +36,7 @@ final class EnvelopeValidator {
             throw new \InvalidArgumentException('invalid_json');
         }
         $version = is_array($envelope) ? ($envelope['schema_version'] ?? null) : null;
-        if (!is_string($version) || !in_array($dataset, self::SCHEMAS[$version] ?? [], true)) {
+        if (!is_string($version) || !in_array($dataset, $schemas[$version] ?? [], true)) {
             throw new \InvalidArgumentException('unsupported_schema');
         }
         if (($envelope['dataset'] ?? null) !== $dataset
@@ -87,6 +100,10 @@ final class EnvelopeValidator {
                 throw new \InvalidArgumentException('invalid_timestamp');
             }
         }
+        return $envelope;
+    }
+
+    private function rows(array $envelope, string $dataset): void {
         $seenUids = [];
         foreach ($envelope['data'] as $row) {
             if (!is_array($row)) {
@@ -241,7 +258,6 @@ final class EnvelopeValidator {
                 self::nullableString($row, 'vlans');
             }
         }
-        return $envelope;
     }
 
     public static function validUid($uid): bool {

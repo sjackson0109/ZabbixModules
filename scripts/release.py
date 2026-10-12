@@ -28,7 +28,7 @@ VERSIONED = [
 ]
 # Operator docs that name the release in commands and file names.
 DOCS = ["docs/operations/INSTALL.md", "docs/operations/DEPLOYMENT_GUIDE.md"]
-GENERATORS = [["templates/generate_snmp.py"], ["templates/generate_lab.py"]]
+GENERATORS = [["templates/generate_snmp.py"], ["templates/generate_wifi.py"], ["templates/generate_lab.py"]]
 
 
 def current() -> str:

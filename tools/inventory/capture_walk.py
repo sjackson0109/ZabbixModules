@@ -58,6 +58,18 @@ DEFAULT_SUBTREES = (
     ("IEEE8021-MSTP-MIB", "1.3.111.2.802.1.1.6"),
 )
 
+# Vendor subtrees a --profile adds to the standard ones. Only the tables Wi-Fi Explorer reads are walked: never the
+# client table (user names, client addresses) or the rogue table (neighbouring networks' SSIDs).
+ARUBA_AI = "1.3.6.1.4.1.14823.2.3.3.1"
+PROFILES = {
+    "aruba-instant": (
+        ("AI-AP-MIB aiVirtualControllerVersion", ARUBA_AI + ".1.4"),
+        ("AI-AP-MIB aiVirtualControllerIPAddress", ARUBA_AI + ".1.5"),
+        ("AI-AP-MIB aiAccessPointTable", ARUBA_AI + ".2.1.1"),
+        ("AI-AP-MIB aiRadioTable", ARUBA_AI + ".2.2.1"),
+    ),
+}
+
 NUMERIC_OID = re.compile(r"^\.?([0-2](?:\.(?:0|[1-9]\d{0,9}))+)$")
 LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 HOSTNAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}))*\.?$")
@@ -297,6 +309,8 @@ LLDP_LOC_SYS_NAME = "1.0.8802.1.1.2.1.3.3.0"
 LLDP_REM_SYS_NAME = "1.0.8802.1.1.2.1.4.1.1.9"
 ENT_SERIAL = "1.3.6.1.2.1.47.1.1.1.1.11"
 IF_ALIAS = "1.3.6.1.2.1.31.1.1.1.18"
+AI_AP_NAME = ARUBA_AI + ".2.1.1.2"
+AI_AP_SERIAL = ARUBA_AI + ".2.1.1.4"
 LLDP_LOC_MAN_ADDR_ENTRY = "1.0.8802.1.1.2.1.3.8.1"   # index: subtype, len, addr
 LLDP_REM_MAN_ADDR_ENTRY = "1.0.8802.1.1.2.1.4.2.1"   # index: timeMark, localPort, remIndex, subtype, len, addr
 # (value column, subtype column, subtype value meaning "networkAddress")
@@ -313,11 +327,12 @@ SANITISATION_LIMITS = [
     "LLDP chassis/port IDs of subtype networkAddress; IPv4 text inside descriptions is not altered.",
     "IPv6 addresses are not altered; IPv4 netmasks, loopback, multicast and 0.0.0.0 are kept.",
     "Addresses embedded in other OID indexes (e.g. ipAddrTable from an --extra-subtree) are not altered.",
-    "sysName, lldpLocSysName and lldpRemSysName are replaced by exact value; a neighbour that "
+    "sysName, lldpLocSysName, lldpRemSysName and Aruba aiAPName are replaced by exact value; a neighbour that "
     "advertises an FQDN where the device reports a short name gets a different placeholder.",
     "MAC addresses (ifPhysAddress, LLDP chassis IDs, bridge addresses) are not altered.",
     "sysDescr, lldpRemSysDesc, ifDescr, port descriptions and entPhysical descriptions are not altered.",
-    "Serial numbers are replaced only with --sanitise-serials; ifAlias only with --sanitise-aliases.",
+    "Serial numbers (entPhysicalSerialNum, Aruba aiAPSerialNum) are replaced only with --sanitise-serials; "
+    "ifAlias only with --sanitise-aliases.",
     "Placeholders are consistent across devices only when the same --sanitise-map file is reused.",
 ]
 
@@ -406,13 +421,14 @@ class Sanitiser:
 
     def _octets(self, record: Record, by_oid: dict) -> bytes:
         oid, value = record.oid, record.value
-        if oid in (SYS_NAME, LLDP_LOC_SYS_NAME) or oid.startswith(LLDP_REM_SYS_NAME + "."):
+        if (oid in (SYS_NAME, LLDP_LOC_SYS_NAME) or oid.startswith(LLDP_REM_SYS_NAME + ".")
+                or oid.startswith(AI_AP_NAME + ".")):
             return self._placeholder("names", value, "device-{:03d}")
         if oid == SYS_LOCATION:
             return self._placeholder("locations", value, "location-{:03d}")
         if oid == SYS_CONTACT:
             return b"contact-redacted" if value else value
-        if self.serials and oid.startswith(ENT_SERIAL + "."):
+        if self.serials and (oid.startswith(ENT_SERIAL + ".") or oid.startswith(AI_AP_SERIAL + ".")):
             return self._placeholder("serials", value, "SERIAL-{:04d}")
         if self.aliases and oid.startswith(IF_ALIAS + "."):
             return self._placeholder("aliases", value, "alias-{:04d}")
@@ -429,7 +445,7 @@ class SerialSanitiser(Sanitiser):
     """--sanitise-serials/--sanitise-aliases without --sanitise: only those columns."""
 
     def _octets(self, record: Record, by_oid: dict) -> bytes:
-        if self.serials and record.oid.startswith(ENT_SERIAL + "."):
+        if self.serials and (record.oid.startswith(ENT_SERIAL + ".") or record.oid.startswith(AI_AP_SERIAL + ".")):
             return self._placeholder("serials", record.value, "SERIAL-{:04d}")
         if self.aliases and record.oid.startswith(IF_ALIAS + "."):
             return self._placeholder("aliases", record.value, "alias-{:04d}")
@@ -685,7 +701,9 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--out-dir", default=".", help="Output directory (default: current directory)")
     parser.add_argument("--extra-subtree", action="append", default=[], metavar="OID",
                         help="Additional numeric subtree, e.g. a vendor MIB (repeatable)")
-    parser.add_argument("--only-extra", action="store_true", help="Walk only --extra-subtree OIDs")
+    parser.add_argument("--only-extra", action="store_true", help="Walk only --extra-subtree and --profile OIDs")
+    parser.add_argument("--profile", action="append", default=[], choices=sorted(PROFILES),
+                        help="Also walk a vendor's subtrees, e.g. aruba-instant for Wi-Fi Explorer (repeatable)")
     parser.add_argument("--request-timeout", type=float, default=5.0, help="Per-request timeout seconds (default 5)")
     parser.add_argument("--retries", type=int, default=1, help="Per-request retries (default 1)")
     parser.add_argument("--max-repetitions", type=int, default=10, help="GETBULK max-repetitions (default 10)")
@@ -712,14 +730,19 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         parser.error("--context is invalid")
     if args.sanitise_map and not (args.sanitise or args.sanitise_serials or args.sanitise_aliases):
         parser.error("--sanitise-map requires a --sanitise option")
-    if args.only_extra and not args.extra_subtree:
-        parser.error("--only-extra requires --extra-subtree")
+    if args.only_extra and not (args.extra_subtree or args.profile):
+        parser.error("--only-extra requires --extra-subtree or --profile")
     return args
 
 
 def subtrees_for(args) -> list[tuple[str, str]]:
     chosen = [] if args.only_extra else list(DEFAULT_SUBTREES)
     seen = {oid for _, oid in chosen}
+    for profile in args.profile:
+        for name, oid in PROFILES[profile]:
+            if oid not in seen:
+                chosen.append((name, oid))
+                seen.add(oid)
     for text in args.extra_subtree:
         oid = validate_oid(text)
         if oid not in seen:

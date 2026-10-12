@@ -220,49 +220,7 @@ final class DatasetReader {
     }
 
     private function quality(?array $envelope, ?array $attempt, string $dataset, ?string $failure): array {
-        $observed = $envelope['observed_at'] ?? null;
-        $epoch = $observed !== null ? strtotime($observed) : false;
-        $freshness = 'unknown';
-        $errors = [];
-        if ($epoch !== false) {
-            if ($epoch > $this->now + 60) {
-                $errors[] = 'clock_skew';
-            }
-            else {
-                $freshness = $this->now - $epoch > self::TTL[$dataset] ? 'stale' : 'current';
-            }
-        }
-        $latest = $attempt !== null && ($envelope === null
-            || strtotime($attempt['attempted_at']) >= strtotime($envelope['attempted_at']))
-            ? $attempt : $envelope;
-        $status = $latest['status'] ?? 'unknown';
-        if ($failure !== null) {
-            $status = 'failed';
-            $errors[] = $failure;
-        }
-        foreach (($latest['errors'] ?? []) as $error) {
-            // Raw device/collector exception strings may contain hidden peer data.
-            // Only stable bounded error identifiers are returned to the browser.
-            $code = is_array($error) ? ($error['code'] ?? null) : $error;
-            if (is_string($code) && preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $code)) {
-                $errors[] = $code;
-            }
-        }
-        $warnings = [];
-        foreach (($latest['warnings'] ?? []) as $warning) {
-            if (is_string($warning['code'] ?? null)) {
-                $warnings[] = $warning['code'];
-            }
-        }
-        if ($envelope['inventory_stale'] ?? false) {
-            $errors[] = 'inventory_stale';
-        }
-        return ['dataset'=>$dataset, 'status'=>$status,
-            'capability'=>$latest['capability']['state'] ?? 'unknown', 'freshness'=>$freshness,
-            'attempted_at'=>$latest['attempted_at'] ?? null, 'observed_at'=>$observed,
-            'age_seconds'=>$epoch !== false ? max(0, $this->now - $epoch) : null,
-            'complete'=>$envelope['complete'] ?? false, 'retained'=> $envelope !== null
-                && $latest !== null && $latest['status'] !== 'ok',
-            'errors'=>array_values(array_unique($errors)), 'warnings'=>array_values(array_unique($warnings))];
+        return ['dataset'=>$dataset] + DatasetQuality::describe($envelope, $attempt, $failure, self::TTL[$dataset],
+            $this->now);
     }
 }

@@ -187,6 +187,27 @@ def test_serial_only_sanitiser_leaves_names():
     assert output["1.3.6.1.2.1.47.1.1.1.1.11.1"].value == b"SERIAL-0001"
 
 
+def test_aruba_instant_names_serials_and_addresses_are_sanitised():
+    ap = cw.ARUBA_AI + ".2.1.1"
+    index = "0.0.94.0.83.1"
+    records = [cw.Record(f"{ap}.2.{index}", "4", b"Reception-AP"), cw.Record(f"{ap}.4.{index}", "4", b"CNJ7KSV123"),
+               cw.Record(f"{ap}.3.{index}", "64", "10.40.1.21"), cw.Record(cw.ARUBA_AI + ".1.5.0", "64", "10.40.1.20")]
+    output = records_by_oid(cw.Sanitiser(serials=True).apply(records))
+    assert output[f"{ap}.2.{index}"].value == b"device-001"
+    assert output[f"{ap}.4.{index}"].value == b"SERIAL-0001"
+    assert {output[f"{ap}.3.{index}"].value, output[cw.ARUBA_AI + ".1.5.0"].value} == {"192.0.2.1", "192.0.2.2"}
+    assert records_by_oid(cw.SerialSanitiser(serials=True).apply(records))[f"{ap}.2.{index}"].value == b"Reception-AP"
+
+
+def test_aruba_instant_profile_walks_only_the_tables_wifi_explorer_reads(tmp_path):
+    args = capture_args(tmp_path, "--profile", "aruba-instant", "--only-extra")
+    oids = [oid for _, oid in cw.subtrees_for(args)]
+    assert oids == [cw.ARUBA_AI + suffix for suffix in (".1.4", ".1.5", ".2.1.1", ".2.2.1")]
+    assert not any(oid.startswith(cw.ARUBA_AI + ".2.4") or oid.startswith(cw.ARUBA_AI + ".1.1.8") for oid in oids), \
+        "never the client or rogue tables"
+    assert len(cw.subtrees_for(capture_args(tmp_path, "--profile", "aruba-instant"))) == len(cw.DEFAULT_SUBTREES) + 4
+
+
 @pytest.mark.parametrize("text,expected", [
     ("1.3.6.1.4.1.9.9.23", "1.3.6.1.4.1.9.9.23"),
     (".1.3.6.1.4.1.2636", "1.3.6.1.4.1.2636"),

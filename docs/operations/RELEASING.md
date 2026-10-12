@@ -19,7 +19,7 @@ python3 scripts/release.py bump 1.4.0
 python3 -m pytest
 ```
 
-`bump` sets the version in `VERSION`, the six frontend module manifests, the collector and the template script library, regenerates the native and LAB templates, updates the version named in the install and deployment guides, and moves the changelog's *Unreleased* entries under `## [1.3.0] - <date>`. It refuses a version that is not newer than the current one, or an empty *Unreleased* section. Review the diff, open a pull request and merge it once CI is green.
+`bump` sets the version in `VERSION`, every frontend module manifest, the collector and the template script library, regenerates the native (including Wi-Fi Explorer) and LAB templates, updates the version named in the install and deployment guides, and moves the changelog's *Unreleased* entries under `## [1.3.0] - <date>`. It refuses a version that is not newer than the current one, or an empty *Unreleased* section. Review the diff, open a pull request and merge it once CI is green.
 
 A version with a suffix, such as `1.4.0-rc.1`, is published as a pre-release.
 

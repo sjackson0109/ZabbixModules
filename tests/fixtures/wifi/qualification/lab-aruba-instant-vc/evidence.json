@@ -1,0 +1,54 @@
+{
+  "classification": {
+    "capabilities": {
+      "ap_inventory": "ok",
+      "ap_state": "ok",
+      "controller": "ok",
+      "radio_inventory": "ok",
+      "radio_state": "ok"
+    },
+    "datasets": {
+      "ap_inventory": {
+        "errors": [],
+        "rows": 6,
+        "status": "ok",
+        "warnings": []
+      },
+      "ap_state": {
+        "errors": [],
+        "rows": 6,
+        "status": "ok",
+        "warnings": []
+      },
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "radio_inventory": {
+        "errors": [],
+        "rows": 11,
+        "status": "ok",
+        "warnings": []
+      },
+      "radio_state": {
+        "errors": [],
+        "rows": 11,
+        "status": "ok",
+        "warnings": [
+          "radio_band_ambiguous"
+        ]
+      }
+    },
+    "format": "wifi-explorer-classification-1",
+    "system": {
+      "sys_descr": "Synthetic Aruba Instant lab agent (invented)",
+      "sys_object_id": "1.3.6.1.4.1.14823.1.2.999"
+    }
+  },
+  "description": "Synthetic Aruba Instant virtual controller listing six APs: one down, one with a radio down, one radio at 82% utilisation, a tri-radio AP with a 6 GHz radio and overlapping channel numbers, and an AP with no radios.",
+  "id": "lab-aruba-instant-vc",
+  "kind": "synthetic",
+  "walk": "tests/fixtures/wifi/walks/aruba-instant-vc.snmprec"
+}
