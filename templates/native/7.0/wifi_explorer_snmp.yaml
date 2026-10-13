@@ -37,15 +37,15 @@ zabbix_export:
         value: device
       - tag: data_source
         value: native-snmp
-    - uuid: 6f0cfe1a2a19447f834acdc5c11ffbe1
-      name: 'Collection attempt: device'
+    - uuid: 7f30ad997c46411990b192cdbfcd26d5
+      name: 'Normalised envelope: device'
       type: DEPENDENT
-      key: we.device.attempt
+      key: we.normalised[device]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.system
       preprocessing:
@@ -1007,17 +1007,39 @@ zabbix_export:
         value: device
       - tag: data_source
         value: native-snmp
+    - uuid: 6f0cfe1a2a19447f834acdc5c11ffbe1
+      name: 'Collection attempt: device'
+      type: DEPENDENT
+      key: we.device.attempt
+      delay: '0'
+      history: '{$WE.DEVICE.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[device]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: native-snmp
     - uuid: 5260833990e542fba2802d6c4756b058
       name: 'Last complete snapshot: device'
       type: DEPENDENT
       key: we.device.snapshot
       delay: '0'
-      history: 7d
+      history: '{$WE.DEVICE.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.device.attempt
+        key: we.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1047,7 +1069,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.device.attempt
+        key: we.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1069,7 +1091,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.device.attempt
+        key: we.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1124,15 +1146,15 @@ zabbix_export:
         value: ap_inventory
       - tag: data_source
         value: native-snmp
-    - uuid: 93ba483f2b734b4b8aa3cdc55b119d70
-      name: 'Collection attempt: ap_inventory'
+    - uuid: 9c19570bd45845ac9348cd9f66e48e27
+      name: 'Normalised envelope: ap_inventory'
       type: DEPENDENT
-      key: we.ap.inventory.attempt
+      key: we.normalised[ap_inventory]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.ap.inventory
       preprocessing:
@@ -2094,17 +2116,39 @@ zabbix_export:
         value: ap_inventory
       - tag: data_source
         value: native-snmp
+    - uuid: 93ba483f2b734b4b8aa3cdc55b119d70
+      name: 'Collection attempt: ap_inventory'
+      type: DEPENDENT
+      key: we.ap.inventory.attempt
+      delay: '0'
+      history: '{$WE.AP.INVENTORY.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[ap_inventory]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: ap_inventory
+      - tag: data_source
+        value: native-snmp
     - uuid: b560d92c67c8454298e380c0e102a509
       name: 'Last complete snapshot: ap_inventory'
       type: DEPENDENT
       key: we.ap.inventory
       delay: '0'
-      history: 7d
+      history: '{$WE.AP.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.ap.inventory.attempt
+        key: we.normalised[ap_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -2134,7 +2178,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.ap.inventory.attempt
+        key: we.normalised[ap_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -2156,7 +2200,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.ap.inventory.attempt
+        key: we.normalised[ap_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -2211,15 +2255,15 @@ zabbix_export:
         value: ap_state
       - tag: data_source
         value: native-snmp
-    - uuid: aa99c1e44aa74896bcdf07a5209fc3f9
-      name: 'Collection attempt: ap_state'
+    - uuid: 39c351606bcf4c6188b1e71e8cab1d13
+      name: 'Normalised envelope: ap_state'
       type: DEPENDENT
-      key: we.ap.state.attempt
+      key: we.normalised[ap_state]
       delay: '0'
-      history: 1d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.ap.state
       preprocessing:
@@ -3181,17 +3225,39 @@ zabbix_export:
         value: ap_state
       - tag: data_source
         value: native-snmp
+    - uuid: aa99c1e44aa74896bcdf07a5209fc3f9
+      name: 'Collection attempt: ap_state'
+      type: DEPENDENT
+      key: we.ap.state.attempt
+      delay: '0'
+      history: '{$WE.AP.STATE.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[ap_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: ap_state
+      - tag: data_source
+        value: native-snmp
     - uuid: 3140304e0df146b2aa571d888299a57f
       name: 'Last complete snapshot: ap_state'
       type: DEPENDENT
       key: we.ap.state
       delay: '0'
-      history: 1d
+      history: '{$WE.AP.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.ap.state.attempt
+        key: we.normalised[ap_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -3221,7 +3287,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.ap.state.attempt
+        key: we.normalised[ap_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -3243,7 +3309,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.ap.state.attempt
+        key: we.normalised[ap_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -3298,15 +3364,15 @@ zabbix_export:
         value: radio_inventory
       - tag: data_source
         value: native-snmp
-    - uuid: 0872fe0515304b61a6896e266ee57080
-      name: 'Collection attempt: radio_inventory'
+    - uuid: fb71d04904a1443895778283695c1c09
+      name: 'Normalised envelope: radio_inventory'
       type: DEPENDENT
-      key: we.radio.inventory.attempt
+      key: we.normalised[radio_inventory]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.radio.inventory
       preprocessing:
@@ -4268,17 +4334,39 @@ zabbix_export:
         value: radio_inventory
       - tag: data_source
         value: native-snmp
+    - uuid: 0872fe0515304b61a6896e266ee57080
+      name: 'Collection attempt: radio_inventory'
+      type: DEPENDENT
+      key: we.radio.inventory.attempt
+      delay: '0'
+      history: '{$WE.RADIO.INVENTORY.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[radio_inventory]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_inventory
+      - tag: data_source
+        value: native-snmp
     - uuid: d886432ec3b04fdd8b1239a3b6a94e03
       name: 'Last complete snapshot: radio_inventory'
       type: DEPENDENT
       key: we.radio.inventory
       delay: '0'
-      history: 7d
+      history: '{$WE.RADIO.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.radio.inventory.attempt
+        key: we.normalised[radio_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -4308,7 +4396,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.radio.inventory.attempt
+        key: we.normalised[radio_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -4330,7 +4418,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.radio.inventory.attempt
+        key: we.normalised[radio_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -4385,15 +4473,15 @@ zabbix_export:
         value: radio_state
       - tag: data_source
         value: native-snmp
-    - uuid: 98c4c952994941218149682076957abc
-      name: 'Collection attempt: radio_state'
+    - uuid: a13aa56e79f84256a08185e3a202d7c8
+      name: 'Normalised envelope: radio_state'
       type: DEPENDENT
-      key: we.radio.state.attempt
+      key: we.normalised[radio_state]
       delay: '0'
-      history: 1d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.radio.state
       preprocessing:
@@ -5355,17 +5443,39 @@ zabbix_export:
         value: radio_state
       - tag: data_source
         value: native-snmp
+    - uuid: 98c4c952994941218149682076957abc
+      name: 'Collection attempt: radio_state'
+      type: DEPENDENT
+      key: we.radio.state.attempt
+      delay: '0'
+      history: '{$WE.RADIO.STATE.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
     - uuid: 6fa0e59af37c4ecf9c942bcecf998c16
       name: 'Last complete snapshot: radio_state'
       type: DEPENDENT
       key: we.radio.state
       delay: '0'
-      history: 1d
+      history: '{$WE.RADIO.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.radio.state.attempt
+        key: we.normalised[radio_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -5395,7 +5505,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.radio.state.attempt
+        key: we.normalised[radio_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -5417,7 +5527,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.radio.state.attempt
+        key: we.normalised[radio_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -5472,15 +5582,15 @@ zabbix_export:
         value: ssid
       - tag: data_source
         value: native-snmp
-    - uuid: b906751cb3f442f680cd71db3c2ec4ae
-      name: 'Collection attempt: ssid'
+    - uuid: e887a757b396414483b6e9522da1ed71
+      name: 'Normalised envelope: ssid'
       type: DEPENDENT
-      key: we.ssid.attempt
+      key: we.normalised[ssid]
       delay: '0'
-      history: 1d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.ssid
       preprocessing:
@@ -6442,17 +6552,39 @@ zabbix_export:
         value: ssid
       - tag: data_source
         value: native-snmp
+    - uuid: b906751cb3f442f680cd71db3c2ec4ae
+      name: 'Collection attempt: ssid'
+      type: DEPENDENT
+      key: we.ssid.attempt
+      delay: '0'
+      history: '{$WE.SSID.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[ssid]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: ssid
+      - tag: data_source
+        value: native-snmp
     - uuid: d77cc623f0904184857feba917965bca
       name: 'Last complete snapshot: ssid'
       type: DEPENDENT
       key: we.ssid.snapshot
       delay: '0'
-      history: 1d
+      history: '{$WE.SSID.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.ssid.attempt
+        key: we.normalised[ssid]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6482,7 +6614,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.ssid.attempt
+        key: we.normalised[ssid]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6504,7 +6636,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.ssid.attempt
+        key: we.normalised[ssid]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6559,15 +6691,15 @@ zabbix_export:
         value: client
       - tag: data_source
         value: native-snmp
-    - uuid: e9a40ec5e0494c5da428d755b8de4766
-      name: 'Collection attempt: client'
+    - uuid: 49feeceee76543029d03ccd255c98700
+      name: 'Normalised envelope: client'
       type: DEPENDENT
-      key: we.client.attempt
+      key: we.normalised[client]
       delay: '0'
-      history: 1d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.client
       preprocessing:
@@ -7529,17 +7661,39 @@ zabbix_export:
         value: client
       - tag: data_source
         value: native-snmp
+    - uuid: e9a40ec5e0494c5da428d755b8de4766
+      name: 'Collection attempt: client'
+      type: DEPENDENT
+      key: we.client.attempt
+      delay: '0'
+      history: '{$WE.CLIENT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[client]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: client
+      - tag: data_source
+        value: native-snmp
     - uuid: b8a1f87fc56b47dcbb81af6da23e5dda
       name: 'Last complete snapshot: client'
       type: DEPENDENT
       key: we.client.snapshot
       delay: '0'
-      history: 1d
+      history: '{$WE.CLIENT.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.client.attempt
+        key: we.normalised[client]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7569,7 +7723,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.client.attempt
+        key: we.normalised[client]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7591,7 +7745,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.client.attempt
+        key: we.normalised[client]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7627,18 +7781,27 @@ zabbix_export:
     - tag: component
       value: wifi-explorer
     macros:
+    - macro: '{$WE.AP.INVENTORY.HISTORY}'
+      value: 7d
+      description: How long ap_inventory snapshots and attempts are kept.
     - macro: '{$WE.AP.INVENTORY.INTERVAL}'
       value: 1h
       description: Polling interval for ap_inventory.
     - macro: '{$WE.AP.INVENTORY.STALE}'
       value: 3h
       description: Maximum age of a complete ap_inventory observation.
+    - macro: '{$WE.AP.STATE.HISTORY}'
+      value: 1d
+      description: How long ap_state snapshots and attempts are kept.
     - macro: '{$WE.AP.STATE.INTERVAL}'
       value: 5m
       description: Polling interval for ap_state.
     - macro: '{$WE.AP.STATE.STALE}'
       value: 15m
       description: Maximum age of a complete ap_state observation.
+    - macro: '{$WE.CLIENT.HISTORY}'
+      value: 1d
+      description: How long client snapshots and attempts are kept.
     - macro: '{$WE.CLIENT.IDENTIFIERS}'
       value: partial
       description: 'Client identifiers kept in the client snapshot: full (MAC, IP address and name), partial (manufacturer prefix of the MAC only) or pseudonymised (keyed client ID only; needs {$WE.CLIENT.KEY}). Applied before anything is stored.'
@@ -7652,24 +7815,36 @@ zabbix_export:
     - macro: '{$WE.CLIENT.STALE}'
       value: 15m
       description: Maximum age of a complete client observation.
+    - macro: '{$WE.DEVICE.HISTORY}'
+      value: 7d
+      description: How long device snapshots and attempts are kept.
     - macro: '{$WE.DEVICE.INTERVAL}'
       value: 1h
       description: Polling interval for device.
     - macro: '{$WE.DEVICE.STALE}'
       value: 3h
       description: Maximum age of a complete device observation.
+    - macro: '{$WE.RADIO.INVENTORY.HISTORY}'
+      value: 7d
+      description: How long radio_inventory snapshots and attempts are kept.
     - macro: '{$WE.RADIO.INVENTORY.INTERVAL}'
       value: 1h
       description: Polling interval for radio_inventory.
     - macro: '{$WE.RADIO.INVENTORY.STALE}'
       value: 3h
       description: Maximum age of a complete radio_inventory observation.
+    - macro: '{$WE.RADIO.STATE.HISTORY}'
+      value: 1d
+      description: How long radio_state snapshots and attempts are kept.
     - macro: '{$WE.RADIO.STATE.INTERVAL}'
       value: 5m
       description: Polling interval for radio_state.
     - macro: '{$WE.RADIO.STATE.STALE}'
       value: 15m
       description: Maximum age of a complete radio_state observation.
+    - macro: '{$WE.SSID.HISTORY}'
+      value: 1d
+      description: How long ssid snapshots and attempts are kept.
     - macro: '{$WE.SSID.INTERVAL}'
       value: 5m
       description: Polling interval for ssid.
@@ -7721,15 +7896,15 @@ zabbix_export:
         value: rf_neighbour
       - tag: data_source
         value: native-snmp
-    - uuid: 245458772b5a4fbd8c14d504ac64e4ad
-      name: 'Collection attempt: rf_neighbour'
+    - uuid: b05049bbe3d04fc583a84890afe6cb63
+      name: 'Normalised envelope: rf_neighbour'
       type: DEPENDENT
-      key: we.rf.neighbour.attempt
+      key: we.normalised[rf_neighbour]
       delay: '0'
-      history: 1d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: we.raw.aruba.rf.neighbour
       preprocessing:
@@ -8691,17 +8866,39 @@ zabbix_export:
         value: rf_neighbour
       - tag: data_source
         value: native-snmp
+    - uuid: 245458772b5a4fbd8c14d504ac64e4ad
+      name: 'Collection attempt: rf_neighbour'
+      type: DEPENDENT
+      key: we.rf.neighbour.attempt
+      delay: '0'
+      history: '{$WE.RF.NEIGHBOUR.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      master_item:
+        key: we.normalised[rf_neighbour]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: rf_neighbour
+      - tag: data_source
+        value: native-snmp
     - uuid: c632433a99824ade93437660a66becb3
       name: 'Last complete snapshot: rf_neighbour'
       type: DEPENDENT
       key: we.rf.neighbour
       delay: '0'
-      history: 1d
+      history: '{$WE.RF.NEIGHBOUR.HISTORY}'
       value_type: TEXT
       trends: '0'
       description: Updated only by complete, successful observations.
       master_item:
-        key: we.rf.neighbour.attempt
+        key: we.normalised[rf_neighbour]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -8731,7 +8928,7 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: we.rf.neighbour.attempt
+        key: we.normalised[rf_neighbour]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -8753,7 +8950,7 @@ zabbix_export:
       trends: '0'
       units: unixtime
       master_item:
-        key: we.rf.neighbour.attempt
+        key: we.normalised[rf_neighbour]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -8789,6 +8986,9 @@ zabbix_export:
     - tag: component
       value: wifi-explorer
     macros:
+    - macro: '{$WE.RF.NEIGHBOUR.HISTORY}'
+      value: 1d
+      description: How long rf_neighbour snapshots and attempts are kept.
     - macro: '{$WE.RF.NEIGHBOUR.INTERVAL}'
       value: 15m
       description: Polling interval for rf_neighbour.

@@ -188,5 +188,17 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert($result['owners'][0]['role'] === 'unknown' && $result['quality'][0]['status'] === 'failed',
         'An unreadable value fails the dataset instead of being trusted.');
 
+    // A receipt (a complete attempt stored without its rows) never stands in for a missing snapshot.
+    $receiptOnly = new FixtureGateway();
+    $receiptOnly->hostRows = [$host('10', 'avc-west', 'lab-west')];
+    $inventory = $normalise('ap_inventory', 'aruba-instant-vc.snmprec', '2026-10-12T11:58:00Z');
+    $receiptOnly->add('10', 'we.ap.inventory.attempt', [['data_rows'=>count($inventory['data']), 'data'=>[],
+        'data_omitted'=>true] + $inventory]);
+    $feed($receiptOnly, '10', 'aruba-instant-vc.snmprec', '2026-10-12T11:58:00Z', ['device', 'ap_state']);
+    $result = (new WifiService($receiptOnly, $now))->build(WifiScope::create());
+    $inventoryQuality = array_column($result['quality'], null, 'dataset')['ap_inventory'];
+    $assert($inventoryQuality['status'] === 'ok' && $inventoryQuality['observed_at'] === null
+        && $inventoryQuality['freshness'] === 'unknown', 'A receipt alone says the attempt succeeded, not what was seen.');
+
     echo "Wi-Fi Explorer checks passed ($checks checks).\n";
 })();

@@ -86,22 +86,40 @@ def raw_item(entry: dict) -> dict:
             "tags": tags(entry["dataset"])}
 
 
+# A complete, successful attempt is stored as a receipt: its rows are already in the snapshot item, so storing
+# them twice would double the dataset's history. Partial, failed and unsupported attempts are kept whole.
+RECEIPT = ("var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){"
+           "e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);")
+
+
+def history_macro(entry: dict) -> str:
+    return entry["interval_macro"].replace(".INTERVAL}", ".HISTORY}")
+
+
+def normalised_key(dataset: str) -> str:
+    return f"we.normalised[{dataset}]"
+
+
 def producer_items(entry: dict, template: str) -> list[dict]:
-    dataset, history = entry["dataset"], entry["history"]
-    attempt = entry["attempt_key"]
+    dataset, history = entry["dataset"], history_macro(entry)
+    attempt, normalised = entry["attempt_key"], normalised_key(dataset)
     items = [raw_item(entry),
-             dependent(attempt, f"Collection attempt: {dataset}", dataset, entry["raw_key"], compose(entry),
+             dependent(normalised, f"Normalised envelope: {dataset}", dataset, entry["raw_key"], compose(entry),
+                       history="0",
+                       description="The canonical envelope of each attempt, passed to the items below; not stored."),
+             dependent(attempt, f"Collection attempt: {dataset}", dataset, normalised, RECEIPT,
                        history=history,
-                       description="Canonical envelope for every attempt, including partial, failed and unsupported.")]
+                       description="Every attempt, including partial, failed and unsupported. A complete success is "
+                                   "stored as a receipt without its rows, which are in the snapshot.")]
     for key in entry["snapshot_keys"]:
-        items.append(dependent(key, f"Last complete snapshot: {dataset}", dataset, attempt, gate(dataset),
+        items.append(dependent(key, f"Last complete snapshot: {dataset}", dataset, normalised, gate(dataset),
                                discard=True, history=history,
                                description="Updated only by complete, successful observations."))
-    status = dependent(f"we.collection.status[{dataset}]", f"Collection status: {dataset}", dataset, attempt,
+    status = dependent(f"we.collection.status[{dataset}]", f"Collection status: {dataset}", dataset, normalised,
                        COLLECTION_STATUS, value_type="UNSIGNED", history="31d", trends="0",
                        valuemap={"name": STATUS_MAP})
     success = dependent(f"we.collection.success[{dataset}]", f"Last complete observation: {dataset}", dataset,
-                        attempt, gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
+                        normalised, gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
                         value_type="UNSIGNED", discard=True, history="31d", trends="0", units="unixtime")
     stale = stale_macro(entry)
     success["triggers"] = [{
@@ -123,6 +141,8 @@ def macros(entries: list[dict], extra: list[dict]) -> list[dict]:
                        "description": f"Polling interval for {entry['dataset']}."})
         result.append({"macro": stale_macro(entry), "value": entry["stale"],
                        "description": f"Maximum age of a complete {entry['dataset']} observation."})
+        result.append({"macro": history_macro(entry), "value": entry["history"],
+                       "description": f"How long {entry['dataset']} snapshots and attempts are kept."})
     return sorted(result, key=lambda m: m["macro"])
 
 

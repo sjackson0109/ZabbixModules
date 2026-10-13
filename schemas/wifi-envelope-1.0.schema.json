@@ -167,6 +167,15 @@
   "data": {
    "type": "array",
    "maxItems": 50000
+  },
+  "data_rows": {
+   "type": "integer",
+   "minimum": 0,
+   "description": "On a receipt: how many rows the observation had."
+  },
+  "data_omitted": {
+   "const": true,
+   "description": "A receipt: a complete, successful attempt stored without its rows, which are in the dataset's snapshot item. It is never read as a snapshot."
   }
  },
  "required": [

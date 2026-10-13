@@ -66,16 +66,23 @@ final class WifiLab {
             'interfaces'=>[['type'=>2, 'useip'=>1, 'ip'=>$address, 'available'=>$available]]];
     }
 
-    /** Feeds a Wi-Fi owner's datasets: the attempt always, the snapshot only for a complete observation. */
+    /**
+     * Feeds a Wi-Fi owner's datasets as the templates store them: the attempt always (a complete one as a receipt
+     * without its rows), the snapshot only for a complete observation.
+     */
     public static function feedWifi(FixtureGateway $gateway, string $hostid, string $walk, array $datasets,
             string $time = self::OBSERVED): void {
         $snapshot = array_flip(\Modules\WifiExplorer\Services\WifiDatasetReader::KEYS);
         $attempt = array_flip(\Modules\WifiExplorer\Services\WifiDatasetReader::ATTEMPTS);
         foreach ($datasets as $dataset) {
             $envelope = self::envelope(self::WIFI_RAW[$dataset], $walk, $time);
-            $gateway->add($hostid, $attempt[$dataset], [$envelope]);
             if ($envelope['status'] === 'ok' && $envelope['complete']) {
+                $gateway->add($hostid, $attempt[$dataset], [['data_rows'=>count($envelope['data']), 'data'=>[],
+                    'data_omitted'=>true] + $envelope]);
                 $gateway->add($hostid, $snapshot[$dataset], [$envelope]);
+            }
+            else {
+                $gateway->add($hostid, $attempt[$dataset], [$envelope]);
             }
         }
     }

@@ -88,16 +88,16 @@ At most 500 visible owners and 5,000 visible APs per view; Network Explorer's it
 
 ## Storage (principle 14)
 
-Measured on the synthetic lab envelopes (about 115 bytes per AP state row, 175 per AP inventory row, 130 per radio inventory row and 240 per radio state row). Each dataset stores both its attempt and its last complete snapshot. For one cluster of 100 APs and 200 radios at the default intervals:
+Measured on the synthetic lab envelopes (about 115 bytes per AP state row, 175 per AP inventory row, 130 per radio inventory row and 240 per radio state row). Each dataset stores its last complete snapshot and a record of every attempt; since Phase G a complete attempt is stored as a receipt without its rows (`data_omitted`, `data_rows`), because the rows are already in the snapshot, so rows are written once per poll instead of twice. For one cluster of 100 APs and 200 radios at the default intervals:
 
 | Dataset | Envelope | Written per day | Held (history) |
 |---|---|---|---|
-| `ap_state` | ~12 KB | ~7 MB | ~7 MB (1 d) |
-| `radio_state` | ~48 KB | ~28 MB | ~28 MB (1 d) |
-| `ap_inventory` | ~18 KB | ~0.9 MB | ~6 MB (7 d) |
-| `radio_inventory` | ~26 KB | ~1.3 MB | ~9 MB (7 d) |
+| `ap_state` | ~12 KB | ~3.5 MB | ~3.5 MB (1 d) |
+| `radio_state` | ~48 KB | ~14 MB | ~14 MB (1 d) |
+| `ap_inventory` | ~18 KB | ~0.45 MB | ~3 MB (7 d) |
+| `radio_inventory` | ~26 KB | ~0.65 MB | ~4.5 MB (7 d) |
 
-About 37 MB written and 50 MB held per 100-AP cluster before database compression. These are estimates from synthetic rows; the release gate (section 35) still needs a measurement on a representative canary. Radio state dominates; lengthen `{$WE.RADIO.STATE.INTERVAL}` before shortening history if it is too much.
+About 19 MB written and 25 MB held per 100-AP cluster before database compression (37 MB and 50 MB before Phase G). Retention is configurable per dataset with `{$WE.<DATASET>.HISTORY}`. These are estimates from synthetic rows; the release gate (section 35) still needs a measurement on a representative canary. Radio state dominates; lengthen `{$WE.RADIO.STATE.INTERVAL}` before shortening history if it is too much.
 
 ## Verification
 
@@ -190,7 +190,7 @@ Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and confi
 
 ### Storage added in Phases B–F
 
-From the synthetic envelopes: about 155 bytes per SSID row, 255 per client row and 200 per RF detection row; like Phase A, each dataset stores its attempt and its snapshot. For one 100-AP cluster with 1,500 clients at the defaults the client dataset is about 380 KB per snapshot, roughly 220 MB written and held per day (1-day history); lengthen `{$WE.CLIENT.INTERVAL}` or shorten its history first if that is too much. Per-AP RF snapshots are bounded to 500 rows (about 100 KB) every 15 minutes, about 19 MB per AP per day. SSID snapshots are negligible. As in Phase A these are estimates; the release gate still needs a canary measurement.
+From the synthetic envelopes: about 155 bytes per SSID row, 255 per client row and 200 per RF detection row; like Phase A, each dataset stores its attempt and its snapshot. For one 100-AP cluster with 1,500 clients at the defaults the client dataset is about 380 KB per snapshot, roughly 110 MB written and held per day (1-day history) now that complete attempts are receipts (220 MB before Phase G); lengthen `{$WE.CLIENT.INTERVAL}` or shorten `{$WE.CLIENT.HISTORY}` first if that is too much. Per-AP RF snapshots are bounded to 500 rows (about 100 KB) every 15 minutes, about 10 MB per AP per day. SSID snapshots are negligible. As in Phase A these are estimates; the release gate still needs a canary measurement.
 
 ### Verification added in Phases B–F
 
