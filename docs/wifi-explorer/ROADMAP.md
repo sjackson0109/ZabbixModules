@@ -1,15 +1,15 @@
 # Wi-Fi Explorer roadmap
 
-The [requirements](REQUIREMENTS.md) define seven phases (section 36). Phase A landed as its own pull request; Phases B–F were built back to back and land together, one commit per phase, in one pull request. A phase is complete when its tests pass on Zabbix 7.0, 7.2 and 7.4. Vendor support moves only with evidence in the [Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md).
+The [requirements](REQUIREMENTS.md) define seven phases (section 36). Phase A landed as its own pull request; Phases B–F were built back to back, one commit per phase, and landed together in PR #22. A phase is complete when its tests pass on Zabbix 7.0, 7.2 and 7.4. Vendor support moves only with evidence in the [Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md).
 
 | Phase | Scope | Status |
 |---|---|---|
 | A | Canonical model, site/AP/radio inventory, qualification scaffolding | Done (PR #21) |
-| B | Floor plans and RF visualisation | In review |
-| C | SSID inventory and wired-uplink correlation | In review |
-| D | VLAN service-path assurance | In review |
-| E | Blast radius and event readiness | In review |
-| F | Client journey | In review |
+| B | Floor plans and RF visualisation | Done (PR #22) |
+| C | SSID inventory and wired-uplink correlation | Done (PR #22) |
+| D | VLAN service-path assurance | Done (PR #22) |
+| E | Blast radius and event readiness | Done (PR #22) |
+| F | Client journey | Done (PR #22) |
 | G | Vendor expansion and optimisation | Not started |
 
 ## Phase A: canonical model and site/AP inventory

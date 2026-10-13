@@ -28,7 +28,7 @@ $root->addItem([new CTag('h2', true, _('Observing APs')), $observers]);
 
 $needle = mb_strtolower($request['q']);
 $table = (new CTableInfo())->setHeader([_('SSID'), _('BSSID'), _('Class'), _('AP classification'), _('Band / channel'),
-    _('Encryption'), _('Best SNR'), _('Heard best by'), _('Heard by')])
+    _('Encryption'), _('Best SNR'), _('Heard best by'), _('Heard by'), _('Last seen')])
     ->setNoDataMessage($needle !== '' ? _('No neighbour matches the search.') : _('No neighbouring networks observed.'));
 $shown = 0;
 foreach ($rf['neighbours'] as $row) {
@@ -46,8 +46,9 @@ foreach ($rf['neighbours'] as $row) {
             .($row['channel_width'] !== null ? ' ('.$row['channel_width'].' MHz)' : ''),
         $row['encryption'] ?? '—', $row['best_snr'] !== null ? $row['best_snr'].' dB' : '?',
         $best === null ? '—' : (strpos($best, 'host:') === 0 ? _('an unmatched host') : new CLink($apName($best), $link(['ap'=>$best]))),
-        count($row['observers'])]);
-    if ($row['class'] === 'flagged') {
+        count($row['observers']),
+        [$row['last_seen'] ?? _('never'), $row['current'] ? '' : [' ', (new CSpan(_('stale')))->addClass('we-muted')]]]);
+    if ($row['class'] === 'flagged' && $row['current']) {
         $tr->addClass('we-row-warning');
     }
     $table->addRow($tr);
@@ -55,5 +56,6 @@ foreach ($rf['neighbours'] as $row) {
 $counts = $rf['counts'];
 $root->addItem([new CTag('h2', true, _s('Neighbouring networks (%1$s)', $rf['total'])),
     new CTag('p', true, implode(' · ', array_map(static fn($k) => $classNames[$k].': '.$counts[$k], array_keys($counts)))
+        .($rf['stale'] > 0 ? ' · '._s('%1$s heard only in stale observations', $rf['stale']) : '')
         .($rf['total'] > count($rf['neighbours']) ? ' · '._s('the %1$s strongest are listed', count($rf['neighbours'])) : '')),
     $table]);

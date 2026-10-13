@@ -48,8 +48,10 @@ final class PathService {
                     || $edge['target_uid'] === null || $edge['source'] === $edge['target']) {
                 continue;
             }
-            $this->links[$edge['source']][$edge['source_uid']][] = [$edge['target'], $edge['target_uid'], $edge['id']];
-            $this->links[$edge['target']][$edge['target_uid']][] = [$edge['source'], $edge['source_uid'], $edge['id']];
+            // A link observed only in stale LLDP is not evidence of today's cabling.
+            $current = ($edge['freshness'] ?? 'unknown') === 'current';
+            $this->links[$edge['source']][$edge['source_uid']][] = [$edge['target'], $edge['target_uid'], $edge['id'], $current];
+            $this->links[$edge['target']][$edge['target_uid']][] = [$edge['source'], $edge['source_uid'], $edge['id'], $current];
         }
         foreach ($network['lags'] as $lag) {
             if ($lag['interface_uid'] === null) {
@@ -108,6 +110,9 @@ final class PathService {
                 || !in_array($uplink['state'], ['confirmed', 'switch_only', 'ap_only'], true)) {
             return ['reason'=>'uplink_'.($uplink['state'] ?? 'unresolved')] + $chain;
         }
+        if (($uplink['freshness'] ?? 'unknown') !== 'current') {
+            return ['reason'=>'uplink_stale'] + $chain;
+        }
         $host = $uplink['hostid'];
         $chain['ports'][] = $this->port($host, $uplink['interface_uid'], 'access', null);
         $visited = [];
@@ -149,11 +154,19 @@ final class PathService {
             }
             $rootPort = $this->aggregators[$host][$rootPort] ?? $rootPort;
             $peers = [];
-            foreach ($this->links[$host][$rootPort] ?? [] as [$peerHost, $peerUid, $edgeId]) {
+            $stale = false;
+            foreach ($this->links[$host][$rootPort] ?? [] as [$peerHost, $peerUid, $edgeId, $current]) {
+                if (!$current) {
+                    $stale = true;
+                    continue;
+                }
                 $peerUid = $this->aggregators[$peerHost][$peerUid] ?? $peerUid;
                 $peers[$peerHost.'/'.$peerUid] = [$peerHost, $peerUid, $edgeId];
             }
             $chain['ports'][] = $this->port($host, $rootPort, 'root_port', null);
+            if (!$peers && $stale) {
+                return ['status'=>'partial', 'reason'=>'upstream_link_stale', 'stop_hostid'=>$host] + $chain;
+            }
             if (count($peers) !== 1) {
                 return ['status'=>'partial', 'reason'=>$peers ? 'upstream_link_ambiguous' : 'upstream_link_unresolved',
                     'stop_hostid'=>$host] + $chain;
@@ -309,7 +322,9 @@ final class PathService {
                     array_slice($hops, 0, 10)),
                 'current',
                 $result['reason'] === 'port_down' ? _('Restore the link.')
-                    : _s('Add VLAN %1$s to the port\'s allowed VLANs, or correct the declared VLAN.', $result['vlan']));
+                    : ($result['reason'] === 'stp_blocking'
+                        ? _('Check why spanning tree blocks this port: a loop, bridge priorities or a redundant link.')
+                        : _s('Add VLAN %1$s to the port\'s allowed VLANs, or correct the declared VLAN.', $result['vlan'])));
         }
         if ($unproven) {
             $first = $results[$unproven[0]];

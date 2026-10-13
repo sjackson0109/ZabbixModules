@@ -79,15 +79,19 @@ final class EventService {
         }
         $required = $event['min_aps'] ?? count($expected);
 
-        if ($ssid === null || $ssid['observations'] === [] && $ssid['enabled'] === null) {
+        // Only the clusters of the event's own site count: the SSID may be on elsewhere and off here.
+        $local = array_filter($ssid['observations'] ?? [], static fn($o) => $o['site'] === $event['site']);
+        $current = array_filter($local, static fn($o) => $o['freshness'] === 'current');
+        $enabled = $current ? (bool) array_filter($current, static fn($o) => $o['enabled']) : null;
+        if ($ssid === null || $local === []) {
             $check('ssid_enabled', $ssid !== null && $ssid['declared'] ? 'fail' : 'unknown',
-                _s('No visible cluster reports %1$s.', $event['ssid']), 'observed');
+                _s('No visible cluster at this site reports %1$s.', $event['ssid']), 'observed');
         }
-        elseif ($ssid['enabled'] === null) {
+        elseif ($enabled === null) {
             $check('ssid_enabled', 'unknown', _s('The SSID state of %1$s is not current.', $event['ssid']), 'observed');
         }
         else {
-            $check('ssid_enabled', $ssid['enabled'] ? 'pass' : 'fail', $ssid['enabled']
+            $check('ssid_enabled', $enabled ? 'pass' : 'fail', $enabled
                 ? _s('%1$s is enabled on the cluster.', $event['ssid']) : _s('%1$s is disabled on the cluster.', $event['ssid']),
                 'observed');
         }
@@ -109,6 +113,8 @@ final class EventService {
 
             // An AP serves the event when it can broadcast the SSID and its VLAN path has not failed.
             $serving = array_filter($expected, static fn($e) => $e['status'] === 'broadcasting');
+            // APs whose broadcasting is unknown may still serve: they make capacity unknown, never failed.
+            $possible = array_filter($expected, static fn($e) => in_array($e['status'], ['broadcasting', 'unknown'], true));
             if (!$wired['available']) {
                 $check('vlan_paths', 'unknown', WifiErrors::wired($wired['reason']), 'inferred');
             }
@@ -118,6 +124,7 @@ final class EventService {
                 $complete = count(array_filter($serving, static fn($e) => $state($e) === 'complete'));
                 $failed = array_filter($serving, static fn($e) => $state($e) === 'failed');
                 $serving = array_filter($serving, static fn($e) => $state($e) !== 'failed');
+                $possible = array_filter($possible, static fn($e) => $state($e) !== 'failed');
                 $check('vlan_paths', $complete >= $required ? 'pass' : (count($serving) >= $required ? 'unknown' : 'fail'),
                     _s('VLAN path complete for %1$s of %2$s broadcasting APs (%3$s needed).', $complete,
                         $on, $required).($failed ? ' '._s('Failed for %1$s.', implode(', ', array_map(
@@ -127,23 +134,38 @@ final class EventService {
 
             if ($event['expected_clients'] !== null) {
                 $capacity = count($serving) * $event['clients_per_ap'];
-                $check('capacity', $capacity >= $event['expected_clients'] ? 'pass' : 'fail',
+                $check('capacity', $capacity >= $event['expected_clients'] ? 'pass'
+                    : (count($possible) * $event['clients_per_ap'] >= $event['expected_clients'] ? 'unknown' : 'fail'),
                     _s('%1$s serving APs × %2$s clients each = %3$s for %4$s expected clients.', count($serving),
-                        $event['clients_per_ap'], $capacity, $event['expected_clients']), 'declared');
+                        $event['clients_per_ap'], $capacity, $event['expected_clients'])
+                    .(count($possible) > count($serving)
+                        ? ' '._s('%1$s more may serve; their state is unknown.', count($possible) - count($serving)) : ''),
+                    'declared');
             }
 
             $busy = [];
+            $measured = 0;
             foreach ($expected as $row) {
                 foreach ($aps[$row['ap_uid']]['radios'] ?? [] as $radio) {
-                    if ($radio['status'] === 'up' && $radio['utilisation_percent'] !== null
-                            && $radio['utilisation_percent'] >= WifiLimits::HIGH_UTILISATION) {
+                    if ($radio['status'] !== 'up' || $radio['utilisation_percent'] === null) {
+                        continue;
+                    }
+                    ++$measured;
+                    if ($radio['utilisation_percent'] >= WifiLimits::HIGH_UTILISATION) {
                         $busy[] = $aps[$row['ap_uid']]['name'] ?? $row['ap_uid'];
                     }
                 }
             }
-            $check('utilisation', $busy ? 'warn' : 'pass', $busy
-                ? _s('High channel utilisation now on %1$s (one sample, not a forecast).', implode(', ', array_unique($busy)))
-                : _('No expected AP has high channel utilisation now.'), 'observed');
+            // Advisory only: with nothing measured it is not checked, never passed.
+            if ($measured === 0) {
+                $check('utilisation', 'not_checked', _('No expected AP reports channel utilisation, so it is not checked.'),
+                    'not_collected');
+            }
+            else {
+                $check('utilisation', $busy ? 'warn' : 'pass', $busy
+                    ? _s('High channel utilisation now on %1$s (one sample, not a forecast).', implode(', ', array_unique($busy)))
+                    : _s('No expected AP has high channel utilisation now (%1$s radios measured).', $measured), 'observed');
+            }
         }
         $check('credentials', 'not_checked', _('Pre-shared keys, RADIUS and captive portals are not read by Wi-Fi Explorer, so they are not validated.'),
             'not_collected');

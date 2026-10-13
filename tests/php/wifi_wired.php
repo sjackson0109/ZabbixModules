@@ -100,7 +100,11 @@ use Modules\WifiExplorer\Services\WifiService;
         'An AP host that is also a Network Explorer host still confirms its uplink.');
 
     // Uplinks need a site and are not computed for views that do not use them.
-    $assert($build([])['wired']['reason'] === 'not_requested', 'The overview without a selection reads no switch data.');
+    $assert($build(['view'=>'floors'])['wired']['reason'] === 'not_requested', 'The floor view reads no switch data.');
+    $overview = $build([]);
+    $assert($overview['wired']['available'] && $findings($overview, 'wifi_uplink_unresolved') !== []
+        && array_column($overview['findings'], 'rule') === array_column($build([], WifiLab::apUid(1))['findings'], 'rule'),
+        'The overview carries the uplink findings, and selecting an AP does not change them.');
     $all = (new WifiService(WifiLab::gateway(), WifiLab::now(), WifiLab::config()))->build(WifiScope::create('', '', ['view'=>'ssids']));
     $assert($all['wired']['reason'] === 'site_required', 'Without a site the wired model is not read.');
 

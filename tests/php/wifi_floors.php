@@ -109,6 +109,20 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert(count($contention) === 1 && $contention[0]['object_id'] !== null,
         'lab-ap-01 hears CoffeeShop strongly on its own channel 36: contention backed by RF evidence.');
 
+    // Detections only in a stale RF snapshot are listed as stale and not counted as heard now.
+    $staleRf = WifiLab::gateway();
+    foreach ($staleRf->itemRows as $item) {
+        if ($item['key_'] === 'we.rf.neighbour') {
+            $envelope = json_decode($staleRf->values[$item['itemid']][0]['value'], true);
+            $envelope['observed_at'] = $envelope['attempted_at'] = '2026-10-10T09:00:00Z';
+            $staleRf->values[$item['itemid']] = [['value'=>json_encode($envelope)]];
+        }
+    }
+    $old = (new WifiService($staleRf, WifiLab::now(), $config))->build(WifiScope::create('lab-west'))['rf'];
+    $assert($old['current_total'] + $old['stale'] === $old['total'] && $old['stale'] > 0
+        && array_sum($old['counts']) === $old['current_total'] && $old['neighbours'][0]['last_seen'] !== null,
+        'Stale detections are counted apart from what is heard now, with when they were last seen.');
+
     // A viewer who cannot read the RF host sees no detections from it.
     $hidden = (new WifiService(WifiLab::gateway(['20']), WifiLab::now(), $config))->build(WifiScope::create('lab-west'));
     $assert(!isset(array_column($hidden['rf']['observers'], null, 'hostid')['20']), 'An unreadable RF host contributes nothing.');

@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__.'/wifi_lab.php';
 
+use Modules\WifiExplorer\Services\EventService;
+use Modules\WifiExplorer\Services\ImpactService;
+use Modules\WifiExplorer\Services\PathService;
 use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
 
@@ -81,6 +84,69 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert($ap2['impact'] === 'reroute_possible' && $ap2['alternates'] !== [] && $ap2['alternates'][0]['carried'] !== null,
         'A switch below the failure with an up STP alternate may reroute; the alternate\'s VLANs are shown.');
 
+    // A LAG member fails while the other members' "up" is stale: not assessable, never "degraded".
+    $gateway = WifiLab::gateway();
+    foreach ($gateway->itemRows as $item) {
+        if ($item['hostid'] === '31' && $item['key_'] === 'ne.interfaces.state') {
+            $envelope = json_decode($gateway->values[$item['itemid']][0]['value'], true);
+            $envelope['observed_at'] = $envelope['attempted_at'] = '2026-10-10T09:00:00Z';
+            $gateway->values[$item['itemid']] = [['value'=>json_encode($envelope)]];
+        }
+    }
+    $model = (new WifiService($gateway, WifiLab::now(), WifiLab::config()))
+        ->build(WifiScope::create('lab-west', '', ['view'=>'impact', 'fail_host'=>'31', 'fail_if'=>$uid('31', 'Te1/0/1')]));
+    $stale = array_column($model['impact']['aps'], null, 'ap_uid')[WifiLab::apUid(1)] ?? null;
+    $assert($stale !== null && $stale['impact'] === 'cannot_assess' && $stale['reason'] === 'lag_state_unknown',
+        'Stale member state cannot prove the LAG still carries traffic.');
+
+    // A whole switch fails: an alternate port leading back to that same switch is no way round it.
+    $port = static fn(string $h, string $u, array $stp = [], array $peers = []) => ['hostid'=>$h, 'uid'=>$u, 'name'=>$u,
+        'oper_status'=>'up', 'quality'=>['freshness'=>'current'], 'vlan'=>['carried'=>'1-100'], 'stp'=>$stp,
+        'explorer_url'=>null, 'peers'=>$peers];
+    $network = static fn(string $alternatePeer) => ['hosts'=>[
+            ['hostid'=>'1', 'name'=>'A', 'stp'=>[['instance'=>0, 'is_root'=>true, 'root_bridge_id'=>'R']]],
+            ['hostid'=>'2', 'name'=>'B', 'stp'=>[['instance'=>0, 'is_root'=>false, 'root_bridge_id'=>'R', 'root_port_uid'=>'b1']]],
+            ['hostid'=>'3', 'name'=>'C', 'stp'=>[['instance'=>0, 'is_root'=>false, 'root_bridge_id'=>'R', 'root_port_uid'=>'c1']]]],
+        'interfaces'=>[$port('1', 'a1'), $port('1', 'a2'), $port('2', 'ap'),
+            $port('2', 'b1', [['instance'=>0, 'role'=>'root']], [['hostid'=>'1']]),
+            $port('2', 'b2', [['instance'=>0, 'role'=>'alternate']], [['hostid'=>$alternatePeer]])],
+        'edges'=>[['id'=>'e1', 'source'=>'1', 'source_uid'=>'a1', 'target'=>'2', 'target_uid'=>'b1', 'freshness'=>'current']],
+        'lags'=>[], 'quality'=>[['hostid'=>'1', 'dataset'=>'stp', 'freshness'=>'current'],
+            ['hostid'=>'2', 'dataset'=>'stp', 'freshness'=>'current']]];
+    $uplink = ['state'=>'confirmed', 'hostid'=>'2', 'interface_uid'=>'ap', 'freshness'=>'current'];
+    $alternate = static function (string $peer) use ($network, $uplink): array {
+        $chain = (new PathService($network($peer)))->chain($uplink);
+        $aps = ['x'=>['ap_uid'=>'x', 'uplink'=>$uplink, 'chain'=>$chain, 'clients'=>3, 'placement'=>null, 'ssids'=>[]]];
+        return [$chain['status'], (new ImpactService($network($peer)))->build('1', '', $aps, [])['aps'][0]['impact']];
+    };
+    $assert($alternate('1') === ['complete', 'lost'], 'An alternate back to the failed root is no reroute.');
+    $assert($alternate('3') === ['complete', 'reroute_possible'], 'An alternate to another switch may reroute.');
+
+    // Event checks on a site whose AP state is unknown, and an SSID that is on at another site only.
+    $event = ['event_id'=>'e1', 'name'=>'Conf', 'site'=>'s', 'ssid'=>'Ev', 'starts'=>'2026-10-01T00:00:00Z',
+        'ends'=>'2026-12-01T00:00:00Z', 'floors'=>[], 'min_aps'=>null, 'expected_clients'=>100, 'clients_per_ap'=>50];
+    $eventAps = [];
+    $expectedAps = [];
+    foreach (['a', 'b', 'c'] as $apUid) {
+        $eventAps[$apUid] = ['ap_uid'=>$apUid, 'name'=>$apUid, 'site'=>'s', 'status'=>'unknown', 'placement'=>null, 'radios'=>[]];
+        $expectedAps[] = ['ap_uid'=>$apUid, 'site'=>'s', 'status'=>'unknown', 'reason'=>'ap_state_unknown', 'vlan'=>10];
+    }
+    $observation = static fn(string $site, bool $enabled, string $freshness) => ['hostid'=>'9', 'owner_name'=>'vc',
+        'site'=>$site, 'enabled'=>$enabled, 'hidden'=>false, 'client_count'=>null, 'freshness'=>$freshness, 'observed_at'=>null];
+    $readiness = static function (array $observations) use ($event, $eventAps, $expectedAps): array {
+        $ssid = ['ssid_uid'=>'x', 'name'=>'Ev', 'declared'=>true, 'enabled'=>null, 'observations'=>$observations,
+            'expected'=>$expectedAps];
+        $row = (new EventService())->build([$event], [$ssid], $eventAps, [], ['available'=>false, 'reason'=>'not_requested'],
+            strtotime('2026-10-12T00:00:00Z'))['events'][0];
+        return array_column($row['checks'], 'status', 'check') + ['status'=>$row['status']];
+    };
+    $unknown = $readiness([$observation('s', true, 'stale')]);
+    $assert($unknown['capacity'] === 'unknown' && $unknown['status'] === 'unknown',
+        'APs of unknown state make capacity unknown, so the event is unknown, not "not ready".');
+    $assert($unknown['utilisation'] === 'not_checked', 'Utilisation nobody measured is not checked, never passed.');
+    $elsewhere = $readiness([$observation('s', false, 'current'), $observation('t', true, 'current')]);
+    $assert($elsewhere['ssid_enabled'] === 'fail', 'An SSID on at another site only is not enabled for this event.');
+
     // Not visible: nothing is disclosed about a switch the viewer cannot read.
     $hidden = $impact('31', '', null, ['31']);
     $assert($hidden['impact']['status'] === 'not_visible' && $hidden['impact']['target'] === null,
@@ -108,7 +174,7 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert($ready['events'][0]['status'] === 'ready', 'With three serving APs required, Expo is ready.');
 
     // Without the wired model the paths are unknown, so the event is unknown, and no finding claims otherwise.
-    $overview = (new WifiService(WifiLab::gateway(), WifiLab::now(), $config))->build(WifiScope::create('lab-west', '', []));
+    $overview = (new WifiService(WifiLab::gateway(), WifiLab::now(), $config))->build(WifiScope::create('lab-west', '', ['view'=>'rf']));
     $assert($overview['events'][0]['status'] === 'unknown'
         && !array_filter($overview['findings'], static fn($f) => strpos($f['rule'], 'wifi_event_') === 0),
         'Unproven paths make readiness unknown, never ready.');

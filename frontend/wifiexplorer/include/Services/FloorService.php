@@ -138,7 +138,7 @@ final class FloorService {
                 continue;
             }
             foreach ($row['observers'] as $o) {
-                if ($o['ap_uid'] !== null) {
+                if ($o['ap_uid'] !== null && $o['freshness'] === 'current') {
                     $hears[$o['ap_uid']][$row['managed_ap_uid']] = true;
                 }
             }

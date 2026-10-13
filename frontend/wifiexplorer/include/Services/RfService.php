@@ -72,7 +72,7 @@ final class RfService {
                         'channel_width'=>$row['channel_width'], 'encryption'=>$row['encryption'], 'class'=>$class[0],
                         'class_basis'=>$class[1], 'managed_ap_uid'=>$class[2], 'labels'=>[], 'observers'=>[],
                         'best_snr'=>null, 'heard_best_by'=>null, 'known_label'=>$known[$bssid]['label'] ?? null,
-                        'current'=>false];
+                        'current'=>false, 'last_seen'=>null];
                 }
                 $label = $row['classification'] ?? null;
                 if ($label !== null) {
@@ -82,6 +82,10 @@ final class RfService {
                     'channel'=>$row['channel'], 'band'=>$row['band'], 'freshness'=>$set['freshness'] ?? 'unknown',
                     'observed_at'=>$set['observed_at'] ?? null];
                 $entry['current'] = $entry['current'] || $current;
+                $seen = $set['observed_at'] ?? null;
+                if ($seen !== null && ($entry['last_seen'] === null || strcmp($seen, $entry['last_seen']) > 0)) {
+                    $entry['last_seen'] = $seen;
+                }
                 if ($row['snr_db'] !== null && ($entry['best_snr'] === null || $row['snr_db'] > $entry['best_snr'])) {
                     $entry['best_snr'] = $row['snr_db'];
                     $entry['heard_best_by'] = $apUid ?? 'host:'.$hostid;
@@ -94,14 +98,17 @@ final class RfService {
             }
         }
         $list = array_values($neighbours);
-        usort($list, static fn($a, $b) => [self::rank($a['class']), -($a['best_snr'] ?? -1), $a['bssid']]
-            <=> [self::rank($b['class']), -($b['best_snr'] ?? -1), $b['bssid']]);
+        usort($list, static fn($a, $b) => [!$a['current'], self::rank($a['class']), -($a['best_snr'] ?? -1), $a['bssid']]
+            <=> [!$b['current'], self::rank($b['class']), -($b['best_snr'] ?? -1), $b['bssid']]);
+        // Counts are of what is heard now; a network only in stale observations is counted apart, never as current.
         $counts = array_fill_keys(['managed', 'known_external', 'known_neighbour', 'flagged', 'unknown'], 0);
+        $stale = 0;
         foreach ($list as $row) {
-            ++$counts[$row['class']];
+            $row['current'] ? ++$counts[$row['class']] : ++$stale;
         }
         return ['observers'=>$observers, 'neighbours'=>array_slice($list, 0, self::DISPLAY_NEIGHBOURS),
-            'total'=>count($list), 'counts'=>$counts, 'findings'=>$this->findings($list, $observers, $aps)];
+            'total'=>count($list), 'current_total'=>count($list) - $stale, 'stale'=>$stale, 'counts'=>$counts,
+            'findings'=>$this->findings($list, $observers, $aps)];
     }
 
     /**

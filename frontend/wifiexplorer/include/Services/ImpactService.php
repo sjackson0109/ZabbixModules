@@ -137,10 +137,14 @@ final class ImpactService {
                 return $result('lost', 'ap_port', 0);
             }
             if ($member) {
-                $others = array_filter($port['lag_members'], fn($uid) => $uid !== $failInterface
+                $up = array_filter($port['lag_members'], fn($uid) => $uid !== $failInterface
                     && ($this->interfaces[$failHost][$uid]['oper_status'] ?? null) === 'up');
-                if ($others) {
+                if (array_filter($up, fn($uid) => $this->current($failHost, $uid))) {
                     return $result('degraded', 'lag_member', $index);
+                }
+                if ($up) {
+                    // The other members were up when last seen, which is not evidence that they are up now.
+                    return $result('cannot_assess', 'lag_state_unknown', $index);
                 }
             }
             return $this->reroute($chain, $index, 'upstream_port');
@@ -162,8 +166,11 @@ final class ImpactService {
             }
             foreach ($this->interfaces[$hostid] ?? [] as $uid => $interface) {
                 foreach ($interface['stp'] ?? [] as $row) {
+                    // An alternate that leads back to the failed switch, or whose state is not current, is no way round.
+                    $toFailed = in_array($failedHost, array_column($interface['peers'] ?? [], 'hostid'), true);
                     if (($row['instance'] ?? null) === 0 && in_array($row['role'] ?? null, ['alternate', 'backup'], true)
-                            && ($interface['oper_status'] ?? null) === 'up') {
+                            && ($interface['oper_status'] ?? null) === 'up' && $this->current($hostid, $uid)
+                            && !($reason === 'upstream_switch' && $toFailed)) {
                         $alternates[] = ['hostid'=>$hostid, 'interface_uid'=>$uid, 'switch_name'=>$this->hosts[$hostid]['name'],
                             'interface_name'=>$interface['name'] ?? $uid,
                             'carried'=>$interface['vlan']['carried'] ?? null];
@@ -173,6 +180,10 @@ final class ImpactService {
         }
         return ['impact'=>$alternates ? 'reroute_possible' : 'lost', 'reason'=>$reason, 'at_hop'=>$index,
             'alternates'=>$alternates];
+    }
+
+    private function current(string $hostid, string $uid): bool {
+        return ($this->interfaces[$hostid][$uid]['quality']['freshness'] ?? 'unknown') === 'current';
     }
 
     /** Whether an alternate port carries a VLAN, for the view. */
