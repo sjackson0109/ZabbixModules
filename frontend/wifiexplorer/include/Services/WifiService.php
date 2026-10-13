@@ -88,6 +88,7 @@ final class WifiService {
         $ssids = (new SsidService())->build($owners, $datasets, $aps, $config);
         $findings = array_merge($findings, $ssids['findings']);
         $wired = ['available'=>false, 'reason'=>'not_requested', 'switches'=>0];
+        $paths = [];
         if ($scope->needsWired()) {
             try {
                 $uplinks = (new UplinkService($this->gateway, $now))->build($scope->site, $owners, $aps);
@@ -103,9 +104,18 @@ final class WifiService {
                 $aps[$apUid]['uplink'] = $uplink;
             }
             $findings = array_merge($findings, $uplinks['findings']);
+            if ($uplinks['available']) {
+                $pathModel = (new PathService($uplinks['network']))->build($aps, $ssids['ssids']);
+                $paths = $pathModel['paths'];
+                foreach ($pathModel['chains'] as $apUid => $chain) {
+                    $aps[$apUid]['chain'] = $chain;
+                }
+                $findings = array_merge($findings, $pathModel['findings']);
+            }
         }
         foreach ($aps as $apUid => &$ap) {
             $ap['uplink'] = $ap['uplink'] ?? null;
+            $ap['chain'] = $ap['chain'] ?? null;
             $ap['ssids'] = $ssids['by_ap'][$apUid] ?? [];
         }
         unset($ap);
@@ -125,7 +135,7 @@ final class WifiService {
             'owners'=>array_values($owners), 'aps'=>$list, 'overview'=>$this->overview($list, $quality, $findings),
             'findings'=>$findings, 'quality'=>$quality,
             'selected_ap'=>$selected, 'selection_missing'=>$scope->ap !== '' && $selected === '',
-            'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired,
+            'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired, 'paths'=>$paths,
             'config_invalid'=>$this->configInvalid,
             'intent'=>['ssids'=>$config['ssids'], 'events'=>$config['events'],
                 'known_bssids'=>count($config['known_bssids'])],

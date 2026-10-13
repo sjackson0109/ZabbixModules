@@ -136,8 +136,10 @@ if ($data['selected_ap'] !== '') {
         $ssidNames = array_column($data['ssids'], 'name', 'ssid_uid');
         $list = [];
         foreach ($ap['ssids'] as $ssidUid => $row) {
-            $list[] = new CLink(($ssidNames[$ssidUid] ?? $ssidUid).': '.str_replace('_', ' ', $row['status']),
-                $link(['view'=>'ssids', 'ssid'=>$ssidUid]));
+            $path = $data['paths'][$ssidUid]['results'][$ap['ap_uid']] ?? null;
+            $list[] = new CLink(($ssidNames[$ssidUid] ?? $ssidUid).': '.str_replace('_', ' ', $row['status'])
+                .($path !== null ? ', '._s('VLAN %1$s path %2$s', $path['vlan'], $path['status']) : ''),
+                $link(['view'=>$path !== null ? 'paths' : 'ssids', 'ssid'=>$ssidUid]));
             $list[] = ' · ';
         }
         array_pop($list);

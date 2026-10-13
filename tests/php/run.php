@@ -10,3 +10,4 @@ require __DIR__.'/scale.php';
 require __DIR__.'/wifi.php';
 require __DIR__.'/wifi_floors.php';
 require __DIR__.'/wifi_wired.php';
+require __DIR__.'/wifi_paths.php';
