@@ -10,6 +10,12 @@ final class WifiLimits {
     public const DISPLAY_APS = 5000;
     /** Radio utilisation (observed, per the source's sampling window) at or above which a radio is highly utilised. */
     public const HIGH_UTILISATION = 70;
+    /** Clients listed in one view; a search narrows the rest. */
+    public const DISPLAY_CLIENTS = 500;
+    /** The sampled client timeline: how far back, how many snapshots, and how many bytes of them at most. */
+    public const CLIENT_HISTORY_S = 21600;
+    public const CLIENT_HISTORY_SAMPLES = 72;
+    public const CLIENT_HISTORY_BYTES = 16777216;
 
     private function __construct() {
     }

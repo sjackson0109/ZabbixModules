@@ -15,7 +15,10 @@
     "ap_inventory",
     "ap_state",
     "radio_inventory",
-    "radio_state"
+    "radio_state",
+    "ssid",
+    "rf_neighbour",
+    "client"
    ]
   },
   "generation_id": {
@@ -500,6 +503,257 @@
     "utilisation_percent",
     "utilisation_window_s"
    ]
+  },
+  "ssid": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "One SSID as the owner reports it. Secrets (PSKs, RADIUS secrets) are never part of this row. vlan_id and security stay null where the source does not expose them (Aruba Instant AI-AP-MIB); the SSID-to-VLAN mapping then comes from declared intent.",
+   "properties": {
+    "ssid_uid": {
+     "type": "string",
+     "pattern": "^ssid-[0-9a-f]{24}$"
+    },
+    "name": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 128
+    },
+    "enabled": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "hidden": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "client_count": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0,
+     "maximum": 100000
+    },
+    "vlan_id": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1,
+     "maximum": 4094
+    },
+    "security": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 64
+    },
+    "profiles": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 1024
+    }
+   },
+   "required": [
+    "ssid_uid",
+    "name",
+    "enabled",
+    "hidden",
+    "client_count",
+    "vlan_id",
+    "security",
+    "profiles"
+   ]
+  },
+  "rf_neighbour": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "One BSSID the owner AP detects, deduplicated (strongest kept) and bounded to the strongest 500. classification is the AP's own label (ArubaRogueApType); it is evidence, not a verdict, and never means malicious.",
+   "properties": {
+    "bssid": {
+     "type": "string",
+     "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"
+    },
+    "ssid": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 128
+    },
+    "channel": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 1,
+     "maximum": 233
+    },
+    "band": {
+     "enum": [
+      "2.4",
+      "5",
+      "6",
+      null
+     ]
+    },
+    "channel_width": {
+     "enum": [
+      "20",
+      "40",
+      "80",
+      "160",
+      null
+     ]
+    },
+    "phy": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 16
+    },
+    "encryption": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 64
+    },
+    "snr_db": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0,
+     "maximum": 120
+    },
+    "classification": {
+     "enum": [
+      "valid",
+      "interfering",
+      "unsecure",
+      "dos",
+      "unknown",
+      "known_interfering",
+      "suspected_unsecure",
+      "other",
+      null
+     ]
+    },
+    "classification_raw": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 64
+    }
+   },
+   "required": [
+    "bssid",
+    "ssid",
+    "channel",
+    "band",
+    "channel_width",
+    "phy",
+    "encryption",
+    "snr_db",
+    "classification",
+    "classification_raw"
+   ]
+  },
+  "client": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "One associated client, masked at collection by the owner's {$WE.CLIENT.IDENTIFIERS} policy: full keeps MAC, IP address and name; partial keeps the MAC's manufacturer prefix only; pseudonymised keeps only the keyed client_uid. ap_uid comes from the client's AP address matched against the AP table in the same walk.",
+   "properties": {
+    "client_uid": {
+     "type": "string",
+     "pattern": "^client-[0-9a-f]{24}$"
+    },
+    "mac_address": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){2}:([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}|xx:xx:xx)$"
+    },
+    "ip_address": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^[0-9]{1,3}(\\.[0-9]{1,3}){3}$"
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "maxLength": 256
+    },
+    "identifiers": {
+     "enum": [
+      "full",
+      "partial",
+      "pseudonymised"
+     ]
+    },
+    "ap_uid": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^ap-[0-9a-f]{24}$"
+    },
+    "ap_basis": {
+     "enum": [
+      "ap_address",
+      "ap_address_unmatched",
+      null
+     ]
+    },
+    "bssid": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "pattern": "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"
+    },
+    "snr_db": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0,
+     "maximum": 120
+    },
+    "connected_s": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "minimum": 0,
+     "maximum": 2147483648
+    }
+   },
+   "required": [
+    "client_uid",
+    "mac_address",
+    "ip_address",
+    "name",
+    "identifiers",
+    "ap_uid",
+    "ap_basis",
+    "bssid",
+    "snr_db",
+    "connected_s"
+   ]
   }
  },
  "allOf": [
@@ -588,6 +842,60 @@
      "data": {
       "items": {
        "$ref": "#/$defs/radio_state"
+      }
+     }
+    }
+   }
+  },
+  {
+   "if": {
+    "properties": {
+     "dataset": {
+      "const": "ssid"
+     }
+    }
+   },
+   "then": {
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/$defs/ssid"
+      }
+     }
+    }
+   }
+  },
+  {
+   "if": {
+    "properties": {
+     "dataset": {
+      "const": "rf_neighbour"
+     }
+    }
+   },
+   "then": {
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/$defs/rf_neighbour"
+      }
+     }
+    }
+   }
+  },
+  {
+   "if": {
+    "properties": {
+     "dataset": {
+      "const": "client"
+     }
+    }
+   },
+   "then": {
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/$defs/client"
       }
      }
     }

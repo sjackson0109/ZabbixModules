@@ -1,15 +1,15 @@
 # Wi-Fi Explorer roadmap
 
-The [requirements](REQUIREMENTS.md) define seven phases (section 36). Each lands as one pull request to `main`, reviewed before the next starts. A phase is complete when its tests pass on Zabbix 7.0, 7.2 and 7.4. Vendor support moves only with evidence in the [Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md).
+The [requirements](REQUIREMENTS.md) define seven phases (section 36). Phase A landed as its own pull request; Phases B–F were built back to back and land together, one commit per phase, in one pull request. A phase is complete when its tests pass on Zabbix 7.0, 7.2 and 7.4. Vendor support moves only with evidence in the [Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md).
 
 | Phase | Scope | Status |
 |---|---|---|
-| A | Canonical model, site/AP/radio inventory, qualification scaffolding | In review |
-| B | Floor plans and RF visualisation | Not started |
-| C | SSID inventory and wired-uplink correlation | Not started |
-| D | VLAN service-path assurance | Not started |
-| E | Blast radius and event readiness | Not started |
-| F | Client journey | Not started |
+| A | Canonical model, site/AP/radio inventory, qualification scaffolding | Done (PR #21) |
+| B | Floor plans and RF visualisation | In review |
+| C | SSID inventory and wired-uplink correlation | In review |
+| D | VLAN service-path assurance | In review |
+| E | Blast radius and event readiness | In review |
+| F | Client journey | In review |
 | G | Vendor expansion and optimisation | Not started |
 
 ## Phase A: canonical model and site/AP inventory
@@ -25,29 +25,23 @@ Open before Aruba Instant can move past Unqualified: sanitised captures of a VC 
 
 ## Phase B: floor plans and RF
 
-- Floor-plan assets per site and building, with AP placement stored by `ap_uid` (never by name or MAC).
-- Overlays: band, channel, utilisation and, from Phase F data, client density. An interpolated overlay is labelled as observed-data interpolation, never a predictive survey (principle 8).
-- RF neighbour and rogue view from `aiInterferAccessPointTable`, owned by each **observing AP**, not the VC. It needs per-AP owner hosts, a bounded and deduplicated snapshot (900+ rows were seen on one AP), and the device's own classification kept as evidence without calling anything malicious (principle 9).
+Delivered: floors and AP placement (by `ap_uid`) in the module configuration, edited under **Configure**; the **Floor plans** tab with status, band, channel, utilisation, clients, neighbours and retries overlays, interpolated fields labelled as interpolation, channel-reuse lines backed by RF evidence and an unplaced-AP list; the per-AP template *Wi-Fi Explorer - Aruba Instant AP by SNMP* and the `rf_neighbour` dataset (deduplicated, bounded to the strongest 500); the **RF neighbours** tab with evidence-based classes that keep the AP's own label and never say malicious. See [design](DESIGN.md#floor-plans-and-rf-phase-b-sections-14-and-19).
 
 ## Phase C: SSIDs and wired uplinks
 
-- `ssid` dataset from the Instant SSID table: name, status, hidden flag, client count.
-- **SSID-to-VLAN mapping** is not exposed by AI-AP-MIB on Instant. It will come from declared intent (an operator-maintained mapping) or a verified source, and the page will say which. Walking AI-AP-MIB `.2.3` (a possible per-BSS table) is the first thing to check against a capture.
-- AP-to-switch relationship from LLDP. The Aruba template's LLDP walk lacks chassis IDs and subtypes, so Network Explorer's standard LLDP producer is linked to AP hosts instead; AP-side and switch-side observations then share one parser and corroborate each other.
+Delivered: the `ssid` dataset and the **SSIDs** tab; SSID intent (VLAN, where expected, bands) as declared configuration, because AI-AP-MIB on Instant does not expose an SSID's VLAN (walking `.2.3` against a real capture is still open); inferred per-AP broadcasting; uplinks from switch LLDP (chassis MAC or management address) and the AP's own LLDP through Network Explorer's resolver, with confirmed, one-sided, conflicting, ambiguous and unresolved states. See [design](DESIGN.md#ssids-and-wired-uplinks-phase-c-sections-10-and-11).
 
 ## Phase D: VLAN service-path assurance
 
-Per SSID, prove AP by AP that the required VLAN reaches each AP's switch port and continues hop by hop through Network Explorer's Layer 2 and STP model, naming the first failing hop and stating uncertainty instead of inferring a path from geometry (principle 2).
+Delivered: per SSID with a declared VLAN, AP by AP, the instance-0 root-port walk to the root bridge with every port checked (up, VLAN in current egress, not blocking), the first failing hop named, and partial or unknown results whenever data is stale, missing, disagreeing or MSTP-mapped. The **VLAN paths** tab. See [design](DESIGN.md#vlan-service-paths-phase-d-section-12).
 
 ## Phase E: blast radius and event readiness
 
-Reverse dependencies from a wired failure to affected APs and SSIDs; event definitions and a readiness status built from Phases A–D.
+Delivered: the **Impact** tab (a switch or port fails: APs lost, degraded, possibly rerouted or not assessable; SSIDs, VLANs, floors and clients now, as an estimate) and the **Events** tab (declared events with a checklist and ready, not ready or unknown). See [design](DESIGN.md#blast-radius-and-event-readiness-phase-e-sections-15-and-16).
 
 ## Phase F: client journey
 
-- One bounded, maskable client snapshot per owner with short retention, instead of per-client items keyed by MAC.
-- The Instant client table as walked does not include the associated AP or radio, so clients cannot be attributed to an AP yet; the column must be found in a capture first.
-- Roaming is shown as sampled association changes unless the source provides events (principle 10).
+Delivered: one bounded client snapshot per cluster, masked by `{$WE.CLIENT.IDENTIFIERS}` and keyed by the secret `{$WE.CLIENT.KEY}`; the client's AP from the client table's AP address column and its radio by exact BSSID; the **Clients** tab with search, trace (AP, radio, uplink, VLAN paths) and a sampled association timeline from snapshot history, with changes reported between samples. Open: the client's SSID, which the Instant client table does not carry. See [design](DESIGN.md#clients-phase-f-section-13).
 
 ## Phase G: vendors and optimisation
 

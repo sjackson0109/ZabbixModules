@@ -73,3 +73,26 @@ WE.sort = function (rows, keys) {
         return 0;
     });
 };
+
+// An SSID's identity: its name. The same SSID name on several clusters is one service.
+WE.ssidUid = function (name) { return 'ssid-' + sha256('ssid:' + name).substring(0, 24); };
+
+// Client identity policy, set per owner host with the WE.CLIENT.IDENTIFIERS user macro and applied before anything is stored:
+//   full           MAC address, IP address and client name are kept;
+//   partial        (default) the MAC keeps its manufacturer prefix only; IP address and name are dropped;
+//   pseudonymised  no MAC, IP address or name; only the keyed client ID.
+// The client ID is keyed with the WE.CLIENT.KEY secret user macro. Without a key it is a plain hash of the MAC, which
+// someone who can read it could reverse by trying every MAC address, so pseudonymised falls back to partial.
+WE.clientPolicy = function (policy, key) {
+    var p = String(policy === undefined || policy === null ? '' : policy);
+    var k = String(key === undefined || key === null ? '' : key);
+    if (k.indexOf('{$') === 0) { k = ''; }   // An unexpanded macro (outside Zabbix) is no key.
+    if (p !== 'full' && p !== 'partial' && p !== 'pseudonymised') { p = 'partial'; }
+    return {policy: p === 'pseudonymised' && k === '' ? 'partial' : p, requested: p, key: k};
+};
+
+WE.clientUid = function (mac, key) {
+    return 'client-' + sha256('client:' + key + ':' + mac).substring(0, 24);
+};
+
+WE.maskMac = function (mac) { return mac.substring(0, 8) + ':xx:xx:xx'; };

@@ -13,15 +13,20 @@ use Modules\NetworkExplorer\Services\Limits;
  */
 final class WifiDatasetReader {
     public const KEYS = ['we.device.snapshot'=>'device', 'we.ap.inventory'=>'ap_inventory', 'we.ap.state'=>'ap_state',
-        'we.radio.inventory'=>'radio_inventory', 'we.radio.state'=>'radio_state'];
+        'we.radio.inventory'=>'radio_inventory', 'we.radio.state'=>'radio_state', 'we.ssid.snapshot'=>'ssid',
+        'we.client.snapshot'=>'client', 'we.rf.neighbour'=>'rf_neighbour'];
     public const ATTEMPTS = ['we.device.attempt'=>'device', 'we.ap.inventory.attempt'=>'ap_inventory',
         'we.ap.state.attempt'=>'ap_state', 'we.radio.inventory.attempt'=>'radio_inventory',
-        'we.radio.state.attempt'=>'radio_state'];
-    /** Every Wi-Fi producer carries the device dataset, so these keys alone find the owner hosts. */
-    public const MEMBERSHIP = ['we.device.snapshot', 'we.device.attempt'];
+        'we.radio.state.attempt'=>'radio_state', 'we.ssid.attempt'=>'ssid', 'we.client.attempt'=>'client',
+        'we.rf.neighbour.attempt'=>'rf_neighbour'];
+    /**
+     * Every cluster producer carries the device dataset; a per-AP RF producer carries only its RF dataset. These keys
+     * alone find the owner hosts.
+     */
+    public const MEMBERSHIP = ['we.device.snapshot', 'we.device.attempt', 'we.rf.neighbour', 'we.rf.neighbour.attempt'];
     /** Seconds; matches the templates' {$WE.<DATASET>.STALE} defaults. */
     public const TTL = ['device'=>10800, 'ap_inventory'=>10800, 'ap_state'=>900, 'radio_inventory'=>10800,
-        'radio_state'=>900];
+        'radio_state'=>900, 'ssid'=>900, 'client'=>900, 'rf_neighbour'=>2700];
 
     private DataGateway $gateway;
     private WifiEnvelopeValidator $validator;

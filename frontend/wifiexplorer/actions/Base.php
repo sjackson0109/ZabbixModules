@@ -9,13 +9,17 @@ use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
 
 abstract class Base extends \CController {
+    /** Address-bar fields; WifiScope validates each one. */
+    protected const FIELDS = ['site', 'ap', 'view', 'floor', 'overlay', 'band', 'ssid', 'client', 'fail_host', 'fail_if',
+        'event', 'q'];
+
     protected function init(): void {
         // These routes are read-only, with authorisation repeated per request.
         $this->disableCsrfValidation();
     }
 
     protected function checkInput(): bool {
-        $valid = $this->validateInput(['site'=>'string', 'ap'=>'string']);
+        $valid = $this->validateInput(array_fill_keys(static::FIELDS, 'string'));
         if (!$valid) {
             $this->setResponse(new \CControllerResponseFatal());
         }
@@ -31,8 +35,18 @@ abstract class Base extends \CController {
         return class_exists('Modules\NetworkExplorer\Services\ApiGateway');
     }
 
+    /** The request's fields as given, for links that keep the current view. */
+    protected function request(): array {
+        $request = [];
+        foreach (self::FIELDS as $field) {
+            $request[$field] = (string) $this->getInput($field, '');
+        }
+        return $request;
+    }
+
     protected function scope(): WifiScope {
-        return WifiScope::create((string) $this->getInput('site', ''), (string) $this->getInput('ap', ''));
+        $request = $this->request();
+        return WifiScope::create($request['site'], $request['ap'], $request);
     }
 
     protected function wifi(): array {

@@ -232,3 +232,182 @@ ARUBA.radioState = function (walk, env) {
     }
     return WE.sort(out, ['ap_uid', 'radio_uid']);
 };
+
+// ---------------------------------------------------------------- SSIDs (Phase C)
+
+ARUBA.SSID = '1.3.6.1.4.1.14823.2.3.3.1.1.7.1';         // aiWlanSSIDEntry, on the VC
+// Simon's template notes: status 0 = broadcasting, 1 = disabled; hide 0 = visible, 1 = hidden. The client count and
+// hide columns are absent on some firmware (6.5.4.11), so a missing column is unknown, never zero or visible.
+ARUBA.SSID_COL = {name: 2, status: 3, clients: 4, hide: 5};
+
+ARUBA.ssids = function (walk, env) {
+    ARUBA.requireVc(walk);
+    var table = ARUBA.rows(walk, ARUBA.SSID, ARUBA.SSID_COL);
+    var out = [], seen = {}, suffix, row, name, status, hide, clients;
+    for (suffix in table) {
+        if (!table.hasOwnProperty(suffix)) { continue; }
+        row = table[suffix];
+        name = WE.blank(NE.text(row.name || null));
+        if (name === null || name.length > 32 * 4) {
+            NE.warning(env, 'ssid_name_missing', 'An SSID row had no readable name and was dropped.');
+            continue;
+        }
+        if (seen.hasOwnProperty(name)) {
+            // Two WLAN profiles may broadcast one SSID name; their counts add up and either enabled one enables it.
+            seen[name].enabled = seen[name].enabled === true || NE.int(row.status || null) === 0 ? true : seen[name].enabled;
+            clients = NE.int(row.clients || null);
+            seen[name].client_count = seen[name].client_count !== null && clients !== null ? seen[name].client_count + clients : null;
+            seen[name].profiles++;
+            continue;
+        }
+        status = NE.int(row.status || null);
+        hide = NE.int(row.hide || null);
+        clients = NE.int(row.clients || null);
+        seen[name] = {
+            ssid_uid: WE.ssidUid(name), name: name,
+            enabled: status === 0 ? true : status === 1 ? false : null,
+            hidden: hide === 1 ? true : hide === 0 ? false : null,
+            client_count: clients !== null && clients >= 0 ? clients : null,
+            // AI-AP-MIB on Instant exposes no VLAN, authentication or security mode for an SSID; they stay unknown here.
+            vlan_id: null, security: null, profiles: 1
+        };
+        out.push(seen[name]);
+    }
+    return WE.sort(out, ['name']);
+};
+
+// ---------------------------------------------------------------- RF neighbours (Phase B)
+
+ARUBA.INTERFER = '1.3.6.1.4.1.14823.2.3.3.1.1.8.1';      // aiInterferAccessPointEntry: this AP's own detections
+ARUBA.INTERFER_COL = {bssid: 2, ssid: 3, channel: 4, phy: 5, encryption: 6, snr: 7, type: 8};
+// ArubaRogueApType names (the agent prints the label, not the number). Anything else is kept as 'other'.
+ARUBA.ROGUE_TYPES = {valid: 'valid', interfering: 'interfering', unsecure: 'unsecure', dos: 'dos', unknown: 'unknown',
+    knowninterfering: 'known_interfering', suspectedunsecure: 'suspected_unsecure',
+    '1': 'valid', '2': 'interfering', '3': 'unsecure', '4': 'dos', '5': 'unknown', '6': 'known_interfering',
+    '7': 'suspected_unsecure'};
+ARUBA.NEIGHBOUR_LIMIT = 500;
+
+// aiInterferAPPhyType: "2.4GHz", "5GHz-HE-40", "6GHz-HE-160". The band and, when present, the width suffix.
+ARUBA.phy = function (text) {
+    var m = /^(2\.4|5|6)\s*GHz(?:-([A-Za-z]+))?(?:-([0-9]+))?/i.exec(text || '');
+    if (!m) { return {band: null, width: null, standard: null}; }
+    var width = m[3] && /^(20|40|80|160)$/.test(m[3]) ? m[3] : null;
+    return {band: m[1], width: width, standard: m[2] ? m[2].toUpperCase() : null};
+};
+
+// aiInterferAPChannel: "13", "157+", "56E". The primary channel number only.
+ARUBA.neighbourChannel = function (text) {
+    var m = /^\s*([0-9]{1,3})/.exec(text || '');
+    var n = m ? parseInt(m[1], 10) : null;
+    return n !== null && n >= 1 && n <= 233 ? n : null;
+};
+
+// The detections of the AP this host points at, deduplicated by BSSID (the strongest kept) and bounded to the
+// strongest ARUBA.NEIGHBOUR_LIMIT; a bounded snapshot says so in a warning. The AP's own classification is kept as
+// it reports it; nothing here calls a detection malicious.
+ARUBA.rfNeighbours = function (walk, env) {
+    if (!NE.scalar(walk, ARUBA.VC_IP)) {
+        throw {unsupported: 'The agent does not expose AI-AP-MIB; this is not an Aruba Instant AP.', code: 'not_aruba_instant'};
+    }
+    var table = ARUBA.rows(walk, ARUBA.INTERFER, ARUBA.INTERFER_COL);
+    var best = {}, list = [], suffix, row, bssid, snr, phy, type, raw, key, total = 0;
+    for (suffix in table) {
+        if (!table.hasOwnProperty(suffix)) { continue; }
+        row = table[suffix];
+        bssid = row.bssid ? NE.mac(row.bssid) : null;
+        if (bssid === null) {
+            NE.warning(env, 'neighbour_bssid_missing', 'A detection had no readable BSSID and was dropped.');
+            continue;
+        }
+        total++;
+        snr = WE.bounded(row.snr || null, 0, 120);
+        phy = ARUBA.phy(NE.text(row.phy || null));
+        raw = WE.blank(NE.text(row.type || null));
+        key = raw === null ? null : raw.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+        type = key === null ? null : (ARUBA.ROGUE_TYPES.hasOwnProperty(key) ? ARUBA.ROGUE_TYPES[key] : 'other');
+        if (best.hasOwnProperty(bssid) && (best[bssid].snr_db === null || (snr !== null && snr <= best[bssid].snr_db))) {
+            continue;
+        }
+        best[bssid] = {
+            bssid: bssid, ssid: WE.blank(NE.text(row.ssid || null)),
+            channel: ARUBA.neighbourChannel(NE.text(row.channel || null)), band: phy.band, channel_width: phy.width,
+            phy: phy.standard, encryption: WE.blank(NE.text(row.encryption || null)), snr_db: snr,
+            classification: type, classification_raw: type === 'other' ? raw.substring(0, 64) : null
+        };
+    }
+    for (bssid in best) {
+        if (best.hasOwnProperty(bssid)) { list.push(best[bssid]); }
+    }
+    list.sort(function (a, b) {
+        var x = a.snr_db === null ? -1 : a.snr_db, y = b.snr_db === null ? -1 : b.snr_db;
+        return y - x || (a.bssid < b.bssid ? -1 : 1);
+    });
+    if (list.length > ARUBA.NEIGHBOUR_LIMIT) {
+        NE.warning(env, 'neighbours_bounded', 'Kept the strongest ' + ARUBA.NEIGHBOUR_LIMIT + ' of ' + list.length
+            + ' distinct BSSIDs (' + total + ' detections).');
+        list = list.slice(0, ARUBA.NEIGHBOUR_LIMIT);
+    }
+    return list;
+};
+
+// ---------------------------------------------------------------- clients (Phase F)
+
+ARUBA.CLIENT = '1.3.6.1.4.1.14823.2.3.3.1.2.4.1';       // aiClientEntry, on the VC
+// Column order from the published AI-AP-MIB. Simon's template confirms 1, 3, 5, 6, 7, 9, 13 and 16 on live
+// clusters; 2 (aiClientWlanMACAddress, the BSSID) and 4 (aiClientAPIPAddress) are read when present and are
+// unknown otherwise.
+ARUBA.CLIENT_COL = {mac: 1, bssid: 2, ip: 3, apIp: 4, name: 5, snr: 7, uptime: 16};
+ARUBA.CLIENT_LIMIT = 4000;
+
+ARUBA.clients = function (walk, env, policy, key) {
+    ARUBA.requireVc(walk);
+    var p = WE.clientPolicy(policy, key);
+    if (p.requested !== p.policy) {
+        NE.warning(env, 'client_pseudonym_key_missing',
+            'Pseudonymised client IDs need the WE.CLIENT.KEY macro; client identifiers were partially masked instead.');
+    }
+    // AP addresses from the AP table in the same walk attribute each client to an AP.
+    var aps = ARUBA.rows(walk, ARUBA.AP, {mac: 1, ip: 3}), byIp = {}, suffix, row, mac, ip;
+    for (suffix in aps) {
+        if (!aps.hasOwnProperty(suffix)) { continue; }
+        mac = ARUBA.apMac(aps[suffix], suffix);
+        ip = aps[suffix].ip ? WE.ipv4(aps[suffix].ip) : null;
+        if (mac !== null && ip !== null) { byIp[ip] = byIp.hasOwnProperty(ip) ? null : WE.apUid(mac); }
+    }
+    var table = ARUBA.rows(walk, ARUBA.CLIENT, ARUBA.CLIENT_COL);
+    var out = [], seen = {}, apIp, ticks, uid;
+    for (suffix in table) {
+        if (!table.hasOwnProperty(suffix)) { continue; }
+        row = table[suffix];
+        mac = row.mac ? NE.mac(row.mac) : WE.macFromArcs(suffix.split('.'));
+        if (mac === null) {
+            NE.warning(env, 'client_identity_missing', 'A client row had no readable MAC address and was dropped.');
+            continue;
+        }
+        if (seen.hasOwnProperty(mac)) {
+            NE.warning(env, 'client_identity_duplicate', 'A client was listed twice; the first row was kept.');
+            continue;
+        }
+        if (out.length >= ARUBA.CLIENT_LIMIT) {
+            NE.error(env, 'clients_over_limit', 'More than ' + ARUBA.CLIENT_LIMIT + ' clients; the snapshot is incomplete.');
+            break;
+        }
+        seen[mac] = true;
+        apIp = row.apIp ? WE.ipv4(row.apIp) : null;
+        ticks = NE.int(row.uptime || null);
+        uid = WE.clientUid(mac, p.key);
+        out.push({
+            client_uid: uid,
+            mac_address: p.policy === 'full' ? mac : p.policy === 'partial' ? WE.maskMac(mac) : null,
+            ip_address: p.policy === 'full' && row.ip ? WE.ipv4(row.ip) : null,
+            name: p.policy === 'full' ? WE.blank(NE.text(row.name || null)) : null,
+            identifiers: p.policy,
+            ap_uid: apIp !== null && byIp.hasOwnProperty(apIp) ? byIp[apIp] : null,
+            ap_basis: apIp === null ? null : byIp.hasOwnProperty(apIp) && byIp[apIp] !== null ? 'ap_address' : 'ap_address_unmatched',
+            bssid: row.bssid ? NE.mac(row.bssid) : null,
+            snr_db: WE.bounded(row.snr || null, 0, 120),
+            connected_s: ticks === null || ticks < 0 ? null : Math.floor(ticks / 100)
+        });
+    }
+    return WE.sort(out, ['ap_uid', 'client_uid']);
+};

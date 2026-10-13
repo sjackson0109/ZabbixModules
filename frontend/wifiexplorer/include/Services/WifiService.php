@@ -17,21 +17,36 @@ use Modules\NetworkExplorer\Services\NetworkScope;
  * last value seen, so a stale "up" is never shown as healthy.
  */
 final class WifiService {
-    /** Wi-Fi capabilities this release does not collect yet; the overview names them instead of showing zeros. */
-    public const NOT_AVAILABLE = ['clients', 'ssids', 'rogue_aps', 'wired_uplinks', 'vlan_paths', 'poe',
-        'auth_failures'];
+    /** Wi-Fi capabilities this release does not collect; the overview names them instead of showing zeros. */
+    public const NOT_AVAILABLE = ['poe', 'auth_failures', 'retry_rates'];
     private const BANDS = ['2.4', '5', '6'];
 
     private DataGateway $gateway;
     private ?int $now;
+    private array $config;
+    private bool $configInvalid;
+    private ?WifiHistory $history;
 
-    public function __construct(DataGateway $gateway, ?int $now = null) {
+    /**
+     * @param array|null       $config  a normalised configuration document (WifiConfig::normalise), or none
+     * @param WifiHistory|null $history deeper snapshot history, for the sampled client timeline
+     */
+    public function __construct(DataGateway $gateway, ?int $now = null, ?array $config = null,
+            bool $configInvalid = false, ?WifiHistory $history = null) {
         $this->gateway = $gateway;
+        $this->history = $history;
         $this->now = $now;
+        $this->config = $config ?? WifiConfig::empty();
+        $this->configInvalid = $configInvalid;
     }
 
     public static function create(): self {
-        return new self(new ApiGateway());
+        try {
+            return new self(new ApiGateway(), null, (new WifiConfigStore())->load(), false, new ApiWifiHistory());
+        }
+        catch (\RuntimeException $error) {
+            return new self(new ApiGateway(), null, null, true, new ApiWifiHistory());
+        }
     }
 
     public function build(WifiScope $scope): array {
@@ -44,7 +59,9 @@ final class WifiService {
         $owners = [];
         foreach ($hosts as $hostid => $host) {
             $device = $datasets[$hostid]['device']['data'][0] ?? null;
-            $owners[$hostid] = $host + ['role'=>$device['role'] ?? 'unknown', 'vendor'=>$device['vendor'] ?? null,
+            // A host with only the per-AP RF producer observes RF for one AP; it owns no cluster data.
+            $role = $device['role'] ?? (isset($datasets[$hostid]['rf_neighbour']) ? 'rf_observer' : 'unknown');
+            $owners[$hostid] = $host + ['role'=>$role, 'vendor'=>$device['vendor'] ?? null,
                 'platform'=>$device['platform'] ?? null, 'firmware'=>$device['firmware'] ?? null,
                 'device_freshness'=>$datasets[$hostid]['device']['freshness'] ?? 'unknown'];
         }
@@ -54,6 +71,83 @@ final class WifiService {
             throw new \RuntimeException('ap_budget_exceeded');
         }
         $findings = array_merge($findings, $this->qualityFindings($owners, $quality));
+        // A host that lists no APs itself (a per-AP host) observes the one AP it polls.
+        foreach ($owners as $hostid => $owner) {
+            [$owners[$hostid]['observes_ap'], $owners[$hostid]['observes_basis']] = $owner['role'] === 'virtual_controller'
+                ? [null, null] : RfService::attribute($owner, $aps);
+        }
+
+        $sites = array_values(array_unique(array_filter(array_column($owners, 'site'))));
+        $config = WifiConfig::visible($this->config, $sites, array_keys($aps));
+        $clientCounts = $this->clientCounts($owners, $datasets, $aps);
+        foreach ($clientCounts as $apUid => $count) {
+            $aps[$apUid]['clients'] = $count;
+        }
+        foreach ($aps as $apUid => &$ap) {
+            $ap['clients'] = $ap['clients'] ?? null;
+            $ap['placement'] = $config['placements'][$apUid] ?? null;
+        }
+        unset($ap);
+        $rf = (new RfService())->build($owners, $datasets, $aps, $config['known_bssids']);
+        $findings = array_merge($findings, $rf['findings']);
+        $ssids = (new SsidService())->build($owners, $datasets, $aps, $config);
+        $findings = array_merge($findings, $ssids['findings']);
+        $wired = ['available'=>false, 'reason'=>'not_requested', 'switches'=>0];
+        $paths = [];
+        $impact = null;
+        $network = null;
+        if ($scope->needsWired()) {
+            try {
+                $uplinks = (new UplinkService($this->gateway, $now))->build($scope->site, $owners, $aps);
+            }
+            catch (\RuntimeException $error) {
+                $uplinks = ['available'=>false, 'reason'=>preg_match('/^[a-z_]{1,64}$/D', $error->getMessage())
+                    ? $error->getMessage() : 'wired_read_failed', 'network'=>null, 'uplinks'=>[],
+                    'findings'=>[]];
+            }
+            $wired = ['available'=>$uplinks['available'], 'reason'=>$uplinks['reason'],
+                'switches'=>$uplinks['network'] !== null ? count($uplinks['network']['hosts']) : 0];
+            foreach ($uplinks['uplinks'] as $apUid => $uplink) {
+                $aps[$apUid]['uplink'] = $uplink;
+            }
+            $findings = array_merge($findings, $uplinks['findings']);
+            if ($uplinks['available']) {
+                $network = $uplinks['network'];
+                $pathModel = (new PathService($uplinks['network']))->build($aps, $ssids['ssids']);
+                $paths = $pathModel['paths'];
+                foreach ($pathModel['chains'] as $apUid => $chain) {
+                    $aps[$apUid]['chain'] = $chain;
+                }
+                $findings = array_merge($findings, $pathModel['findings']);
+            }
+        }
+        foreach ($aps as $apUid => &$ap) {
+            $ap['uplink'] = $ap['uplink'] ?? null;
+            $ap['chain'] = $ap['chain'] ?? null;
+            $ap['ssids'] = $ssids['by_ap'][$apUid] ?? [];
+        }
+        unset($ap);
+        if ($network !== null && $scope->view === 'impact') {
+            $wired['hosts'] = array_map(static fn($h) => ['hostid'=>$h['hostid'], 'name'=>$h['name']], $network['hosts']);
+            usort($wired['hosts'], static fn($a, $b) => strnatcasecmp($a['name'], $b['name']));
+            $wired['interfaces'] = array_values(array_map(static fn($i) => ['uid'=>$i['uid'], 'name'=>$i['name'] ?? $i['uid']],
+                array_filter($network['interfaces'], static fn($i) => $i['hostid'] === $scope->failHost)));
+            if ($scope->failHost !== '') {
+                $impact = (new ImpactService($network))->build($scope->failHost, $scope->failInterface, $aps, $ssids['ssids']);
+            }
+        }
+        $clients = $scope->view === 'clients'
+            ? (new ClientService($this->history, $now))->build($owners, $datasets, $aps, $scope->query, $scope->client)
+            : null;
+        $events = (new EventService())->build($config['events'], $ssids['ssids'], $aps, $paths, $wired, $now);
+        foreach ($events['findings'] as $finding) {
+            // Without the wired model every event would read "unknown"; only definite failures are raised then.
+            if ($wired['available'] || $finding['rule'] === 'wifi_event_not_ready') {
+                $findings[] = $finding;
+            }
+        }
+        $floors = (new FloorService())->build($config, $aps, $clientCounts, $rf, $scope->floor, $scope->overlay,
+            $scope->band);
         usort($findings, static fn($a, $b) => [$a['severity'] === 'warning' ? 0 : 1, $a['rule'], $a['title'], $a['id']]
             <=> [$b['severity'] === 'warning' ? 0 : 1, $b['rule'], $b['title'], $b['id']]);
 
@@ -68,6 +162,11 @@ final class WifiService {
             'owners'=>array_values($owners), 'aps'=>$list, 'overview'=>$this->overview($list, $quality, $findings),
             'findings'=>$findings, 'quality'=>$quality,
             'selected_ap'=>$selected, 'selection_missing'=>$scope->ap !== '' && $selected === '',
+            'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired, 'paths'=>$paths,
+            'impact'=>$impact, 'events'=>$events['events'], 'clients'=>$clients,
+            'config_invalid'=>$this->configInvalid,
+            'intent'=>['ssids'=>$config['ssids'], 'events'=>$config['events'],
+                'known_bssids'=>count($config['known_bssids'])],
             'budgets'=>$read['budgets'] + ['owner_host_limit'=>WifiLimits::OWNER_HOSTS,
                 'display_ap_limit'=>WifiLimits::DISPLAY_APS]];
     }
@@ -103,15 +202,22 @@ final class WifiService {
                 continue;
             }
             $available = null;
+            $addresses = [];
             foreach ($row['interfaces'] ?? [] as $interface) {
                 if ((int) ($interface['type'] ?? 0) === INTERFACE_TYPE_SNMP) {
+                    if ((int) ($interface['useip'] ?? 1) === INTERFACE_USE_IP && is_string($interface['ip'] ?? null)
+                            && filter_var($interface['ip'], FILTER_VALIDATE_IP)) {
+                        $addresses[] = $interface['ip'];
+                    }
                     $state = (int) ($interface['available'] ?? 0);
                     $available = $state === INTERFACE_AVAILABLE_TRUE ? true
                         : ($state === INTERFACE_AVAILABLE_FALSE ? false : $available);
                 }
             }
             $hosts[$hostid] = ['hostid'=>$hostid, 'name'=>(string) ($row['name'] ?? $row['host'] ?? $hostid),
-                'site'=>$value, 'snmp_available'=>$available, 'dashboard_url'=>Navigation::dashboard($hostid)];
+                'site'=>$value, 'domain'=>NetworkScope::tagValue($row['tags'] ?? [], NetworkScope::DOMAIN_TAG),
+                'snmp_available'=>$available, 'addresses'=>$addresses,
+                'dashboard_url'=>Navigation::dashboard($hostid)];
         }
         return $hosts;
     }
@@ -352,6 +458,33 @@ final class WifiService {
             'findings'=>['warning'=>count(array_filter($findings, static fn($f) => $f['severity'] === 'warning')),
                 'info'=>count(array_filter($findings, static fn($f) => $f['severity'] === 'info'))],
             'not_available'=>self::NOT_AVAILABLE];
+    }
+
+    /**
+     * Current associated clients per AP from each AP's owner's client snapshot (observed). An AP whose owner's client
+     * data is not current has no count rather than a stale one.
+     */
+    private function clientCounts(array $owners, array $datasets, array $aps): array {
+        $counts = [];
+        foreach ($aps as $apUid => $ap) {
+            $set = $datasets[$ap['owner_hostid']]['client'] ?? null;
+            if ($set !== null && ($set['freshness'] ?? '') === 'current') {
+                $counts[$apUid] = 0;
+            }
+        }
+        foreach ($owners as $hostid => $owner) {
+            $set = $datasets[$hostid]['client'] ?? null;
+            if ($set === null || ($set['freshness'] ?? '') !== 'current') {
+                continue;
+            }
+            foreach ($set['data'] as $row) {
+                $apUid = $row['ap_uid'] ?? null;
+                if ($apUid !== null && isset($counts[$apUid]) && $aps[$apUid]['owner_hostid'] === (string) $hostid) {
+                    ++$counts[$apUid];
+                }
+            }
+        }
+        return $counts;
     }
 
     private static function byKey(array $rows, string $key): array {

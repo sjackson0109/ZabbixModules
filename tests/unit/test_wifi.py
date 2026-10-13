@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -23,6 +24,10 @@ SPEC = importlib.util.spec_from_file_location("wifi_templates", ROOT / "template
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
 RAW_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"]]
+# Cluster datasets need the virtual controller; the per-AP RF dataset answers on any Instant AP.
+VC_ONLY = [e["raw_key"] for e in GEN.manifest()["datasets"]
+           if e["template"] == "Aruba Instant VC" and e["dataset"] != "device"]
+AP01 = WALKS / "aruba-instant-ap-01.snmprec"
 
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is required")
 
@@ -57,7 +62,7 @@ def test_virtual_controller_datasets_are_complete_and_schema_valid(validator, ra
 
 
 @needs_node
-@pytest.mark.parametrize("raw_key", RAW_KEYS[1:])
+@pytest.mark.parametrize("raw_key", VC_ONLY)
 def test_member_ap_is_unsupported_not_failed(validator, raw_key):
     envelope = run(raw_key, MEMBER)
     validator.validate(envelope)
@@ -138,8 +143,30 @@ def test_generated_templates_are_current(version):
 def test_templates_carry_no_credentials_token_or_per_client_items():
     text = GEN.render("7.4").lower()
     for needle in ("community", "{$snmp_community", "api.token", "authpassphrase", "privpassphrase", "password",
-                   "discovery_rules", "client"):
+                   "discovery_rules", "item_prototypes"):
         assert needle not in text, needle
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    keys = [i["key"] for t in export["templates"] for i in t["items"]]
+    assert [k for k in keys if "client" in k] == ["we.raw.aruba.client", "we.client.attempt", "we.client.snapshot",
+        "we.collection.status[client]", "we.collection.success[client]"], "clients are one bounded snapshot per owner"
+    macros = {m["macro"]: m for t in export["templates"] for m in t["macros"]}
+    assert macros["{$WE.CLIENT.KEY}"]["value"] == "" and macros["{$WE.CLIENT.KEY}"]["type"] == "SECRET_TEXT"
+    assert macros["{$WE.CLIENT.IDENTIFIERS}"]["value"] == "partial", "masked unless an operator chooses otherwise"
+
+
+def test_macros_appear_only_where_zabbix_should_expand_them():
+    """Zabbix expands user macros anywhere in a JavaScript step, comments and strings included. Only the client
+    normaliser's call may name the client macros, so the secret key can never reach a stored value."""
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    for template in export["templates"]:
+        for item in template["items"]:
+            for step in item.get("preprocessing", []):
+                if step["type"] != "JAVASCRIPT":
+                    continue
+                script = step["parameters"][0]
+                found = sorted(set(re.findall(r"\{\$[A-Z0-9_.]+\}", script)))
+                expected = ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"] if item["key"] == "we.client.attempt" else []
+                assert found == expected, (item["key"], found)
 
 
 def test_template_keys_and_uuids_are_unique():
@@ -171,3 +198,93 @@ def test_javascript_is_ecmascript_5_for_duktape():
             for step in item.get("preprocessing", []):
                 if step["type"] == "JAVASCRIPT":
                     dukpy.evaljs("new Function('value', dukpy['script']); true", script=step["parameters"][0])
+
+
+@needs_node
+def test_ssids_keep_unknown_columns_unknown(validator, tmp_path):
+    rows = {r["name"]: r for r in run("we.raw.aruba.ssid", VC)["data"]}
+    assert set(rows) == {"Lab-Corp", "Lab-Event", "Lab-Guest", "Lab-Legacy"}
+    assert rows["Lab-Guest"]["hidden"] is True and rows["Lab-Legacy"]["enabled"] is False
+    assert all(r["vlan_id"] is None and r["security"] is None for r in rows.values()), "Instant exposes no VLAN"
+    # Firmware 6.5.4.11 has no client-count or hide column: unknown, never 0 or visible.
+    older = tmp_path / "old.snmprec"
+    older.write_text("".join(line for line in VC.read_text().splitlines(keepends=True)
+                             if not line.startswith(("1.3.6.1.4.1.14823.2.3.3.1.1.7.1.4.", "1.3.6.1.4.1.14823.2.3.3.1.1.7.1.5."))))
+    envelope = run("we.raw.aruba.ssid", older)
+    validator.validate(envelope)
+    assert all(r["client_count"] is None and r["hidden"] is None for r in envelope["data"])
+
+
+@needs_node
+def test_rf_neighbours_are_deduplicated_bounded_and_never_malicious(validator, tmp_path):
+    envelope = run("we.raw.aruba.rf.neighbour", AP01)
+    validator.validate(envelope)
+    rows = envelope["data"]
+    bssids = [r["bssid"] for r in rows]
+    assert len(bssids) == len(set(bssids)), "one row per BSSID"
+    free = [r for r in rows if r["ssid"] == "FreeWiFi"]
+    assert len(free) == 1 and free[0]["snr_db"] == 24, "the strongest detection is kept"
+    assert free[0]["classification"] == "suspected_unsecure"
+    assert {r["classification"] for r in rows} <= {"valid", "interfering", "unsecure", "dos", "unknown",
+                                                  "known_interfering", "suspected_unsecure", "other"}
+    assert "malicious" not in json.dumps(envelope)
+    channel = {r["ssid"]: (r["channel"], r["band"], r["channel_width"]) for r in rows if r["ssid"]}
+    assert channel["CoffeeShop"] == (36, "5", "40")
+    assert [r for r in rows if r["ssid"] is None][0]["channel"] == 157, "157+ is primary channel 157"
+    # A busy AP: 600 distinct BSSIDs are bounded to the strongest 500 and the snapshot says so.
+    lines = [line for line in AP01.read_text().splitlines() if not line.startswith("1.3.6.1.4.1.14823.2.3.3.1.1.8.1.")]
+    base = "1.3.6.1.4.1.14823.2.3.3.1.1.8.1"
+    for i in range(600):
+        lines += [f"{base}.2.{i}|4x|02000000{i // 256:02x}{i % 256:02x}", f"{base}.4.{i}|4|6",
+                  f"{base}.5.{i}|4|2.4GHz", f"{base}.7.{i}|2|{i % 90}", f"{base}.8.{i}|4|interfering"]
+    busy = tmp_path / "busy.snmprec"
+    busy.write_text("\n".join(lines) + "\n")
+    envelope = run("we.raw.aruba.rf.neighbour", busy)
+    validator.validate(envelope)
+    assert envelope["status"] == "ok" and len(envelope["data"]) == 500
+    assert "neighbours_bounded" in [w["code"] for w in envelope["warnings"]]
+    assert min(r["snr_db"] for r in envelope["data"]) >= max(i % 90 for i in range(600)) - 89
+
+
+@needs_node
+def test_clients_are_masked_before_storage(validator):
+    envelope = run("we.raw.aruba.client", VC)
+    validator.validate(envelope)
+    rows = envelope["data"]
+    assert len(rows) == 10
+    assert all(r["identifiers"] == "partial" and r["ip_address"] is None and r["name"] is None
+               and r["mac_address"].endswith(":xx:xx:xx") for r in rows), "partial is the default"
+    assert "198.51.100." not in json.dumps(envelope) and "client-01" not in json.dumps(envelope)
+    by_ap = {}
+    for r in rows:
+        by_ap.setdefault(r["ap_uid"], []).append(r)
+    assert len(by_ap[ap_uid(mac(1))]) == 3 and len(by_ap[ap_uid(mac(5))]) == 3
+    assert by_ap[None][0]["ap_basis"] == "ap_address_unmatched", "an address outside the roster is not guessed"
+
+
+@needs_node
+@pytest.mark.parametrize("policy,key,expect", [("full", "", "full"), ("pseudonymised", "s3cret", "pseudonymised"),
+                                               ("pseudonymised", "", "partial"), ("bogus", "", "partial")])
+def test_client_identifier_policy(validator, tmp_path, policy, key, expect):
+    """The policy and key reach the normaliser as macro values, exactly as Zabbix expands them."""
+    entry = next(e for e in GEN.manifest()["datasets"] if e["dataset"] == "client")
+    script = GEN.compose(entry).replace("{$WE.CLIENT.IDENTIFIERS}", policy).replace("{$WE.CLIENT.KEY}", key)
+    walk = subprocess.run(["node", str(RUNNER), entry["raw_key"], str(VC), "--walk-only"], check=True,
+                          capture_output=True, text=True).stdout
+    program = ("const crypto=require('crypto');global.sha256=t=>crypto.createHash('sha256').update(String(t),'utf8')"
+               ".digest('hex');const value=require('fs').readFileSync(0,'utf8');"
+               "process.stdout.write((function(value){" + script + "})(value));")
+    envelope = json.loads(subprocess.run(["node", "-e", program], input=walk, check=True, capture_output=True,
+                                         text=True).stdout)
+    validator.validate(envelope)
+    rows = envelope["data"]
+    assert {r["identifiers"] for r in rows} == {expect}
+    if expect == "full":
+        assert rows[0]["ip_address"] and rows[0]["name"] and not rows[0]["mac_address"].endswith("xx")
+    if expect == "pseudonymised":
+        assert all(r["mac_address"] is None and r["ip_address"] is None and r["name"] is None for r in rows)
+        plain = {r["client_uid"] for r in run("we.raw.aruba.client", VC)["data"]}
+        assert plain.isdisjoint({r["client_uid"] for r in rows}), "the key changes every ID"
+    if policy == "pseudonymised" and not key:
+        assert "client_pseudonym_key_missing" in [w["code"] for w in envelope["warnings"]]
+    assert key == "" or key not in json.dumps(envelope), "the key never reaches the stored value"

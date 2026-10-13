@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 from datetime import datetime, timezone
 import http.cookiejar
 import io
@@ -95,7 +96,43 @@ WIFI_DATASETS = {"device": ("we.device.snapshot", "we.raw.aruba.system"),
                  "ap_inventory": ("we.ap.inventory", "we.raw.aruba.ap.inventory"),
                  "ap_state": ("we.ap.state", "we.raw.aruba.ap.state"),
                  "radio_inventory": ("we.radio.inventory", "we.raw.aruba.radio.inventory"),
-                 "radio_state": ("we.radio.state", "we.raw.aruba.radio.state")}
+                 "radio_state": ("we.radio.state", "we.raw.aruba.radio.state"),
+                 "ssid": ("we.ssid.snapshot", "we.raw.aruba.ssid"),
+                 "client": ("we.client.snapshot", "we.raw.aruba.client")}
+# Phases C-F: the lab's switches and one per-AP host, replayed from the synthetic walks by trapper.
+WIFI_SWITCHES = {"sw-wifi-dist-01": "192.0.2.200", "sw-wifi-access-01": "192.0.2.201", "sw-wifi-access-02": "192.0.2.202"}
+WIRED_RAW = {"ne.device.snapshot": "ne.raw.system", "ne.interfaces.inventory": "ne.raw.if.inventory",
+             "ne.interfaces.state": "ne.raw.if.state", "ne.lldp.snapshot": "ne.raw.lldp", "ne.vlan.snapshot": "ne.raw.vlan",
+             "ne.stp.snapshot": "ne.raw.stp", "ne.lag.snapshot": "ne.raw.lag"}
+
+
+def ap_uid(mac: str) -> str:
+    return "ap-" + hashlib.sha256(("ap:" + mac).encode()).hexdigest()[:24]
+
+
+def ssid_uid(name: str) -> str:
+    return "ssid-" + hashlib.sha256(("ssid:" + name).encode()).hexdigest()[:24]
+
+
+WIFI_LAB_CONFIG = {
+    "version": 1,
+    "floors": [{"floor_id": "west-ground", "site": "lab-west", "building": "Main", "name": "Ground floor", "order": 0,
+                "aspect": 0.5, "width_m": 60},
+               {"floor_id": "west-first", "site": "lab-west", "building": "Main", "name": "First floor", "order": 1,
+                "aspect": 0.5}],
+    "placements": {ap_uid("00:00:5e:00:53:01"): {"floor_id": "west-ground", "x": 0.2, "y": 0.3},
+                   ap_uid("00:00:5e:00:53:02"): {"floor_id": "west-ground", "x": 0.5, "y": 0.3},
+                   ap_uid("00:00:5e:00:53:04"): {"floor_id": "west-ground", "x": 0.8, "y": 0.7},
+                   ap_uid("00:00:5e:00:53:05"): {"floor_id": "west-first", "x": 0.5, "y": 0.5}},
+    "ssids": [{"ssid": "Lab-Corp", "site": "lab-west", "vlan": 49},
+              {"ssid": "Lab-Event", "site": "lab-west", "vlan": 56, "bands": ["5", "6"]},
+              {"ssid": "Lab-Guest", "site": "lab-west", "vlan": 57, "expect": "floors", "floors": ["west-ground"]},
+              {"ssid": "Lab-Expected", "site": "lab-west", "vlan": 58}],
+    "events": [{"event_id": "expo", "name": "Expo", "site": "lab-west", "ssid": "Lab-Event",
+                "starts": "2099-10-20T08:00:00Z", "ends": "2099-10-20T18:00:00Z", "min_aps": 4,
+                "expected_clients": 100, "clients_per_ap": 30}],
+    "known_bssids": [{"bssid": "00:00:5e:00:53:f4", "label": "Neighbouring office"}],
+}
 
 
 def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result: dict) -> None:
@@ -107,14 +144,7 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
     result["checks"].append("wifi-template-import")
     # The lab cannot run SNMP against an Aruba controller, so a replay template receives the same keys by trapper.
     lab = api("template.get", {"output": ["templateid"], "filter": {"host": "Wi-Fi Explorer LAB replay"}})
-    if lab:
-        templateid = lab[0]["templateid"]
-    else:
-        groupid = api("templategroup.get", {"output": ["groupid"], "filter": {"name": "Templates/Wi-Fi Explorer"}})[0]["groupid"]
-        templateid = api("template.create", {"host": "Wi-Fi Explorer LAB replay",
-                                             "groups": [{"groupid": groupid}]})["templateids"][0]
-        api("item.create", [{"hostid": templateid, "name": key, "key_": key, "type": 2, "value_type": 4, "history": "7d"}
-                            for key, _ in WIFI_DATASETS.values()])
+    templateid = replay_template(api, "Wi-Fi Explorer LAB replay", [key for key, _ in WIFI_DATASETS.values()])
     hostids = {}
     for name, groupid, site in [("we-lab-vc", groups[0], "lab-west"), ("we-lab-hidden-vc", groups[1], "lab-secret")]:
         found = api("host.get", {"output": ["hostid"], "filter": {"host": name}})
@@ -129,7 +159,7 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
                 for row in envelope["data"]:
                     row["name"] = "secret-" + row["name"]
             poll(lambda: deliver(config, name, key, envelope))
-    result["checks"].append("wifi-sender-five-datasets-two-owners")
+    result["checks"].append("wifi-sender-cluster-datasets-two-owners")
     if user_browser is None:
         return
     menu = frontend(user_browser, config, "wifiexplorer.view", {})
@@ -141,7 +171,8 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
 
     data = poll(visible)
     encoded = json.dumps(data)
-    assert_that([o["name"] for o in data["owners"]] == ["we-lab-vc"] and "secret-" not in encoded
+    owners = [o["name"] for o in data["owners"]]
+    assert_that("we-lab-vc" in owners and "we-lab-hidden-vc" not in owners and "secret-" not in encoded
                 and "lab-secret" not in encoded and hostids["we-lab-hidden-vc"] not in [q["hostid"] for q in data["quality"]],
                 "A Wi-Fi source the viewer cannot read reached the data route.")
     assert_that(data["overview"]["aps"]["down"] == 1 and data["overview"]["high_utilisation_radios"] == 1,
@@ -155,6 +186,82 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
     assert_that("No Wi-Fi data source is visible to you in this scope." in hidden_site and "secret-" not in hidden_site,
                 "An unreadable site showed Wi-Fi data.")
     result["checks"].append("wifi-explorer-html-page")
+
+
+def replay_template(api, name: str, keys: list[str]) -> str:
+    """A template of trapper text items with exactly these keys, created or completed."""
+    lab = api("template.get", {"output": ["templateid"], "filter": {"host": name}})
+    if lab:
+        templateid = lab[0]["templateid"]
+    else:
+        groupid = api("templategroup.get", {"output": ["groupid"], "filter": {"name": "Templates/Wi-Fi Explorer"}})[0]["groupid"]
+        templateid = api("template.create", {"host": name, "groups": [{"groupid": groupid}]})["templateids"][0]
+    present = {item["key_"] for item in api("item.get", {"output": ["key_"], "templateids": [templateid]})}
+    missing = [key for key in keys if key not in present]
+    if missing:
+        api("item.create", [{"hostid": templateid, "name": key, "key_": key, "type": 2, "value_type": 4, "history": "7d"}
+                            for key in missing])
+    return templateid
+
+
+def wifi_service_checks(config: dict, api, groupid: str, user_browser, result: dict) -> None:
+    """Phases B-F: SSID intent, uplinks, VLAN paths, impact, events and clients on the real frontend."""
+    wired = replay_template(api, "Wi-Fi Explorer LAB wired replay", list(WIRED_RAW))
+    # The per-AP host carries the AP's RF producer and only Network Explorer's LLDP.
+    per_ap = replay_template(api, "Wi-Fi Explorer LAB AP replay", ["we.rf.neighbour", "ne.lldp.snapshot"])
+    hostids = {}
+    for name, address in [*WIFI_SWITCHES.items(), ("lab-ap-01", "192.0.2.250")]:
+        template = per_ap if name == "lab-ap-01" else wired
+        found = api("host.get", {"output": ["hostid"], "filter": {"host": name}})
+        hostids[name] = found[0]["hostid"] if found else api("host.create", {
+            "host": name, "name": name, "groups": [{"groupid": groupid}], "templates": [{"templateid": template}],
+            "tags": [{"tag": "site", "value": "lab-west"}, {"tag": "ne.domain", "value": "lab-wifi"}],
+            "interfaces": [{"type": 2, "main": 1, "useip": 1, "ip": address, "dns": "", "port": "161",
+                            "details": {"version": 2, "community": "public"}}]})["hostids"][0]
+    module = api("module.get", {"output": ["moduleid", "config"], "filter": {"id": "wifiexplorer"}})[0]
+    stored = module["config"] if isinstance(module["config"], dict) else {}
+    api("module.update", [{"moduleid": module["moduleid"], "config": {**stored, "wifi": WIFI_LAB_CONFIG}}])
+    compose(config, "exec", "-T", "server", "zabbix_server", "-R", "config_cache_reload", capture=True)
+    for name in WIFI_SWITCHES:
+        for key, raw in WIRED_RAW.items():
+            envelope = wifi_envelope(raw, name + ".snmprec")
+            poll(lambda: deliver(config, name, key, envelope))
+    for key, raw in [("we.rf.neighbour", "we.raw.aruba.rf.neighbour"), ("ne.lldp.snapshot", "ne.raw.lldp")]:
+        envelope = wifi_envelope(raw, "aruba-instant-ap-01.snmprec")
+        poll(lambda: deliver(config, "lab-ap-01", key, envelope))
+    result["checks"].append("wifi-wired-replay")
+    if user_browser is None:
+        return
+    site = {"site": "lab-west"}
+
+    def paths():
+        data = json.loads(frontend(user_browser, config, "wifiexplorer.data", {**site, "view": "paths"}))
+        guest = data.get("paths", {}).get(ssid_uid("Lab-Guest"))
+        confirmed = [ap for ap in data.get("aps", []) if (ap.get("uplink") or {}).get("state") == "confirmed"]
+        return data if guest and guest["counts"]["failed"] == 2 and confirmed else None
+
+    data = poll(paths)
+    aps = {ap["name"]: ap for ap in data["aps"]}
+    assert_that(aps["lab-ap-01"]["uplink"]["state"] == "confirmed"
+                and aps["lab-ap-04"]["uplink"]["interface_name"] == "Gi1/0/1", "AP uplinks were not correlated.")
+    assert_that(data["paths"][ssid_uid("Lab-Event")]["results"][aps["lab-ap-04"]["ap_uid"]]["reason"] == "vlan_not_on_ap_port",
+                "The event VLAN did not fail at lab-ap-04's port.")
+    result["checks"].append("wifi-uplinks-and-vlan-paths")
+    pages = {
+        "ssids": ({"view": "ssids", "ssid": ssid_uid("Lab-Expected")}, ["Lab-Expected", "Not seen", "Declared intent"]),
+        "paths": ({"view": "paths", "ssid": ssid_uid("Lab-Guest")}, ["sw-wifi-dist-01", "VLAN not carried"]),
+        "impact": ({"view": "impact", "fail_host": hostids["sw-wifi-access-01"]}, ["If sw-wifi-access-01 fails", "Loses service"]),
+        "events": ({"view": "events", "event": "expo"}, ["Expo", "Not ready", "Not checked"]),
+        "clients": ({"view": "clients"}, ["Clients now (10)", ":xx:xx:xx"]),
+        "ap": ({"ap": aps["lab-ap-01"]["ap_uid"]}, ["Confirmed by the AP and the switch", "Gi1/0/1"]),
+        "floors": ({"view": "floors", "floor": "west-ground", "overlay": "utilisation"}, ["Ground floor", "Interpolated"]),
+        "rf": ({"view": "rf"}, ["Observing APs", "lab-ap-01"]),
+    }
+    for name, (params, expected) in pages.items():
+        page = frontend(user_browser, config, "wifiexplorer.view", {**site, **params})
+        missing = [text for text in expected if text not in page]
+        assert_that(not missing, f"Wi-Fi Explorer {name} view is missing {missing}.")
+    result["checks"].append("wifi-every-view-renders")
 
 
 def interface(uid: str, index: int, name: str) -> dict:
@@ -446,6 +553,7 @@ def run(version: str, require_frontend: bool = True) -> dict:
         send(config, "ne-lab-a", "ne.interfaces.attempt", saved[("ne-lab-a", "interfaces")])
         poll(lambda: items(hostids["ne-lab-a"]).get("ne.interfaces.attempt", {}).get("state") == "0")
     wifi_checks(config, api, (visible_group, private_group), user_browser if require_frontend else None, result)
+    wifi_service_checks(config, api, visible_group, user_browser if require_frontend else None, result)
     reportfile = config["state"] / "integration-result.json"
     reportfile.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2), flush=True)

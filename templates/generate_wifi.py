@@ -6,8 +6,9 @@ emits the canonical Wi-Fi envelope, and gated dependents that only accept comple
 pattern as the Network Explorer templates (templates/generate_snmp.py). The JavaScript is composed exactly as
 tests/js/run_normaliser.cjs composes it, so the code tested in Node is the code Zabbix runs.
 
-The templates carry no credentials, no API token and no per-AP or per-client items: Wi-Fi Explorer reads the
-owner's snapshots in the frontend, under the viewing user's permissions.
+The templates carry no credentials, no API token and no per-AP or per-client items: clients are one bounded
+snapshot per owner, masked by {$WE.CLIENT.IDENTIFIERS} before it is stored. Wi-Fi Explorer reads the owner's
+snapshots in the frontend, under the viewing user's permissions.
 """
 from __future__ import annotations
 
@@ -115,8 +116,8 @@ def producer_items(entry: dict, template: str) -> list[dict]:
     return items + [status, success]
 
 
-def macros(entries: list[dict]) -> list[dict]:
-    result = []
+def macros(entries: list[dict], extra: list[dict]) -> list[dict]:
+    result = [dict(m) for m in extra]
     for entry in entries:
         result.append({"macro": entry["interval_macro"], "value": entry["interval"],
                        "description": f"Polling interval for {entry['dataset']}."})
@@ -139,7 +140,7 @@ def build(version: str) -> dict:
             "groups": [{"name": GROUP}],
             "items": [i for e in mine for i in producer_items(e, name)],
             "tags": [{"tag": "component", "value": "wifi-explorer"}],
-            "macros": macros(mine),
+            "macros": macros(mine, meta.get("macros", [])),
             "valuemaps": [{"uuid": uid(f"valuemap:{short}:status"), "name": STATUS_MAP,
                            "mappings": [{"value": str(i), "newvalue": s}
                                         for i, s in enumerate(("ok", "partial", "failed", "unsupported"))]}]})
