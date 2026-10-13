@@ -256,6 +256,7 @@ def wifi_service_checks(config: dict, api, groupid: str, user_browser, result: d
         "ap": ({"ap": aps["lab-ap-01"]["ap_uid"]}, ["Confirmed by the AP and the switch", "Gi1/0/1"]),
         "floors": ({"view": "floors", "floor": "west-ground", "overlay": "utilisation"}, ["Ground floor", "Interpolated"]),
         "rf": ({"view": "rf"}, ["Observing APs", "lab-ap-01"]),
+        "capacity": ({"view": "capacity", "range": "year"}, ["Last 12 months", "No capacity trends yet"]),
     }
     for name, (params, expected) in pages.items():
         page = frontend(user_browser, config, "wifiexplorer.view", {**site, **params})

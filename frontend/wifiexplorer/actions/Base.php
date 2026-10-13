@@ -11,7 +11,7 @@ use Modules\WifiExplorer\Services\WifiService;
 abstract class Base extends \CController {
     /** Address-bar fields; WifiScope validates each one. */
     protected const FIELDS = ['site', 'ap', 'view', 'floor', 'overlay', 'band', 'ssid', 'client', 'fail_host', 'fail_if',
-        'event', 'q'];
+        'event', 'q', 'range'];
 
     private ?WifiService $service = null;
 

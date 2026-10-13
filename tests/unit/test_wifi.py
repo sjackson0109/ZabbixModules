@@ -148,8 +148,8 @@ def test_templates_carry_no_credentials_token_or_per_client_items():
     export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
     keys = [i["key"] for t in export["templates"] for i in t["items"]]
     assert [k for k in keys if "client" in k] == ["we.raw.aruba.client", "we.normalised[client]", "we.client.attempt",
-        "we.client.snapshot", "we.collection.status[client]", "we.collection.success[client]"], \
-        "clients are one bounded snapshot per owner"
+        "we.client.snapshot", "we.collection.status[client]", "we.collection.success[client]", "we.capacity.clients",
+        "we.capacity.clients.ap_max"], "clients are one bounded snapshot per owner, plus two cluster totals"
     macros = {m["macro"]: m for t in export["templates"] for m in t["macros"]}
     assert macros["{$WE.CLIENT.KEY}"]["value"] == "" and macros["{$WE.CLIENT.KEY}"]["type"] == "SECRET_TEXT"
     assert macros["{$WE.CLIENT.IDENTIFIERS}"]["value"] == "partial", "masked unless an operator chooses otherwise"
@@ -190,6 +190,36 @@ def test_complete_attempts_are_stored_as_receipts(validator):
     assert stored["observed_at"] == complete["observed_at"] and stored["warnings"] == complete["warnings"]
     failed = dict(complete, status="failed", complete=False, observed_at=None, data=[])
     assert receipt(failed) == failed, "a failed attempt is stored as it is"
+
+
+@needs_node
+def test_capacity_items_are_cluster_totals_with_trends():
+    """Numeric capacity values come only from complete observations and are never a zero standing in for unknown."""
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    items = {i["key"]: i for t in export["templates"] for i in t["items"]}
+    capacity = {k: i for k, i in items.items() if k.startswith("we.capacity.")}
+    assert all(i["trends"] == "{$WE.CAPACITY.TRENDS}" and i["value_type"] in ("UNSIGNED", "FLOAT") for i in capacity.values())
+
+    def value(key, envelope):
+        steps = capacity[key]["preprocessing"]
+        out = subprocess.run(["node", "-e", "const value=require('fs').readFileSync(0,'utf8');"
+                              "process.stdout.write(String((function(value){" + steps[0]["parameters"][0] + "})(value)));"],
+                             input=json.dumps(envelope), check=True, capture_output=True, text=True).stdout
+        return None if out == GEN._common.DISCARD else float(out)
+
+    aps, radios, clients = (run(raw, VC) for raw in ("we.raw.aruba.ap.state", "we.raw.aruba.radio.state",
+                                                     "we.raw.aruba.client"))
+    assert value("we.capacity.aps.up", aps) == sum(r["status"] == "up" for r in aps["data"])
+    assert value("we.capacity.aps.down", aps) == sum(r["status"] == "down" for r in aps["data"]) == 1
+    assert value("we.capacity.clients", clients) == len(clients["data"])
+    five = [r["utilisation_percent"] for r in radios["data"] if r["status"] == "up" and r["band"] == "5"
+            and r["utilisation_percent"] is not None]
+    assert value("we.capacity.utilisation.max[5]", radios) == max(five)
+    assert abs(value("we.capacity.utilisation.avg[5]", radios) - sum(five) / len(five)) < 1e-9
+    no_six = dict(radios, data=[r for r in radios["data"] if r["band"] != "6"])
+    assert value("we.capacity.utilisation.max[6]", no_six) is None, "no 6 GHz radio: no value, not 0"
+    assert value("we.capacity.radios.up[6]", no_six) == 0, "a complete observation does count zero radios"
+    assert value("we.capacity.clients", dict(clients, status="partial", complete=False)) is None, "partial: no value"
 
 
 def test_template_keys_and_uuids_are_unique():

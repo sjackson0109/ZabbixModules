@@ -3341,6 +3341,66 @@ zabbix_export:
           value: ap_state
         - tag: data_source
           value: native-snmp
+    - uuid: 04ed7bc490da4806bc157906d42c3441
+      name: 'Capacity: APs up'
+      type: DEPENDENT
+      key: we.capacity.aps.up
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[ap_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var n=0; for(var i=0;i<e.data.length;i++){if(e.data[i].status==='up'){n++;}} return n;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: ap_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: c263041202d44830a80e8bc27f0fa842
+      name: 'Capacity: APs down'
+      type: DEPENDENT
+      key: we.capacity.aps.down
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[ap_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var n=0; for(var i=0;i<e.data.length;i++){if(e.data[i].status==='down'){n++;}} return n;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: ap_state
+      - tag: data_source
+        value: native-snmp
     - uuid: 9305b0999d85400f82674a3d65722668
       name: 'Raw SNMP walk: radio_inventory'
       type: SNMP_AGENT
@@ -5559,6 +5619,276 @@ zabbix_export:
           value: radio_state
         - tag: data_source
           value: native-snmp
+    - uuid: dd5ae5b21cdf471bafbd5fbc2a6e237a
+      name: 'Capacity: radios up, 2.4 GHz'
+      type: DEPENDENT
+      key: we.capacity.radios.up[2.4]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var n=0; for(var i=0;i<e.data.length;i++){if(e.data[i].status==='up'&&e.data[i].band==='2.4'){n++;}} return n;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: 67e9b61449ba4a548ee378789e2af640
+      name: 'Capacity: average channel utilisation, 2.4 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.avg[2.4]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='2.4'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} var t=0; for(var j=0;j<v.length;j++){t+=v[j];} return t/v.length;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: f35a1a671a554839884516bf77170994
+      name: 'Capacity: highest channel utilisation, 2.4 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.max[2.4]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='2.4'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} return Math.max.apply(null, v);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: 8a6b459811c14bb8a455190eaf0cf315
+      name: 'Capacity: radios up, 5 GHz'
+      type: DEPENDENT
+      key: we.capacity.radios.up[5]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var n=0; for(var i=0;i<e.data.length;i++){if(e.data[i].status==='up'&&e.data[i].band==='5'){n++;}} return n;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: ae3e39361be544a29be2e891e0462dd8
+      name: 'Capacity: average channel utilisation, 5 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.avg[5]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='5'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} var t=0; for(var j=0;j<v.length;j++){t+=v[j];} return t/v.length;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: 46fdd9fa8ef44769a46a4bae805d1ea1
+      name: 'Capacity: highest channel utilisation, 5 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.max[5]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='5'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} return Math.max.apply(null, v);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: fc5afd67f01a4b87891497746a59c382
+      name: 'Capacity: radios up, 6 GHz'
+      type: DEPENDENT
+      key: we.capacity.radios.up[6]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var n=0; for(var i=0;i<e.data.length;i++){if(e.data[i].status==='up'&&e.data[i].band==='6'){n++;}} return n;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: c16a7090cd9e4741aba772c29024cd0e
+      name: 'Capacity: average channel utilisation, 6 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.avg[6]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='6'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} var t=0; for(var j=0;j<v.length;j++){t+=v[j];} return t/v.length;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
+    - uuid: fff433e8aa8042bfa829693ff2f9e42f
+      name: 'Capacity: highest channel utilisation, 6 GHz'
+      type: DEPENDENT
+      key: we.capacity.utilisation.max[6]
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: FLOAT
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: '%'
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[radio_state]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='6'&&typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} if(!v.length){throw 'No utilisation in this band';} return Math.max.apply(null, v);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: radio_state
+      - tag: data_source
+        value: native-snmp
     - uuid: ca3b993eed834c4f8174f295483c8ba1
       name: 'Raw SNMP walk: ssid'
       type: SNMP_AGENT
@@ -7777,6 +8107,66 @@ zabbix_export:
           value: client
         - tag: data_source
           value: native-snmp
+    - uuid: 576e91f95e1c4267888f0dc8b87061f2
+      name: 'Capacity: clients associated'
+      type: DEPENDENT
+      key: we.capacity.clients
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[client]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='client'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return e.data.length;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: client
+      - tag: data_source
+        value: native-snmp
+    - uuid: 8a263976b7ab4789b46372adf4e45f49
+      name: 'Capacity: most clients on one AP'
+      type: DEPENDENT
+      key: we.capacity.clients.ap_max
+      delay: '0'
+      history: '{$WE.CAPACITY.HISTORY}'
+      value_type: UNSIGNED
+      trends: '{$WE.CAPACITY.TRENDS}'
+      units: ''
+      description: From each complete observation only, for the long-term capacity views; no value when the observation cannot give one.
+      master_item:
+        key: we.normalised[client]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='client'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var c={}, m=-1; for(var i=0;i<e.data.length;i++){var a=e.data[i].ap_uid; if(a){c[a]=(c[a]||0)+1; if(c[a]>m){m=c[a];}}} if(m<0){throw 'No client is matched to an AP';} return m;
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: wifi-explorer
+      - tag: dataset
+        value: client
+      - tag: data_source
+        value: native-snmp
     tags:
     - tag: component
       value: wifi-explorer
@@ -7799,6 +8189,12 @@ zabbix_export:
     - macro: '{$WE.AP.STATE.STALE}'
       value: 15m
       description: Maximum age of a complete ap_state observation.
+    - macro: '{$WE.CAPACITY.HISTORY}'
+      value: 7d
+      description: How long the numeric capacity values (APs, radios, utilisation, clients) are kept as history.
+    - macro: '{$WE.CAPACITY.TRENDS}'
+      value: 365d
+      description: How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them.
     - macro: '{$WE.CLIENT.HISTORY}'
       value: 1d
       description: How long client snapshots and attempts are kept.

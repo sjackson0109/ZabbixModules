@@ -16,6 +16,11 @@ final class WifiLimits {
     public const CLIENT_HISTORY_S = 21600;
     public const CLIENT_HISTORY_SAMPLES = 72;
     public const CLIENT_HISTORY_BYTES = 16777216;
+    /**
+     * Hourly capacity trend rows read for one view: a year of the seven year-view keys is about 61,000 rows per
+     * cluster, so a site of four clusters fits; a larger scope is asked to narrow.
+     */
+    public const TREND_ROWS = 250000;
 
     private function __construct() {
     }

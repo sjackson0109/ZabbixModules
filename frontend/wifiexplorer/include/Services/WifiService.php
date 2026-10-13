@@ -26,15 +26,18 @@ final class WifiService {
     private array $config;
     private bool $configInvalid;
     private ?WifiHistory $history;
+    private ?WifiTrends $trends;
 
     /**
      * @param array|null       $config  a normalised configuration document (WifiConfig::normalise), or none
      * @param WifiHistory|null $history deeper snapshot history, for the sampled client timeline
+     * @param WifiTrends|null  $trends  hourly trends of the capacity items, for the capacity view
      */
     public function __construct(DataGateway $gateway, ?int $now = null, ?array $config = null,
-            bool $configInvalid = false, ?WifiHistory $history = null) {
+            bool $configInvalid = false, ?WifiHistory $history = null, ?WifiTrends $trends = null) {
         $this->gateway = $gateway;
         $this->history = $history;
+        $this->trends = $trends;
         $this->now = $now;
         $this->config = $config ?? WifiConfig::empty();
         $this->configInvalid = $configInvalid;
@@ -42,10 +45,11 @@ final class WifiService {
 
     public static function create(): self {
         try {
-            return new self(new ApiGateway(), null, (new WifiConfigStore())->load(), false, new ApiWifiHistory());
+            return new self(new ApiGateway(), null, (new WifiConfigStore())->load(), false, new ApiWifiHistory(),
+                new ApiWifiTrends());
         }
         catch (\RuntimeException $error) {
-            return new self(new ApiGateway(), null, null, true, new ApiWifiHistory());
+            return new self(new ApiGateway(), null, null, true, new ApiWifiHistory(), new ApiWifiTrends());
         }
     }
 
@@ -130,6 +134,8 @@ final class WifiService {
         $clients = $scope->view === 'clients'
             ? (new ClientService($this->history, $now))->build($owners, $datasets, $aps, $scope->query, $scope->client)
             : null;
+        $capacity = $scope->view === 'capacity' ? (new CapacityService($this->trends, $now))->build($owners, $scope->range)
+            : null;
         $events = (new EventService())->build($config['events'], $ssids['ssids'], $aps, $paths, $wired, $now);
         foreach ($events['findings'] as $finding) {
             // Without the wired model every event would read "unknown"; only definite failures are raised then.
@@ -154,7 +160,7 @@ final class WifiService {
             'findings'=>$findings, 'quality'=>$quality,
             'selected_ap'=>$selected, 'selection_missing'=>$scope->ap !== '' && $selected === '',
             'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired, 'paths'=>$paths,
-            'impact'=>$impact, 'events'=>$events['events'], 'clients'=>$clients,
+            'impact'=>$impact, 'events'=>$events['events'], 'clients'=>$clients, 'capacity'=>$capacity,
             'config_invalid'=>$this->configInvalid,
             'intent'=>['ssids'=>$config['ssids'], 'events'=>$config['events'],
                 'known_bssids'=>count($config['known_bssids'])],

@@ -92,6 +92,40 @@ RECEIPT = ("var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Arra
            "e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);")
 
 
+# Cluster-level numbers from each complete observation, stored as numeric items so that Zabbix keeps trends for
+# them: the long-term capacity views read those trends. An observation that cannot give a number (no radio in a
+# band reports utilisation, no client is matched to an AP) stores nothing rather than a zero.
+BANDS = ("2.4", "5", "6")
+COUNT = "var n=0; for(var i=0;i<e.data.length;i++){if(%s){n++;}} return n;"
+UTILISATION = ("var v=[]; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.status==='up'&&r.band==='%s'&&"
+               "typeof r.utilisation_percent==='number'){v.push(r.utilisation_percent);}} "
+               "if(!v.length){throw 'No utilisation in this band';} %s")
+CAPACITY = {
+    "ap_state": [("we.capacity.aps.up", "Capacity: APs up", COUNT % "e.data[i].status==='up'", "UNSIGNED", ""),
+                 ("we.capacity.aps.down", "Capacity: APs down", COUNT % "e.data[i].status==='down'", "UNSIGNED", "")],
+    "radio_state": [item for band in BANDS for item in [
+        (f"we.capacity.radios.up[{band}]", f"Capacity: radios up, {band} GHz",
+         COUNT % f"e.data[i].status==='up'&&e.data[i].band==='{band}'", "UNSIGNED", ""),
+        (f"we.capacity.utilisation.avg[{band}]", f"Capacity: average channel utilisation, {band} GHz",
+         UTILISATION % (band, "var t=0; for(var j=0;j<v.length;j++){t+=v[j];} return t/v.length;"), "FLOAT", "%"),
+        (f"we.capacity.utilisation.max[{band}]", f"Capacity: highest channel utilisation, {band} GHz",
+         UTILISATION % (band, "return Math.max.apply(null, v);"), "FLOAT", "%")]],
+    "client": [("we.capacity.clients", "Capacity: clients associated", "return e.data.length;", "UNSIGNED", ""),
+               ("we.capacity.clients.ap_max", "Capacity: most clients on one AP",
+                "var c={}, m=-1; for(var i=0;i<e.data.length;i++){var a=e.data[i].ap_uid; if(a){c[a]=(c[a]||0)+1; "
+                "if(c[a]>m){m=c[a];}}} if(m<0){throw 'No client is matched to an AP';} return m;", "UNSIGNED", "")],
+}
+
+
+def capacity_items(entry: dict) -> list[dict]:
+    dataset = entry["dataset"]
+    return [dependent(key, name, dataset, normalised_key(dataset), gate(dataset, script), value_type=value_type,
+                      discard=True, history="{$WE.CAPACITY.HISTORY}", trends="{$WE.CAPACITY.TRENDS}", units=units,
+                      description="From each complete observation only, for the long-term capacity views; "
+                                  "no value when the observation cannot give one.")
+            for key, name, script, value_type, units in CAPACITY.get(dataset, [])]
+
+
 def history_macro(entry: dict) -> str:
     return entry["interval_macro"].replace(".INTERVAL}", ".HISTORY}")
 
@@ -131,7 +165,7 @@ def producer_items(entry: dict, template: str) -> list[dict]:
         "description": "Partial and failed attempts never refresh this age. An unsupported dataset (for example on "
                        "a member AP) does not alert.",
         "tags": tags(dataset)}]
-    return items + [status, success]
+    return items + [status, success] + capacity_items(entry)
 
 
 def macros(entries: list[dict], extra: list[dict]) -> list[dict]:
