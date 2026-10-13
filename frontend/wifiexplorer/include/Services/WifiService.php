@@ -89,6 +89,8 @@ final class WifiService {
         $findings = array_merge($findings, $ssids['findings']);
         $wired = ['available'=>false, 'reason'=>'not_requested', 'switches'=>0];
         $paths = [];
+        $impact = null;
+        $network = null;
         if ($scope->needsWired()) {
             try {
                 $uplinks = (new UplinkService($this->gateway, $now))->build($scope->site, $owners, $aps);
@@ -105,6 +107,7 @@ final class WifiService {
             }
             $findings = array_merge($findings, $uplinks['findings']);
             if ($uplinks['available']) {
+                $network = $uplinks['network'];
                 $pathModel = (new PathService($uplinks['network']))->build($aps, $ssids['ssids']);
                 $paths = $pathModel['paths'];
                 foreach ($pathModel['chains'] as $apUid => $chain) {
@@ -119,6 +122,22 @@ final class WifiService {
             $ap['ssids'] = $ssids['by_ap'][$apUid] ?? [];
         }
         unset($ap);
+        if ($network !== null && $scope->view === 'impact') {
+            $wired['hosts'] = array_map(static fn($h) => ['hostid'=>$h['hostid'], 'name'=>$h['name']], $network['hosts']);
+            usort($wired['hosts'], static fn($a, $b) => strnatcasecmp($a['name'], $b['name']));
+            $wired['interfaces'] = array_values(array_map(static fn($i) => ['uid'=>$i['uid'], 'name'=>$i['name'] ?? $i['uid']],
+                array_filter($network['interfaces'], static fn($i) => $i['hostid'] === $scope->failHost)));
+            if ($scope->failHost !== '') {
+                $impact = (new ImpactService($network))->build($scope->failHost, $scope->failInterface, $aps, $ssids['ssids']);
+            }
+        }
+        $events = (new EventService())->build($config['events'], $ssids['ssids'], $aps, $paths, $wired, $now);
+        foreach ($events['findings'] as $finding) {
+            // Without the wired model every event would read "unknown"; only definite failures are raised then.
+            if ($wired['available'] || $finding['rule'] === 'wifi_event_not_ready') {
+                $findings[] = $finding;
+            }
+        }
         $floors = (new FloorService())->build($config, $aps, $clientCounts, $rf, $scope->floor, $scope->overlay,
             $scope->band);
         usort($findings, static fn($a, $b) => [$a['severity'] === 'warning' ? 0 : 1, $a['rule'], $a['title'], $a['id']]
@@ -136,6 +155,7 @@ final class WifiService {
             'findings'=>$findings, 'quality'=>$quality,
             'selected_ap'=>$selected, 'selection_missing'=>$scope->ap !== '' && $selected === '',
             'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired, 'paths'=>$paths,
+            'impact'=>$impact, 'events'=>$events['events'],
             'config_invalid'=>$this->configInvalid,
             'intent'=>['ssids'=>$config['ssids'], 'events'=>$config['events'],
                 'known_bssids'=>count($config['known_bssids'])],

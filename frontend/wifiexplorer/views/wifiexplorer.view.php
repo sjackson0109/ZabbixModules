@@ -68,7 +68,8 @@ if (isset($data['error'])) {
 }
 
 $tabs = (new CList())->addClass('we-tabs')->setAttribute('role', 'navigation');
-$tabNames = ['overview'=>_('Overview'), 'floors'=>_('Floor plans'), 'rf'=>_('RF neighbours'), 'ssids'=>_('SSIDs'), 'paths'=>_('VLAN paths')];
+$tabNames = ['overview'=>_('Overview'), 'floors'=>_('Floor plans'), 'rf'=>_('RF neighbours'), 'ssids'=>_('SSIDs'), 'paths'=>_('VLAN paths'),
+    'impact'=>_('Impact'), 'events'=>_('Events')];
 foreach ($tabNames as $key => $name) {
     $item = new CLink($name, $link(['view'=>$key === 'overview' ? '' : $key, 'q'=>$request['q']]));
     if ($key === $view) {

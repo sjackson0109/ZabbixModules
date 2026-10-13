@@ -156,7 +156,11 @@ foreach ($data['findings'] as $finding) {
     $apUid = $finding['object_type'] === 'radio' ? ($radioAps[$finding['object_id']] ?? null) : $finding['object_id'];
     $title = in_array($finding['object_type'], ['ap', 'radio'], true) && isset($byUid[$apUid])
         ? new CLink($finding['title'], $link(['ap'=>$apUid]))
-        : ($finding['object_type'] === 'bssid' ? new CLink($finding['title'], $link(['view'=>'rf'])) : $finding['title']);
+        : ($finding['object_type'] === 'bssid' ? new CLink($finding['title'], $link(['view'=>'rf']))
+        : ($finding['object_type'] === 'ssid' ? new CLink($finding['title'], $link(['view'=>strpos($finding['rule'], 'wifi_path_') === 0
+            ? 'paths' : 'ssids', 'ssid'=>$finding['object_id']]))
+        : ($finding['object_type'] === 'event' ? new CLink($finding['title'], $link(['view'=>'events', 'event'=>$finding['object_id']]))
+        : $finding['title'])));
     $findings->addRow([(new CSpan($finding['severity'] === 'warning' ? _('Warning') : _('Info')))
             ->addClass('we-severity-'.$finding['severity']), $title, $finding['reason'],
         $finding['freshness'].($finding['last_observed'] !== null ? ' / '.$finding['last_observed'] : ''),
