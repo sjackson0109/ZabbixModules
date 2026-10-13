@@ -10,7 +10,7 @@ The [requirements](REQUIREMENTS.md) define seven phases (section 36). Phase A la
 | D | VLAN service-path assurance | Done (PR #22) |
 | E | Blast radius and event readiness | Done (PR #22) |
 | F | Client journey | Done (PR #22) |
-| G | Vendor expansion and optimisation | Not started |
+| G | Vendor expansion and optimisation | In progress: the parts that need no hardware are done; vendors wait for sanitised walks |
 
 ## Phase A: canonical model and site/AP inventory
 
@@ -45,7 +45,9 @@ Delivered: one bounded client snapshot per cluster, masked by `{$WE.CLIENT.IDENT
 
 ## Phase G: vendors and optimisation
 
-Additional vendor families (Ubiquiti UniFi, Cisco WLC and others) as evidence arrives, storage tuning from canary measurements, long-term capacity views and further RF analytics.
+Delivered without new hardware: the **Capacity** tab from hourly trends of per-cluster capacity items (day, month, year; gaps kept as gaps; growth), complete attempts stored as receipts with per-dataset history macros (about half the storage), the inferred `wifi_channel_overlap` finding from the 802.11 channel plan, packed configuration for about 2,300 AP placements, and Chromium checks of the page in the Compatibility workflow. See [design](DESIGN.md#phase-g-without-hardware-capacity-storage-rf-overlap-large-sites-section-36).
+
+Open: additional vendor families (Ubiquiti UniFi, Cisco WLC and others) and Aruba Instant qualification, both from sanitised walks; storage tuning from a canary measurement; capacity per AP, radio, floor or SSID over time.
 
 ## Not carried over from the reviewed Aruba template
 
