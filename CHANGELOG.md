@@ -24,6 +24,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ### Fixed
 - Wi-Fi Explorer review fixes:
+  - Saving the configuration under **Configure** (or moving an AP on a floor plan) no longer leaves a document that fails to load when SSID intent is declared: the editor's document is stored, not the normalised form with derived SSID IDs.
   - VLAN paths and impact no longer treat stale LLDP as current cabling: a stale AP uplink makes the path unknown (`uplink_stale`), and a root-port link seen only in stale LLDP stops the walk (`upstream_link_stale`).
   - A LAG member failure is *degraded* only when another member is up now; with stale member state it cannot be assessed. STP alternates count only with current state, and when a whole switch fails, an alternate that leads back to it is not offered as a reroute.
   - Event readiness: capacity is unknown, not failed, while APs of unknown state could still serve; "SSID enabled" looks only at the event's own site; utilisation is *not checked*, never passed, when no radio reports it.

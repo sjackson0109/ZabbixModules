@@ -234,6 +234,14 @@ final class WifiConfig {
             'known_bssids'=>array_column($config['known_bssids'], null, 'bssid')];
     }
 
+    /**
+     * The form a valid document is stored in: the editor's document as plain arrays, which normalise() accepts
+     * again. The normalised form itself is not, as it carries derived fields such as each SSID's ID.
+     */
+    public static function stored(array $config): array {
+        return json_decode(json_encode(self::export($config)), true);
+    }
+
     /** The stored document as the editor shows it: the shape an operator writes, without derived fields. */
     public static function export(array $config): array {
         $ssids = array_map(static function ($s) {

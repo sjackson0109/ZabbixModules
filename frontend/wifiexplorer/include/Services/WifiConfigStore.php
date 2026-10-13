@@ -34,7 +34,7 @@ class WifiConfigStore {
             throw new \RuntimeException('configuration_unavailable');
         }
         $stored = $module->getConfig();
-        $stored[self::KEY] = $config;
+        $stored[self::KEY] = WifiConfig::stored($config);
         $result = \API::Module()->update([['moduleid'=>$module->getModuleId(), 'config'=>$stored]]);
         if ($result === false) {
             throw new \RuntimeException('configuration_save_failed');

@@ -45,6 +45,8 @@ use Modules\WifiExplorer\Services\WifiService;
         'Every problem is reported at once.');
     $exported = json_decode(json_encode(WifiConfig::export($config)), true);
     $assert(WifiConfig::normalise($exported) === $config, 'The editor\'s document round-trips.');
+    $assert(WifiConfig::normalise(WifiConfig::stored($config)) === $config && $config['ssids'] !== [],
+        'What is saved loads again: the stored form is the document, not the normalised form with derived SSID IDs.');
     $visible = WifiConfig::visible($config, ['lab-west'], [WifiLab::apUid(1)]);
     $assert(count($visible['floors']) === 2 && array_keys($visible['placements']) === [WifiLab::apUid(1)],
         'A viewer sees floors of visible sites and placements of visible APs only.');
