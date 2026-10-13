@@ -188,6 +188,18 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
     result["checks"].append("wifi-explorer-html-page")
 
 
+def wifi_browser_checks(config: dict, result: dict) -> None:
+    """Wi-Fi Explorer in real Chromium: tabs, floor placement, the editor's save-and-reload and escaping."""
+    if not (ROOT / "tests/browser/node_modules/playwright").is_dir():
+        assert_that(os.environ.get("WE_BROWSER") != "required",
+                    "Wi-Fi browser checks are required but Playwright is not installed (npm ci in tests/browser).")
+        print("Wi-Fi browser checks skipped: run npm ci in tests/browser to include them.", flush=True)
+        return
+    completed = subprocess.run(["node", str(ROOT / "tests/browser/wifi.lab.cjs"), config["version"]], cwd=ROOT)
+    assert_that(completed.returncode == 0, "Wi-Fi browser checks failed.")
+    result["checks"].append("wifi-browser")
+
+
 def replay_template(api, name: str, keys: list[str]) -> str:
     """A template of trapper text items with exactly these keys, created or completed."""
     lab = api("template.get", {"output": ["templateid"], "filter": {"host": name}})
@@ -555,6 +567,8 @@ def run(version: str, require_frontend: bool = True) -> dict:
         poll(lambda: items(hostids["ne-lab-a"]).get("ne.interfaces.attempt", {}).get("state") == "0")
     wifi_checks(config, api, (visible_group, private_group), user_browser if require_frontend else None, result)
     wifi_service_checks(config, api, visible_group, user_browser if require_frontend else None, result)
+    if require_frontend:
+        wifi_browser_checks(config, result)
     reportfile = config["state"] / "integration-result.json"
     reportfile.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2), flush=True)
