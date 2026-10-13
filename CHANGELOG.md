@@ -22,6 +22,18 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
   - **Clients**: one masked client snapshot per cluster (`{$WE.CLIENT.IDENTIFIERS}`: full, partial by default, or pseudonymised with the secret `{$WE.CLIENT.KEY}`), a search over what the policy kept, a trace to AP, radio, uplink and VLAN paths, and a sampled association timeline from snapshot history.
 - `wifi-1.0` gains the `ssid`, `client` and `rf_neighbour` datasets.
 
+### Fixed
+- Wi-Fi Explorer review fixes:
+  - Saving the configuration under **Configure** (or moving an AP on a floor plan) no longer leaves a document that fails to load when SSID intent is declared: the editor's document is stored, not the normalised form with derived SSID IDs.
+  - VLAN paths and impact no longer treat stale LLDP as current cabling: a stale AP uplink makes the path unknown (`uplink_stale`), and a root-port link seen only in stale LLDP stops the walk (`upstream_link_stale`).
+  - A LAG member failure is *degraded* only when another member is up now; with stale member state it cannot be assessed. STP alternates count only with current state, and when a whole switch fails, an alternate that leads back to it is not offered as a reroute.
+  - Event readiness: capacity is unknown, not failed, while APs of unknown state could still serve; "SSID enabled" looks only at the event's own site; utilisation is *not checked*, never passed, when no radio reports it.
+  - A port blocked by spanning tree gets spanning-tree advice instead of "add the VLAN".
+  - RF neighbours heard only in stale snapshots are listed as stale with when they were last seen and are no longer counted as heard now.
+  - The overview reads the wired model for a site, so its findings include uplink and VLAN path findings and no longer change when an AP is selected.
+  - Client snapshots without `{$WE.CLIENT.KEY}` carry a `client_key_missing` warning, shown on the Clients tab, because an unkeyed ID can be traced back to the MAC address.
+  - The client timeline reads history a few values at a time and stops at its 16 MB bound instead of loading up to 73 snapshots first.
+
 ### Changed
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 

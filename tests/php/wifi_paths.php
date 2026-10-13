@@ -75,6 +75,35 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert($result($blocked, 'Lab-Corp', 4)['reason'] === 'stp_blocking' && $result($blocked, 'Lab-Corp', 4)['failed_hop'] === 1,
         'A blocking root port fails the path at that hop.');
 
+    $blockedFinding = array_values(array_filter($blocked['Lab-Corp'] ? $paths($gateway)[1]['findings'] : [],
+        static fn($f) => $f['rule'] === 'wifi_path_failed'))[0] ?? null;
+    $assert($blockedFinding !== null && strpos($blockedFinding['remediation'] ?? '', 'spanning tree') !== false,
+        'A blocked port is answered with a spanning-tree check, not a VLAN change.');
+
+    // Stale LLDP: neither the AP's uplink nor a switch-to-switch link is evidence of today's cabling.
+    $gateway = WifiLab::gateway();
+    foreach (['31', '32', '20'] as $hostid) {
+        $mutate($gateway, $hostid, 'ne.lldp.snapshot', static fn($e) => ['observed_at'=>'2026-10-10T09:00:00Z',
+            'attempted_at'=>'2026-10-10T09:00:00Z'] + $e);
+    }
+    [$lldp] = $paths($gateway);
+    $assert($result($lldp, 'Lab-Corp', 1)['status'] === 'unknown' && $result($lldp, 'Lab-Corp', 1)['reason'] === 'uplink_stale',
+        'A stale uplink observation proves no path.');
+    $assert(!array_filter(array_merge(...array_map(static fn($p) => array_values($p['results']), array_values($lldp))),
+        static fn($r) => $r['status'] === 'complete'), 'No path is complete on stale LLDP.');
+    $gateway = WifiLab::gateway();
+    $mutate($gateway, '30', 'ne.lldp.snapshot', static fn($e) => ['observed_at'=>'2026-10-10T09:00:00Z',
+        'attempted_at'=>'2026-10-10T09:00:00Z'] + $e);
+    $mutate($gateway, '31', 'ne.lldp.snapshot', static function ($e) {
+        // Only the AP side stays on the access switch; its own view of the root link is dropped.
+        $e['data'] = array_values(array_filter($e['data'], static fn($row) => strpos(json_encode($row), 'sw-wifi-dist') === false));
+        return $e;
+    });
+    [$upstream] = $paths($gateway);
+    $assert($result($upstream, 'Lab-Corp', 1)['status'] === 'partial'
+        && $result($upstream, 'Lab-Corp', 1)['reason'] === 'upstream_link_stale',
+        'A root-port link known only from stale LLDP stops the walk as stale.');
+
     // Bridges that disagree about the root.
     $gateway = WifiLab::gateway();
     $mutate($gateway, '32', 'ne.stp.snapshot', static fn($e) => $stp($e, static fn($row) => ($row['kind'] ?? '') === 'bridge'

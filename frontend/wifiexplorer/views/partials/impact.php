@@ -95,6 +95,7 @@ $impacts = ['lost'=>_('Loses service'), 'degraded'=>_('Degraded'), 'reroute_poss
     'cannot_assess'=>_('Cannot assess')];
 $why = ['ap_switch'=>_('its own switch'), 'ap_port'=>_('its own port'), 'upstream_switch'=>_('a switch on its path'),
     'upstream_port'=>_('a port on its path'), 'lag_member'=>_('a LAG member on its path; other members are up'),
+    'lag_state_unknown'=>_('a LAG member on its path; the other members\' state is not current'),
     'uplink_unknown'=>_('its uplink is unknown'), 'path_partial'=>_('its path stops before the root'),
     'path_unknown'=>_('its path is unknown')];
 $apTable = (new CTableInfo())->setHeader([_('Access point'), _('Impact'), _('Why'), _('Clients now'), _('STP alternates')])

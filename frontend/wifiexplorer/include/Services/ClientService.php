@@ -50,7 +50,8 @@ final class ClientService {
             $policy = $set['data'][0]['identifiers'] ?? null;
             $sources[$hostid] = ['hostid'=>$hostid, 'name'=>$owner['name'], 'freshness'=>$set['freshness'] ?? 'unknown',
                 'observed_at'=>$set['observed_at'] ?? null, 'clients'=>count($set['data']), 'policy'=>$policy,
-                'over_limit'=>in_array('clients_over_limit', array_column($set['errors'] ?? [], 'code'), true)];
+                'over_limit'=>in_array('clients_over_limit', array_column($set['errors'] ?? [], 'code'), true),
+                'unkeyed'=>in_array('client_key_missing', array_column($set['warnings'] ?? [], 'code'), true)];
             if (($set['freshness'] ?? 'unknown') !== 'current') {
                 continue;   // A stale list is not "who is connected now".
             }
@@ -113,7 +114,7 @@ final class ClientService {
             return ['reason'=>'history_unavailable'] + $base;
         }
         $rows = $this->history->window($client['owner_hostid'], 'we.client.snapshot', $this->now - WifiLimits::CLIENT_HISTORY_S,
-            $this->now, WifiLimits::CLIENT_HISTORY_SAMPLES + 1);
+            $this->now, WifiLimits::CLIENT_HISTORY_SAMPLES + 1, WifiLimits::CLIENT_HISTORY_BYTES);
         $bounded = count($rows) > WifiLimits::CLIENT_HISTORY_SAMPLES;
         $rows = array_slice($rows, 0, WifiLimits::CLIENT_HISTORY_SAMPLES);
         $validator = new WifiEnvelopeValidator();
@@ -164,7 +165,7 @@ final class ClientService {
                     'to_ap'=>$after['ap_uid'], 'from_bssid'=>$before['bssid'], 'to_bssid'=>$after['bssid'], 'kind'=>'inferred'];
             }
         }
-        return ['available'=>true, 'reason'=>$samples ? null : 'no_history', 'samples'=>$samples, 'changes'=>$changes,
+        return ['available'=>true, 'reason'=>$samples ? null : ($bounded ? 'history_too_large' : 'no_history'), 'samples'=>$samples, 'changes'=>$changes,
             'bounded'=>$bounded] + $base;
     }
 }

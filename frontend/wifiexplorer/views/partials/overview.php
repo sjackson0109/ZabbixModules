@@ -47,9 +47,10 @@ $tiles->addItem($tile(_('Data sources'), count($data['owners']),
 $root->addItem($tiles);
 
 $rf = $data['rf'];
-$tiles->addItem($tile(_('RF neighbours'), $rf['total'],
+$tiles->addItem($tile(_('RF neighbours'), $rf['current_total'],
     _s('%1$s flagged by an AP, %2$s unknown, %3$s known, %4$s managed', $rf['counts']['flagged'], $rf['counts']['unknown'],
         $rf['counts']['known_neighbour'] + $rf['counts']['known_external'], $rf['counts']['managed'])
+        .($rf['stale'] > 0 ? ' · '._s('%1$s more only in stale data', $rf['stale']) : '')
         .($rf['observers'] ? '' : ' · '._('no AP is polled for its RF view')),
     $rf['counts']['flagged'] > 0 ? 'we-tile-warning' : ''));
 $notAvailable = ['poe'=>_('PoE'), 'auth_failures'=>_('authentication failures'), 'retry_rates'=>_('retry and error rates')];
@@ -151,7 +152,10 @@ if ($data['selected_ap'] !== '') {
 
 // Findings: warnings first, each with what it is about, why, and how fresh the evidence is.
 $findings = (new CTableInfo())->setHeader([_('Severity'), _('Finding'), _('Reason'), _('Evidence'), _('Next step')])
-    ->setNoDataMessage(_('No findings from the current observations.'));
+    ->setNoDataMessage($data['wired']['available']
+        ? _('No findings from the current observations.')
+        : _('No findings from the current observations; uplink and VLAN path findings need the wired model:').' '
+            .\Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason']));
 foreach ($data['findings'] as $finding) {
     $apUid = $finding['object_type'] === 'radio' ? ($radioAps[$finding['object_id']] ?? null) : $finding['object_id'];
     $title = in_array($finding['object_type'], ['ap', 'radio'], true) && isset($byUid[$apUid])

@@ -60,8 +60,11 @@ final class WifiScope {
         return ['site'=>$this->site, 'view'=>$this->view];
     }
 
-    /** The views that correlate with Network Explorer's wired model. */
+    /**
+     * The views that correlate with Network Explorer's wired model. The overview needs it too, so that its findings
+     * include uplink and VLAN path findings and do not change when an AP is selected.
+     */
     public function needsWired(): bool {
-        return in_array($this->view, ['ssids', 'paths', 'impact', 'events', 'clients'], true) || $this->ap !== '';
+        return in_array($this->view, ['overview', 'ssids', 'paths', 'impact', 'events', 'clients'], true) || $this->ap !== '';
     }
 }

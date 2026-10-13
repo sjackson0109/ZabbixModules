@@ -316,4 +316,6 @@ def test_client_identifier_policy(validator, tmp_path, policy, key, expect):
         assert plain.isdisjoint({r["client_uid"] for r in rows}), "the key changes every ID"
     if policy == "pseudonymised" and not key:
         assert "client_pseudonym_key_missing" in [w["code"] for w in envelope["warnings"]]
+    codes = [w["code"] for w in envelope["warnings"]]
+    assert ("client_key_missing" in codes) == (expect != "full" and not key), "unkeyed masked IDs are reported"
     assert key == "" or key not in json.dumps(envelope), "the key never reaches the stored value"

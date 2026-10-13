@@ -8,10 +8,11 @@
  */
 $pathReasons = [
     'uplink_unresolved'=>_('AP uplink unresolved'), 'uplink_conflicting'=>_('AP and switch disagree about the uplink'),
-    'uplink_ambiguous'=>_('AP seen on several switch ports'), 'stp_not_collected'=>_('spanning tree not collected'),
+    'uplink_ambiguous'=>_('AP seen on several switch ports'), 'uplink_stale'=>_('AP uplink evidence stale'), 'stp_not_collected'=>_('spanning tree not collected'),
     'stp_no_bridge'=>_('no spanning-tree bridge reported'), 'stp_stale'=>_('spanning-tree data stale'),
     'stp_root_disagreement'=>_('switches disagree about the root bridge'), 'no_root_port'=>_('no root port reported'),
     'upstream_link_unresolved'=>_('the root port\'s link is not resolved'),
+    'upstream_link_stale'=>_('the root port\'s link is only in stale LLDP data'),
     'upstream_link_ambiguous'=>_('the root port leads to more than one switch'),
     'upstream_not_visible'=>_('the upstream switch is not visible'), 'loop'=>_('the walk returned to a switch'),
     'too_many_hops'=>_('more hops than checked'), 'mstp_instance'=>_('the VLAN is mapped to an MSTP instance other than the CIST'),

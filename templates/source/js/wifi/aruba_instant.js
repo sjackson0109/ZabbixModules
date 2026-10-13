@@ -372,6 +372,11 @@ ARUBA.clients = function (walk, env, policy, key) {
         NE.warning(env, 'client_pseudonym_key_missing',
             'Pseudonymised client IDs need the WE.CLIENT.KEY macro; client identifiers were partially masked instead.');
     }
+    if (p.policy !== 'full' && p.key === '') {
+        // Without a key a client ID is a plain hash of the MAC: with the vendor prefix shown it can be reversed.
+        NE.warning(env, 'client_key_missing',
+            'Client IDs are not keyed: set the WE.CLIENT.KEY secret macro so they cannot be traced back to MAC addresses.');
+    }
     // AP addresses from the AP table in the same walk attribute each client to an AP.
     var aps = ARUBA.rows(walk, ARUBA.AP, {mac: 1, ip: 3}), byIp = {}, suffix, row, mac, ip;
     for (suffix in aps) {

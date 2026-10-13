@@ -12,8 +12,8 @@ use Modules\WifiExplorer\Services\WifiService;
 final class FixtureHistory implements WifiHistory {
     public array $rows = [];
     public array $requests = [];
-    public function window(string $hostid, string $key, int $from, int $till, int $limit): array {
-        $this->requests[] = [$hostid, $key, $from, $till, $limit];
+    public function window(string $hostid, string $key, int $from, int $till, int $limit, int $maxBytes): array {
+        $this->requests[] = [$hostid, $key, $from, $till, $limit, $maxBytes];
         $rows = array_values(array_filter($this->rows[$hostid][$key] ?? [], static fn($r) => $r['clock'] >= $from
             && $r['clock'] <= $till));
         usort($rows, static fn($a, $b) => $b['clock'] <=> $a['clock']);
@@ -89,6 +89,8 @@ final class FixtureHistory implements WifiHistory {
     $assert($history->requests[0][0] === '10' && $history->requests[0][1] === 'we.client.snapshot'
         && $history->requests[0][4] === WifiLimits::CLIENT_HISTORY_SAMPLES + 1,
         'History is read from the client\'s own cluster, bounded by sample count.');
+    $assert($history->requests[0][5] === WifiLimits::CLIENT_HISTORY_BYTES, 'The reader is told the byte bound, so it stops there.');
+    $assert($clients['sources'][0]['unkeyed'] === true, 'Client IDs without WE.CLIENT.KEY are reported as not keyed.');
 
     $missing = $build(['client'=>'client-000000000000000000000000'], $history)['clients'];
     $assert($missing['selection_missing'] && $missing['timeline'] === null, 'An unknown client selects nothing.');
