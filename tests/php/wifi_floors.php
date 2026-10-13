@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__.'/wifi_lab.php';
 
 use Modules\WifiExplorer\Services\WifiConfig;
+use Modules\WifiExplorer\Services\ChannelPlan;
 use Modules\WifiExplorer\Services\RfService;
 use Modules\WifiExplorer\Services\WifiConfigError;
 use Modules\WifiExplorer\Services\WifiScope;
@@ -156,6 +157,29 @@ use Modules\WifiExplorer\Services\WifiService;
         'The AP\'s own second SSID is not listed as a neighbour.');
     $assert(!array_filter($rfModel['findings'], static fn($f) => strpos($f['rule'], 'wifi_co_channel') === 0),
         'A 6 GHz network on channel 1 does not contend with a 2.4 GHz radio on channel 1.');
+
+    // Overlapping channels, from the channel plan: inferred, never on a channel that does not share spectrum.
+    $assert(ChannelPlan::span('5', 36, '80') === [5170, 5250, 'block'] && ChannelPlan::span('5', 112, '40') === [5530, 5570, 'block']
+        && ChannelPlan::span('6', 37, '160') === [6105, 6265, 'block'] && ChannelPlan::span('2.4', 6, '40')[2] === 'primary'
+        && ChannelPlan::span('5', 36, null)[2] === 'primary' && ChannelPlan::span('2.4', 36, '20') === null,
+        'The channel plan gives the bonded block, or only the primary when the block is not fixed.');
+    $overlap = static function (string $band, int $own, ?string $ownWidth, int $theirs, ?string $width, int $snr = 40) use ($aps): array {
+        $radio = ['radio_uid'=>'r1', 'radio_index'=>0, 'status'=>'up', 'channel'=>$own, 'band'=>$band,
+            'channel_width'=>$ownWidth, 'bssid'=>'aa:bb:cc:dd:ee:10'];
+        $model = (new RfService())->build(['7'=>['hostid'=>'7', 'name'=>'ap-a', 'addresses'=>[]]],
+            ['7'=>['rf_neighbour'=>['freshness'=>'current', 'observed_at'=>null, 'warnings'=>[], 'data'=>[[
+                'bssid'=>'02:00:00:00:00:09', 'ssid'=>'N', 'channel'=>$theirs, 'band'=>$band, 'channel_width'=>$width,
+                'encryption'=>null, 'snr_db'=>$snr, 'classification'=>'interfering', 'classification_raw'=>null]]]]],
+            ['ap-a'=>['radios'=>[$radio]] + $aps['ap-a']], []);
+        return array_values(array_filter($model['findings'], static fn($f) => $f['rule'] === 'wifi_channel_overlap'));
+    };
+    $found = $overlap('2.4', 1, '20', 3, '20');
+    $assert(count($found) === 1 && $found[0]['confidence'] === 'inferred' && $found[0]['severity'] === 'info',
+        '2.4 GHz channels 1 and 3 overlap: an inferred finding.');
+    $assert(!$overlap('2.4', 1, '20', 6, '20') && !$overlap('2.4', 1, '20', 3, '20', 10),
+        'Channels 1 and 6 do not overlap, and a faint neighbour is not counted.');
+    $assert((bool) $overlap('5', 36, '80', 44, '20') && !$overlap('5', 36, '80', 52, '20') && !$overlap('5', 36, '80', 36, '80'),
+        'An 80 MHz block on 36 overlaps 44 but not 52; the same channel is co-channel, not overlap.');
 
     echo "Wi-Fi floor and RF checks passed ($checks checks).\n";
 })();

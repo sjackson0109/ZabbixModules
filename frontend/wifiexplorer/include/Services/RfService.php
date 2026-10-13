@@ -193,15 +193,41 @@ final class RfService {
                     continue;
                 }
                 $loud = [];
+                $overlapping = [];
+                $own = ChannelPlan::span($radio['band'], $radio['channel'], $radio['channel_width'] ?? null);
                 foreach ($neighbours as $row) {
                     foreach ($row['observers'] as $o) {
+                        if ($o['hostid'] !== $observer['hostid'] || $o['snr_db'] === null || $o['snr_db'] < self::CONTENTION_SNR) {
+                            continue;
+                        }
                         // Channel numbers repeat across bands (6 GHz 1/5/9 against 2.4 GHz), so a known band must match.
-                        if ($o['hostid'] === $observer['hostid'] && $o['channel'] === $radio['channel']
-                                && ($o['band'] === null || $radio['band'] === null || $o['band'] === $radio['band'])
-                                && $o['snr_db'] !== null && $o['snr_db'] >= self::CONTENTION_SNR) {
+                        if ($o['channel'] === $radio['channel']
+                                && ($o['band'] === null || $radio['band'] === null || $o['band'] === $radio['band'])) {
                             $loud[] = $row;
+                            continue;
+                        }
+                        // A different channel whose spectrum, by the channel plan, still overlaps this radio's.
+                        $theirs = $o['band'] !== null && $o['band'] === $radio['band']
+                            ? ChannelPlan::span($o['band'], $o['channel'], $row['channel_width']) : null;
+                        if ($own !== null && $theirs !== null && ChannelPlan::overlaps($own, $theirs)) {
+                            $overlapping[] = $row;
                         }
                     }
+                }
+                if ($overlapping) {
+                    $name = ($ap['name'] ?? $ap['ap_uid']).' '._s('radio %1$s', $radio['radio_index'] ?? '?');
+                    $findings[] = WifiFinding::create('wifi_channel_overlap', 'info', $observer['hostid'], 'radio',
+                        $radio['radio_uid'],
+                        _s('%1$s overlaps %2$s network(s) on other channels that it hears at %3$s dB or more', $name,
+                            count($overlapping), self::CONTENTION_SNR),
+                        _s('By the channel plan, channel %1$s (%2$s MHz) shares spectrum with them. Adjacent-channel or partial overlap interference is likely; overlap is derived from channel numbers and widths, not measured.',
+                            $radio['channel'], $own[1] - $own[0]),
+                        array_map(static fn($r) => ['dataset'=>'rf_neighbour', 'hostid'=>$observer['hostid'],
+                            'observed_at'=>$observer['observed_at'], 'fact'=>($r['ssid'] ?? $r['bssid']).' channel '
+                            .($r['channel'] ?? '?').($r['channel_width'] !== null ? ' ('.$r['channel_width'].' MHz)' : '')],
+                            array_slice($overlapping, 0, 5)),
+                        'current', _('Move one side to a channel that does not overlap, or narrow the channel width.'),
+                        'inferred');
                 }
                 if (!$loud) {
                     continue;

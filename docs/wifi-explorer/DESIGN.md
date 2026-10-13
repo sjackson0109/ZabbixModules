@@ -178,6 +178,7 @@ Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and confi
 |---|---|---|
 | `wifi_rf_flagged` | Warning | A current detection the AP itself labels unsecure, DoS or suspected-unsecure |
 | `wifi_co_channel_managed`, `wifi_co_channel_external` | Info | An up radio's own AP hears another network on its channel at 25 dB SNR or more |
+| `wifi_channel_overlap` | Info (inferred) | An up radio's own AP hears, at 25 dB SNR or more, a network in the same band on a different channel whose spectrum overlaps by the 802.11 channel plan (bonded block from the width; 2.4 GHz 40 MHz, 80+80 and unknown widths use only the primary 20 MHz, so overlap may be missed but is never invented) |
 | `wifi_ssid_missing`, `wifi_ssid_disabled` | Warning | A declared SSID that the site's current clusters do not list, or list as disabled |
 | `wifi_ssid_coverage_gap` | Warning | Expected APs that are down or have no radio up in a declared band (inferred) |
 | `wifi_ssid_vlan_undeclared` | Info | An enabled SSID without intent: its VLAN, and so its path, is unknown |
