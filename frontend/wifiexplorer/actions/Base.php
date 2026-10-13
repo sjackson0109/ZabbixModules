@@ -13,6 +13,8 @@ abstract class Base extends \CController {
     protected const FIELDS = ['site', 'ap', 'view', 'floor', 'overlay', 'band', 'ssid', 'client', 'fail_host', 'fail_if',
         'event', 'q'];
 
+    private ?WifiService $service = null;
+
     protected function init(): void {
         // These routes are read-only, with authorisation repeated per request.
         $this->disableCsrfValidation();
@@ -38,10 +40,15 @@ abstract class Base extends \CController {
     /** The request's fields as given, for links that keep the current view. */
     protected function request(): array {
         $request = [];
-        foreach (self::FIELDS as $field) {
+        foreach (static::FIELDS as $field) {
             $request[$field] = (string) $this->getInput($field, '');
         }
         return $request;
+    }
+
+    /** One service per request, so the configuration is loaded once. */
+    protected function service(): WifiService {
+        return $this->service ??= WifiService::create();
     }
 
     protected function scope(): WifiScope {
@@ -54,7 +61,7 @@ abstract class Base extends \CController {
             return ['error'=>WifiErrors::NETWORK_EXPLORER_MISSING];
         }
         try {
-            return WifiService::create()->build($this->scope());
+            return $this->service()->build($this->scope());
         }
         catch (\Throwable $error) {
             return ['error'=>WifiErrors::code($error)];

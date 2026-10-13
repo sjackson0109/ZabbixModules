@@ -35,12 +35,9 @@ final class PathService {
 
     /** @param array $network Network Explorer's buildScope() model of the site */
     public function __construct(array $network) {
-        foreach ($network['hosts'] as $host) {
-            $this->hosts[$host['hostid']] = $host;
-        }
-        foreach ($network['interfaces'] as $interface) {
-            $this->interfaces[$interface['hostid']][$interface['uid']] = $interface;
-        }
+        $this->hosts = WiredIndex::hosts($network);
+        $this->interfaces = WiredIndex::interfaces($network);
+        $this->aggregators = WiredIndex::aggregators($network);
         foreach ($network['quality'] as $row) {
             $this->quality[$row['hostid']][$row['dataset']] = $row;
         }
@@ -57,9 +54,6 @@ final class PathService {
         foreach ($network['lags'] as $lag) {
             if ($lag['interface_uid'] === null) {
                 continue;
-            }
-            foreach ($lag['members'] as $member) {
-                $this->aggregators[$lag['hostid']][$member['uid']] = $lag['interface_uid'];
             }
             // A LAG's link is the union of its members' links, seen from the aggregator.
             foreach ($lag['members'] as $member) {

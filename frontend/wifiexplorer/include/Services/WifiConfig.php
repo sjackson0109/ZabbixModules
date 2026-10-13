@@ -328,8 +328,10 @@ final class WifiConfig {
     }
 
     private static function time($value, string $at, array &$errors): ?string {
-        if (!is_string($value) || !preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d(:\d\d)?Z$/D', $value)
-                || strtotime($value) === false) {
+        // Field by field, so an impossible date such as 30 February is refused rather than rolled forward.
+        if (!is_string($value) || !preg_match('/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d))?Z$/D', $value, $m)
+                || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])
+                || (int) $m[4] > 23 || (int) $m[5] > 59 || (int) ($m[6] ?? 0) > 59 || strtotime($value) === false) {
             $errors[] = _s('%1$s must be a UTC time like 2026-11-02T08:00:00Z.', $at);
             return null;
         }

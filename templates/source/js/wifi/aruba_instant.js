@@ -256,7 +256,12 @@ ARUBA.ssids = function (walk, env) {
             // Two WLAN profiles may broadcast one SSID name; their counts add up and either enabled one enables it.
             seen[name].enabled = seen[name].enabled === true || NE.int(row.status || null) === 0 ? true : seen[name].enabled;
             clients = NE.int(row.clients || null);
-            seen[name].client_count = seen[name].client_count !== null && clients !== null ? seen[name].client_count + clients : null;
+            seen[name].client_count = seen[name].client_count !== null && clients !== null && clients >= 0
+                ? seen[name].client_count + clients : null;
+            // Hidden only when every profile hides it; one visible profile makes the SSID visible.
+            hide = NE.int(row.hide || null);
+            seen[name].hidden = seen[name].hidden === false || hide === 0 ? false
+                : seen[name].hidden === true && hide === 1 ? true : null;
             seen[name].profiles++;
             continue;
         }
@@ -325,7 +330,8 @@ ARUBA.rfNeighbours = function (walk, env) {
         raw = WE.blank(NE.text(row.type || null));
         key = raw === null ? null : raw.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
         type = key === null ? null : (ARUBA.ROGUE_TYPES.hasOwnProperty(key) ? ARUBA.ROGUE_TYPES[key] : 'other');
-        if (best.hasOwnProperty(bssid) && (best[bssid].snr_db === null || (snr !== null && snr <= best[bssid].snr_db))) {
+        // Keep the strongest reading; a reading with no SNR never displaces one that has an SNR.
+        if (best.hasOwnProperty(bssid) && (snr === null || (best[bssid].snr_db !== null && snr <= best[bssid].snr_db))) {
             continue;
         }
         best[bssid] = {
