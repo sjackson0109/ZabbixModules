@@ -59,8 +59,9 @@ final class UplinkService {
         $reader = new DatasetReader($this->gateway, $this->now);
         $identity = $reader->read($switches, ['ne.device.snapshot', 'ne.interfaces.inventory', 'ne.lldp.snapshot']);
         $apHosts = [];
+        // An AP host may carry only the LLDP producer, or the whole Network Explorer template (then it is also drawn).
         foreach ($owners as $hostid => $owner) {
-            if (!isset($switches[$hostid]) && ($owner['observes_ap'] ?? null) !== null) {
+            if (($owner['observes_ap'] ?? null) !== null) {
                 $apHosts[$hostid] = $owner + ['management_addresses'=>$owner['addresses']];
             }
         }

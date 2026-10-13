@@ -92,6 +92,13 @@ use Modules\WifiExplorer\Services\WifiService;
     $moved = (new WifiService($gateway, WifiLab::now(), WifiLab::config()))->build(WifiScope::create('lab-west', '', ['view'=>'ssids']));
     $assert($aps($moved)[WifiLab::apUid(1)]['uplink']['state'] !== 'confirmed', 'A disagreeing AP-side port is never confirmed.');
 
+    // An AP host linked to the whole Network Explorer template is drawn as a host and still gives its side.
+    $full = WifiLab::gateway();
+    WifiLab::feedNetwork($full, '20', 'aruba-instant-ap-01.snmprec', ['ne.raw.system', 'ne.raw.if.inventory', 'ne.raw.if.state']);
+    $drawn = (new WifiService($full, WifiLab::now(), WifiLab::config()))->build(WifiScope::create('lab-west', '', ['view'=>'ssids']));
+    $assert($aps($drawn)[WifiLab::apUid(1)]['uplink']['state'] === 'confirmed',
+        'An AP host that is also a Network Explorer host still confirms its uplink.');
+
     // Uplinks need a site and are not computed for views that do not use them.
     $assert($build([])['wired']['reason'] === 'not_requested', 'The overview without a selection reads no switch data.');
     $all = (new WifiService(WifiLab::gateway(), WifiLab::now(), WifiLab::config()))->build(WifiScope::create('', '', ['view'=>'ssids']));
