@@ -247,6 +247,35 @@ def test_rf_neighbours_are_deduplicated_bounded_and_never_malicious(validator, t
 
 
 @needs_node
+@pytest.mark.parametrize("order", [(40, None), (None, 40)])
+def test_rf_detection_without_snr_never_displaces_one_with_snr(validator, tmp_path, order):
+    base = "1.3.6.1.4.1.14823.2.3.3.1.1.8.1"
+    lines = [line for line in AP01.read_text().splitlines() if not line.startswith(base + ".")]
+    for i, snr in enumerate(order):
+        lines += [f"{base}.2.{i}|4x|020000000001", f"{base}.4.{i}|4|6", f"{base}.5.{i}|4|2.4GHz",
+                  f"{base}.8.{i}|4|interfering"] + ([f"{base}.7.{i}|2|{snr}"] if snr is not None else [])
+    walk = tmp_path / "pair.snmprec"
+    walk.write_text("\n".join(lines) + "\n")
+    envelope = run("we.raw.aruba.rf.neighbour", walk)
+    validator.validate(envelope)
+    assert [r["snr_db"] for r in envelope["data"]] == [40], "the reading with an SNR is kept, in either order"
+
+
+@needs_node
+def test_ssid_profiles_sharing_a_name_merge_counts_and_visibility(validator, tmp_path):
+    base = "1.3.6.1.4.1.14823.2.3.3.1.1.7.1"
+    walk = tmp_path / "dup.snmprec"
+    # A second Lab-Guest profile with an invalid client count, broadcasting visibly.
+    walk.write_text(VC.read_text() + "".join(f"{base}.{col}.9|{kind}|{value}\n" for col, kind, value in
+                                             [(2, 4, "Lab-Guest"), (3, 2, 0), (4, 2, -1), (5, 2, 0)]))
+    envelope = run("we.raw.aruba.ssid", walk)
+    validator.validate(envelope)
+    guest = [r for r in envelope["data"] if r["name"] == "Lab-Guest"][0]
+    assert guest["profiles"] == 2 and guest["client_count"] is None, "an invalid count makes the total unknown"
+    assert guest["hidden"] is False, "one visible profile makes the SSID visible"
+
+
+@needs_node
 def test_clients_are_masked_before_storage(validator):
     envelope = run("we.raw.aruba.client", VC)
     validator.validate(envelope)

@@ -2,8 +2,6 @@
 declare(strict_types=1);
 namespace Modules\WifiExplorer\Actions;
 
-use Modules\WifiExplorer\Services\WifiService;
-
 /**
  * Monitoring -> Wi-Fi Explorer: the site overview, floor plans, RF neighbours, SSIDs, service paths, impact,
  * event readiness and clients of every permitted Wi-Fi data source. A site narrows it; opaque IDs select an AP,
@@ -15,7 +13,7 @@ final class Explorer extends Base {
         $sites = [];
         if (self::networkExplorerInstalled()) {
             try {
-                $sites = WifiService::create()->siteOptions();
+                $sites = $this->service()->siteOptions();
             }
             catch (\Throwable $error) {
                 $sites = [];
@@ -23,7 +21,13 @@ final class Explorer extends Base {
         }
         $data['sites'] = $sites;
         $data['request'] = $this->request();
-        $data['scope_view'] = $this->scope()->view;
+        // A malformed site or AP has already been reported by wifi(); the view falls back to the overview.
+        try {
+            $data['scope_view'] = $this->scope()->view;
+        }
+        catch (\InvalidArgumentException $error) {
+            $data['scope_view'] = 'overview';
+        }
         $data['can_configure'] = \CWebUser::getType() == USER_TYPE_SUPER_ADMIN;
         $response = new \CControllerResponseData($data);
         $response->setTitle(_('Wi-Fi Explorer'));

@@ -55,16 +55,7 @@ final class WifiService {
         $read = (new WifiDatasetReader($this->gateway, $now))->read($hosts);
         $datasets = $read['datasets'];
         $quality = $read['quality'];
-
-        $owners = [];
-        foreach ($hosts as $hostid => $host) {
-            $device = $datasets[$hostid]['device']['data'][0] ?? null;
-            // A host with only the per-AP RF producer observes RF for one AP; it owns no cluster data.
-            $role = $device['role'] ?? (isset($datasets[$hostid]['rf_neighbour']) ? 'rf_observer' : 'unknown');
-            $owners[$hostid] = $host + ['role'=>$role, 'vendor'=>$device['vendor'] ?? null,
-                'platform'=>$device['platform'] ?? null, 'firmware'=>$device['firmware'] ?? null,
-                'device_freshness'=>$datasets[$hostid]['device']['freshness'] ?? 'unknown'];
-        }
+        $owners = self::withDevice($hosts, $datasets);
 
         [$aps, $findings] = $this->accessPoints($owners, $datasets);
         if (count($aps) > WifiLimits::DISPLAY_APS) {
@@ -169,6 +160,39 @@ final class WifiService {
                 'known_bssids'=>count($config['known_bssids'])],
             'budgets'=>$read['budgets'] + ['owner_host_limit'=>WifiLimits::OWNER_HOSTS,
                 'display_ap_limit'=>WifiLimits::DISPLAY_APS]];
+    }
+
+    /**
+     * The APs the user may read, for the configuration editor: only the inventory and state datasets are read, and
+     * no RF, SSID, path or client model is built.
+     */
+    public function apDirectory(): array {
+        $hosts = $this->owners('');
+        $read = (new WifiDatasetReader($this->gateway, $this->now ?? time()))
+            ->read($hosts, ['device', 'ap_inventory', 'ap_state', 'radio_inventory', 'radio_state']);
+        [$aps] = $this->accessPoints(self::withDevice($hosts, $read['datasets']), $read['datasets']);
+        $list = [];
+        foreach ($aps as $apUid => $ap) {
+            $list[] = ['ap_uid'=>(string) $apUid, 'name'=>$ap['name'], 'site'=>$ap['site'],
+                'placed'=>isset($this->config['placements'][$apUid])];
+        }
+        usort($list, static fn($a, $b) => [$a['site'], strtolower($a['name'] ?? "\u{10FFFF}"), $a['ap_uid']]
+            <=> [$b['site'], strtolower($b['name'] ?? "\u{10FFFF}"), $b['ap_uid']]);
+        return $list;
+    }
+
+    /** Owner hosts with what their device dataset says about them. */
+    private static function withDevice(array $hosts, array $datasets): array {
+        $owners = [];
+        foreach ($hosts as $hostid => $host) {
+            $device = $datasets[$hostid]['device']['data'][0] ?? null;
+            // A host with only the per-AP RF producer observes RF for one AP; it owns no cluster data.
+            $role = $device['role'] ?? (isset($datasets[$hostid]['rf_neighbour']) ? 'rf_observer' : 'unknown');
+            $owners[$hostid] = $host + ['role'=>$role, 'vendor'=>$device['vendor'] ?? null,
+                'platform'=>$device['platform'] ?? null, 'firmware'=>$device['firmware'] ?? null,
+                'device_freshness'=>$datasets[$hostid]['device']['freshness'] ?? 'unknown'];
+        }
+        return $owners;
     }
 
     /** Sites carried by the Wi-Fi owners the user may read, for the scope selector. */

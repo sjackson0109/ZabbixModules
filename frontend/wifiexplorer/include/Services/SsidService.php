@@ -156,6 +156,7 @@ final class SsidService {
         $findings = [];
         $name = $entry['name'];
         foreach ($applied as $site => $intent) {
+            $site = (string) $site;     // PHP turns an all-digit site key into an int.
             $here = array_filter($clusters, static fn($c) => $c['site'] === $site && $c['current']);
             if (!$here) {
                 continue;

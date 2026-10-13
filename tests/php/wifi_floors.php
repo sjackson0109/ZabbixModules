@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__.'/wifi_lab.php';
 
 use Modules\WifiExplorer\Services\WifiConfig;
+use Modules\WifiExplorer\Services\RfService;
 use Modules\WifiExplorer\Services\WifiConfigError;
 use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
@@ -111,6 +112,34 @@ use Modules\WifiExplorer\Services\WifiService;
     // A viewer who cannot read the RF host sees no detections from it.
     $hidden = (new WifiService(WifiLab::gateway(['20']), WifiLab::now(), $config))->build(WifiScope::create('lab-west'));
     $assert(!isset(array_column($hidden['rf']['observers'], null, 'hostid')['20']), 'An unreadable RF host contributes nothing.');
+
+    // Event times are checked field by field: an impossible date is refused, never rolled into the next month.
+    $timeProblem = static fn(string $starts) => (bool) array_filter($problems(['version'=>1, 'events'=>[[
+        'event_id'=>'e', 'name'=>'E', 'site'=>'s', 'ssid'=>'S', 'starts'=>$starts, 'ends'=>'2030-01-01T00:00:00Z']]]),
+        static fn($p) => strpos($p, 'starts must be a UTC time') !== false);
+    $assert($timeProblem('2026-02-30T08:00:00Z') && $timeProblem('2026-10-20T24:00:00Z'),
+        '30 February and hour 24 are refused.');
+    $assert(!$timeProblem('2028-02-29T08:00:00Z'), 'A real leap day is accepted.');
+
+    // The editor's AP list comes from inventory alone and says which APs are placed.
+    $directory = array_column($service->apDirectory(), null, 'ap_uid');
+    $assert(count($directory) === count($floors['aps']) && $directory[WifiLab::apUid(1)]['placed']
+        && !$directory[WifiLab::apUid(3)]['placed'], 'The editor lists every AP and its placement.');
+
+    // Co-channel contention needs the same band; an AP's own extra SSIDs are not neighbours.
+    $radio = ['radio_uid'=>'r1', 'radio_index'=>0, 'status'=>'up', 'channel'=>1, 'band'=>'2.4',
+        'bssid'=>'aa:bb:cc:dd:ee:10'];
+    $aps = ['ap-a'=>['ap_uid'=>'ap-a', 'name'=>'ap-a', 'ip_address'=>null, 'radios'=>[$radio]]];
+    $detection = static fn(string $bssid, string $band) => ['bssid'=>$bssid, 'ssid'=>'N', 'channel'=>1, 'band'=>$band,
+        'channel_width'=>null, 'encryption'=>null, 'snr_db'=>40, 'classification'=>'interfering',
+        'classification_raw'=>null];
+    $rfModel = (new RfService())->build(['7'=>['hostid'=>'7', 'name'=>'ap-a', 'addresses'=>[]]],
+        ['7'=>['rf_neighbour'=>['freshness'=>'current', 'observed_at'=>null, 'warnings'=>[],
+            'data'=>[$detection('aa:bb:cc:dd:ee:11', '2.4'), $detection('02:00:00:00:00:01', '6')]]]], $aps, []);
+    $assert($rfModel['total'] === 1 && $rfModel['neighbours'][0]['bssid'] === '02:00:00:00:00:01',
+        'The AP\'s own second SSID is not listed as a neighbour.');
+    $assert(!array_filter($rfModel['findings'], static fn($f) => strpos($f['rule'], 'wifi_co_channel') === 0),
+        'A 6 GHz network on channel 1 does not contend with a 2.4 GHz radio on channel 1.');
 
     echo "Wi-Fi floor and RF checks passed ($checks checks).\n";
 })();

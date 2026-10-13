@@ -25,17 +25,9 @@ final class ImpactService {
     private array $aggregators = [];
 
     public function __construct(array $network) {
-        foreach ($network['hosts'] as $host) {
-            $this->hosts[$host['hostid']] = $host;
-        }
-        foreach ($network['interfaces'] as $interface) {
-            $this->interfaces[$interface['hostid']][$interface['uid']] = $interface;
-        }
-        foreach ($network['lags'] as $lag) {
-            foreach ($lag['interface_uid'] !== null ? $lag['members'] : [] as $member) {
-                $this->aggregators[$lag['hostid']][$member['uid']] = $lag['interface_uid'];
-            }
-        }
+        $this->hosts = WiredIndex::hosts($network);
+        $this->interfaces = WiredIndex::interfaces($network);
+        $this->aggregators = WiredIndex::aggregators($network);
     }
 
     /**

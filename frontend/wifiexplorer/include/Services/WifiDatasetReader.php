@@ -39,13 +39,16 @@ final class WifiDatasetReader {
     }
 
     /**
-     * @param array $hosts hostid => host, each already returned by the gateway for the current user
+     * @param array      $hosts hostid => host, each already returned by the gateway for the current user
+     * @param array|null $only  dataset names to read, or every dataset
      * @return array{datasets: array, quality: array, budgets: array}
      */
-    public function read(array $hosts): array {
+    public function read(array $hosts, ?array $only = null): array {
         $hostids = array_map('strval', array_keys($hosts));
+        $wanted = static fn(array $keys) => array_keys($only === null ? $keys
+            : array_filter($keys, static fn($dataset) => in_array($dataset, $only, true)));
         $items = $hostids ? $this->gateway->items($hostids,
-            array_merge(array_keys(self::KEYS), array_keys(self::ATTEMPTS))) : [];
+            array_merge($wanted(self::KEYS), $wanted(self::ATTEMPTS))) : [];
         if (count($items) > Limits::ITEMS) {
             throw new \RuntimeException('item_budget_exceeded');
         }

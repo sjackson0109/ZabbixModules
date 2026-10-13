@@ -7,7 +7,6 @@ require_once dirname(__DIR__).'/include/autoload.php';
 use Modules\WifiExplorer\Services\WifiConfig;
 use Modules\WifiExplorer\Services\WifiConfigError;
 use Modules\WifiExplorer\Services\WifiConfigStore;
-use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
 
 /**
@@ -46,11 +45,7 @@ abstract class ConfigBase extends \CController {
     protected function editorData(string $text, array $problems = []): array {
         $aps = [];
         try {
-            $model = WifiService::create()->build(WifiScope::create());
-            foreach ($model['aps'] ?? [] as $ap) {
-                $aps[] = ['ap_uid'=>$ap['ap_uid'], 'name'=>$ap['name'], 'site'=>$ap['site'],
-                    'placed'=>$ap['placement'] !== null];
-            }
+            $aps = WifiService::create()->apDirectory();
         }
         catch (\Throwable $error) {
             $aps = [];

@@ -58,8 +58,11 @@ final class RfService {
                     array_column($set['warnings'] ?? [], 'code'), true), 'counts'=>[]];
             foreach ($set['data'] as $row) {
                 $bssid = $row['bssid'];
-                if (isset($managed[$bssid]) && $managed[$bssid]['ap_uid'] === $apUid) {
-                    continue;   // An AP hearing its own radio is not a neighbour.
+                // An AP hearing its own radio, or another SSID on a BSSID only it could own, is not a neighbour.
+                $siblings = $family[substr($bssid, 0, 14)] ?? [];
+                if (isset($managed[$bssid]) && $managed[$bssid]['ap_uid'] === $apUid
+                        || $apUid !== null && count($siblings) === 1 && isset($siblings[$apUid])) {
+                    continue;
                 }
                 $class = $this->classify($row, $managed, $family, $known, $apUid);
                 $observers[(string) $hostid]['counts'][$class[0]] = ($observers[(string) $hostid]['counts'][$class[0]] ?? 0) + 1;
@@ -76,7 +79,7 @@ final class RfService {
                     $entry['labels'][$label === 'other' ? (string) ($row['classification_raw'] ?? 'other') : $label] = true;
                 }
                 $entry['observers'][] = ['hostid'=>(string) $hostid, 'ap_uid'=>$apUid, 'snr_db'=>$row['snr_db'],
-                    'channel'=>$row['channel'], 'freshness'=>$set['freshness'] ?? 'unknown',
+                    'channel'=>$row['channel'], 'band'=>$row['band'], 'freshness'=>$set['freshness'] ?? 'unknown',
                     'observed_at'=>$set['observed_at'] ?? null];
                 $entry['current'] = $entry['current'] || $current;
                 if ($row['snr_db'] !== null && ($entry['best_snr'] === null || $row['snr_db'] > $entry['best_snr'])) {
@@ -185,7 +188,9 @@ final class RfService {
                 $loud = [];
                 foreach ($neighbours as $row) {
                     foreach ($row['observers'] as $o) {
+                        // Channel numbers repeat across bands (6 GHz 1/5/9 against 2.4 GHz), so a known band must match.
                         if ($o['hostid'] === $observer['hostid'] && $o['channel'] === $radio['channel']
+                                && ($o['band'] === null || $radio['band'] === null || $o['band'] === $radio['band'])
                                 && $o['snr_db'] !== null && $o['snr_db'] >= self::CONTENTION_SNR) {
                             $loud[] = $row;
                         }
