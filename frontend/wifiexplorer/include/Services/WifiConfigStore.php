@@ -17,7 +17,7 @@ class WifiConfigStore {
             return WifiConfig::empty();
         }
         try {
-            return WifiConfig::normalise($document);
+            return WifiConfig::normalise(WifiConfig::unpack($document));
         }
         catch (WifiConfigError $error) {
             // A stored document that no longer validates is not half-applied.
@@ -34,7 +34,7 @@ class WifiConfigStore {
             throw new \RuntimeException('configuration_unavailable');
         }
         $stored = $module->getConfig();
-        $stored[self::KEY] = WifiConfig::stored($config);
+        $stored[self::KEY] = WifiConfig::pack($config);
         $result = \API::Module()->update([['moduleid'=>$module->getModuleId(), 'config'=>$stored]]);
         if ($result === false) {
             throw new \RuntimeException('configuration_save_failed');

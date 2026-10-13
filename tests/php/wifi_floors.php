@@ -158,6 +158,42 @@ use Modules\WifiExplorer\Services\WifiService;
     $assert(!array_filter($rfModel['findings'], static fn($f) => strpos($f['rule'], 'wifi_co_channel') === 0),
         'A 6 GHz network on channel 1 does not contend with a 2.4 GHz radio on channel 1.');
 
+    // Large sites: a document too big to store as it is is packed, and comes back identical.
+    $assert(WifiConfig::pack($config) === WifiConfig::stored($config), 'A small document is stored as it is.');
+    $big = ['floors'=>[], 'placements'=>[], 'ssids'=>[['ssid'=>'Corp', 'site'=>'site-0', 'vlan'=>10]]];
+    for ($f = 0; $f < 40; ++$f) {
+        $big['floors'][] = ['floor_id'=>'floor-'.$f, 'site'=>'site-'.($f % 8), 'name'=>'Floor '.$f, 'width_m'=>80.5];
+    }
+    mt_srand(7);
+    for ($i = 0; $i < 2000; ++$i) {
+        $big['placements']['ap-'.substr(hash('sha256', 'ap'.$i), 0, 24)] = ['floor_id'=>'floor-'.($i % 40),
+            'x'=>round(mt_rand(0, 100000) / 100000, 5), 'y'=>$i === 0 ? 1 : round(mt_rand(0, 100000) / 100000, 5)];
+    }
+    $bigConfig = WifiConfig::normalise($big);
+    $packed = WifiConfig::pack($bigConfig);
+    $assert(is_string($packed) && strlen(json_encode($bigConfig)) > 2 * WifiConfig::MAX_STORED_BYTES
+        && strlen(json_encode($packed)) <= WifiConfig::MAX_STORED_BYTES,
+        'Two thousand placements, too large as they are, fit once packed.');
+    $assert(WifiConfig::normalise(WifiConfig::unpack($packed)) === $bigConfig, 'A packed document round-trips exactly.');
+    for ($i = 2000; $i < 3200; ++$i) {
+        $big['placements']['ap-'.substr(hash('sha256', 'ap'.$i), 0, 24)] = ['floor_id'=>'floor-0', 'x'=>mt_rand(0, 100000) / 100000,
+            'y'=>mt_rand(0, 100000) / 100000];
+    }
+    $tooBig = $problems($big);
+    $assert(count($tooBig) === 1 && strpos($tooBig[0], 'once packed') !== false,
+        'A document that does not fit even packed is refused with its size, before anything is saved.');
+    $damaged = static function ($stored): bool {
+        try {
+            WifiConfig::unpack($stored);
+            return false;
+        }
+        catch (WifiConfigError $error) {
+            return true;
+        }
+    };
+    $assert($damaged('wifi-z1:'.substr($packed, 8, 200)) && $damaged('not packed') && $damaged('wifi-z1:%%%'),
+        'A damaged packed document is refused, never half-read.');
+
     // Overlapping channels, from the channel plan: inferred, never on a channel that does not share spectrum.
     $assert(ChannelPlan::span('5', 36, '80') === [5170, 5250, 'block'] && ChannelPlan::span('5', 112, '40') === [5530, 5570, 'block']
         && ChannelPlan::span('6', 37, '160') === [6105, 6265, 'block'] && ChannelPlan::span('2.4', 6, '40')[2] === 'primary'

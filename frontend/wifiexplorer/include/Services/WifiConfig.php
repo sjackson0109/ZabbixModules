@@ -14,8 +14,14 @@ use Modules\NetworkExplorer\Services\NetworkScope;
  */
 final class WifiConfig {
     public const VERSION = 1;
-    /** Bytes of the stored JSON document; module configuration is a TEXT column on MySQL. */
-    public const MAX_BYTES = 60000;
+    /** Bytes of the normalised JSON document, before it is stored. */
+    public const MAX_BYTES = 1000000;
+    /**
+     * Bytes the stored form may take in the module's configuration, a 65,535-byte TEXT column. Small documents are
+     * stored as they are; larger ones are packed (see pack()), which fits about 2,300 AP placements (about 750 unpacked).
+     */
+    public const MAX_STORED_BYTES = 64000;
+    private const PACKED = 'wifi-z1:';
     public const MAX_FLOORS = 200;
     public const MAX_PLACEMENTS = 5000;
     public const MAX_SSIDS = 200;
@@ -215,7 +221,70 @@ final class WifiConfig {
         if (strlen(json_encode($out)) > self::MAX_BYTES) {
             throw new WifiConfigError([_s('The configuration is larger than %1$s bytes.', self::MAX_BYTES)]);
         }
+        $stored = strlen(json_encode(self::pack($out)));
+        if ($stored > self::MAX_STORED_BYTES) {
+            throw new WifiConfigError([_s('The configuration takes %1$s bytes once packed, more than the %2$s the module configuration can hold. Remove placements of APs that are gone, or split sites across fewer floors.',
+                $stored, self::MAX_STORED_BYTES)]);
+        }
         return $out;
+    }
+
+    /**
+     * What is written to the module configuration. A document that fits is stored as it is (see stored()), so it stays readable in the
+     * database. A larger one becomes one string: deflated JSON of everything but the placements, followed by the
+     * placements as fixed 22-byte records (AP ID, floor index, x and y in units of 0.00001), base64-encoded.
+     * @return array|string
+     */
+    public static function pack(array $config) {
+        $document = self::stored($config);
+        if (strlen(json_encode($document)) <= self::MAX_STORED_BYTES || !function_exists('gzdeflate')) {
+            return $document;
+        }
+        $floors = array_flip(array_column($document['floors'], 'floor_id'));
+        $records = '';
+        foreach ($document['placements'] as $apUid => $place) {
+            $records .= hex2bin(substr($apUid, 3)).pack('nNN', $floors[$place['floor_id']],
+                (int) round($place['x'] * 100000), (int) round($place['y'] * 100000));
+        }
+        $json = json_encode(['placements'=>[]] + $document);
+        return self::PACKED.base64_encode(gzdeflate(pack('N', strlen($json)).$json.$records, 9));
+    }
+
+    /**
+     * A stored form back as a document, still to be validated with normalise().
+     * @param array|string $stored
+     * @throws WifiConfigError when a packed form is damaged
+     */
+    public static function unpack($stored) {
+        if (!is_string($stored)) {
+            return $stored;
+        }
+        $damaged = new WifiConfigError([_('The stored configuration is damaged and cannot be read.')]);
+        if (strncmp($stored, self::PACKED, strlen(self::PACKED)) !== 0 || !function_exists('gzinflate')) {
+            throw $damaged;
+        }
+        $raw = base64_decode(substr($stored, strlen(self::PACKED)), true);
+        $raw = $raw !== false ? @gzinflate($raw, self::MAX_BYTES * 2) : false;
+        if ($raw === false || strlen($raw) < 4) {
+            throw $damaged;
+        }
+        $length = unpack('N', $raw)[1];
+        $document = json_decode((string) substr($raw, 4, $length), true);
+        $records = (string) substr($raw, 4 + $length);
+        if (!is_array($document) || !is_array($document['floors'] ?? null) || strlen($records) % 22 !== 0) {
+            throw $damaged;
+        }
+        $floors = array_column($document['floors'], 'floor_id');
+        $document['placements'] = [];
+        foreach (str_split($records, 22) as $record) {
+            $place = unpack('nfloor/Nx/Ny', $record, 12);
+            if (!isset($floors[$place['floor']])) {
+                throw $damaged;
+            }
+            $document['placements']['ap-'.bin2hex(substr($record, 0, 12))] = ['floor_id'=>$floors[$place['floor']],
+                'x'=>$place['x'] / 100000, 'y'=>$place['y'] / 100000];
+        }
+        return $document;
     }
 
     /**
