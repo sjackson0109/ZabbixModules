@@ -66,6 +66,11 @@ final class WifiService {
             throw new \RuntimeException('ap_budget_exceeded');
         }
         $findings = array_merge($findings, $this->qualityFindings($owners, $quality));
+        // A host that lists no APs itself (a per-AP host) observes the one AP it polls.
+        foreach ($owners as $hostid => $owner) {
+            [$owners[$hostid]['observes_ap'], $owners[$hostid]['observes_basis']] = $owner['role'] === 'virtual_controller'
+                ? [null, null] : RfService::attribute($owner, $aps);
+        }
 
         $sites = array_values(array_unique(array_filter(array_column($owners, 'site'))));
         $config = WifiConfig::visible($this->config, $sites, array_keys($aps));
@@ -80,6 +85,30 @@ final class WifiService {
         unset($ap);
         $rf = (new RfService())->build($owners, $datasets, $aps, $config['known_bssids']);
         $findings = array_merge($findings, $rf['findings']);
+        $ssids = (new SsidService())->build($owners, $datasets, $aps, $config);
+        $findings = array_merge($findings, $ssids['findings']);
+        $wired = ['available'=>false, 'reason'=>'not_requested', 'switches'=>0];
+        if ($scope->needsWired()) {
+            try {
+                $uplinks = (new UplinkService($this->gateway, $now))->build($scope->site, $owners, $aps);
+            }
+            catch (\RuntimeException $error) {
+                $uplinks = ['available'=>false, 'reason'=>preg_match('/^[a-z_]{1,64}$/D', $error->getMessage())
+                    ? $error->getMessage() : 'wired_read_failed', 'network'=>null, 'uplinks'=>[],
+                    'findings'=>[]];
+            }
+            $wired = ['available'=>$uplinks['available'], 'reason'=>$uplinks['reason'],
+                'switches'=>$uplinks['network'] !== null ? count($uplinks['network']['hosts']) : 0];
+            foreach ($uplinks['uplinks'] as $apUid => $uplink) {
+                $aps[$apUid]['uplink'] = $uplink;
+            }
+            $findings = array_merge($findings, $uplinks['findings']);
+        }
+        foreach ($aps as $apUid => &$ap) {
+            $ap['uplink'] = $ap['uplink'] ?? null;
+            $ap['ssids'] = $ssids['by_ap'][$apUid] ?? [];
+        }
+        unset($ap);
         $floors = (new FloorService())->build($config, $aps, $clientCounts, $rf, $scope->floor, $scope->overlay,
             $scope->band);
         usort($findings, static fn($a, $b) => [$a['severity'] === 'warning' ? 0 : 1, $a['rule'], $a['title'], $a['id']]
@@ -96,7 +125,8 @@ final class WifiService {
             'owners'=>array_values($owners), 'aps'=>$list, 'overview'=>$this->overview($list, $quality, $findings),
             'findings'=>$findings, 'quality'=>$quality,
             'selected_ap'=>$selected, 'selection_missing'=>$scope->ap !== '' && $selected === '',
-            'floors'=>$floors, 'rf'=>$rf, 'config_invalid'=>$this->configInvalid,
+            'floors'=>$floors, 'rf'=>$rf, 'ssids'=>$ssids['ssids'], 'wired'=>$wired,
+            'config_invalid'=>$this->configInvalid,
             'intent'=>['ssids'=>$config['ssids'], 'events'=>$config['events'],
                 'known_bssids'=>count($config['known_bssids'])],
             'budgets'=>$read['budgets'] + ['owner_host_limit'=>WifiLimits::OWNER_HOSTS,
@@ -147,7 +177,8 @@ final class WifiService {
                 }
             }
             $hosts[$hostid] = ['hostid'=>$hostid, 'name'=>(string) ($row['name'] ?? $row['host'] ?? $hostid),
-                'site'=>$value, 'snmp_available'=>$available, 'addresses'=>$addresses,
+                'site'=>$value, 'domain'=>NetworkScope::tagValue($row['tags'] ?? [], NetworkScope::DOMAIN_TAG),
+                'snmp_available'=>$available, 'addresses'=>$addresses,
                 'dashboard_url'=>Navigation::dashboard($hostid)];
         }
         return $hosts;

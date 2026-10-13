@@ -54,3 +54,13 @@
 .we-explorer .we-placement { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .we-explorer .we-config-text { width: 100%; max-width: 1100px; min-height: 420px; font-family: monospace; }
 .we-explorer .we-config-example, .we-explorer .we-mono { font-family: monospace; }
+.we-explorer .we-path-failed, .we-explorer .we-path-not_broadcasting, .we-explorer .we-ready-not_ready,
+    .we-explorer .we-check-fail, .we-explorer .we-impact-lost { color: #e45959; font-weight: bold; }
+.we-explorer .we-path-complete, .we-explorer .we-path-broadcasting, .we-explorer .we-ready-ready,
+    .we-explorer .we-check-pass { color: #2f9e5b; font-weight: bold; }
+.we-explorer .we-path-partial, .we-explorer .we-path-unknown, .we-explorer .we-ready-unknown,
+    .we-explorer .we-check-unknown, .we-explorer .we-check-warn, .we-explorer .we-impact-degraded { color: #d08a1c; font-weight: bold; }
+.we-explorer .we-hops { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.we-explorer .we-hop { border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 2px; padding: 1px 5px; white-space: nowrap; }
+.we-explorer .we-hop-failed { border-color: #e45959; border-width: 2px; }
+.we-explorer .we-hop-unknown { border-style: dashed; }

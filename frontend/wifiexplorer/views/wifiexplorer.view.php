@@ -68,7 +68,8 @@ if (isset($data['error'])) {
 }
 
 $tabs = (new CList())->addClass('we-tabs')->setAttribute('role', 'navigation');
-foreach (['overview'=>_('Overview'), 'floors'=>_('Floor plans'), 'rf'=>_('RF neighbours')] as $key => $name) {
+$tabNames = ['overview'=>_('Overview'), 'floors'=>_('Floor plans'), 'rf'=>_('RF neighbours'), 'ssids'=>_('SSIDs')];
+foreach ($tabNames as $key => $name) {
     $item = new CLink($name, $link(['view'=>$key === 'overview' ? '' : $key, 'q'=>$request['q']]));
     if ($key === $view) {
         $item->setAttribute('aria-current', 'page');

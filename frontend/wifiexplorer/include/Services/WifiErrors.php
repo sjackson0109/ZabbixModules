@@ -28,6 +28,18 @@ final class WifiErrors {
         return array_key_exists($code, self::messages()) ? $code : self::READ_FAILED;
     }
 
+    /** Why the wired model (uplinks, VLAN paths, impact) is not shown. */
+    public static function wired(?string $reason): string {
+        $messages = [
+            'site_required'=>_('Select a site to correlate access points with Network Explorer\'s switches.'),
+            'wired_scope_too_large'=>_('The site\'s wired network is larger than Network Explorer draws at once, so uplinks are not correlated.'),
+            'no_switches'=>_('No Network Explorer switch at this site is visible to you, so uplinks cannot be found.'),
+            'not_requested'=>_('Select an access point or a wired view to see uplinks.')
+        ];
+        return $messages[$reason] ?? (isset(self::messages()[$reason]) ? self::message((string) $reason)
+            : _('The wired network could not be read.'));
+    }
+
     public static function message(string $code): string {
         $messages = self::messages();
         return $messages[$code] ?? $messages[self::READ_FAILED];

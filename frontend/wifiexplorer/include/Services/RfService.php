@@ -43,16 +43,6 @@ final class RfService {
                 }
             }
         }
-        $byAddress = [];
-        $byName = [];
-        foreach ($aps as $ap) {
-            if ($ap['ip_address'] !== null) {
-                $byAddress[$ap['ip_address']][] = $ap['ap_uid'];
-            }
-            if ($ap['name'] !== null) {
-                $byName[strtolower($ap['name'])][] = $ap['ap_uid'];
-            }
-        }
         $observers = [];
         $neighbours = [];
         foreach ($owners as $hostid => $owner) {
@@ -60,17 +50,7 @@ final class RfService {
             if ($set === null) {
                 continue;
             }
-            // The observing AP: the AP whose address this host polls, else the AP named like the host.
-            $apUid = null;
-            $basis = null;
-            foreach ($owner['addresses'] as $address) {
-                if (count($byAddress[$address] ?? []) === 1) {
-                    [$apUid, $basis] = [$byAddress[$address][0], 'address'];
-                }
-            }
-            if ($apUid === null && count($byName[strtolower($owner['name'])] ?? []) === 1) {
-                [$apUid, $basis] = [$byName[strtolower($owner['name'])][0], 'host_name'];
-            }
+            [$apUid, $basis] = self::attribute($owner, $aps);
             $current = ($set['freshness'] ?? 'unknown') === 'current';
             $observers[(string) $hostid] = ['hostid'=>(string) $hostid, 'name'=>$owner['name'], 'ap_uid'=>$apUid,
                 'basis'=>$basis, 'observed_at'=>$set['observed_at'] ?? null, 'freshness'=>$set['freshness'] ?? 'unknown',
@@ -119,6 +99,30 @@ final class RfService {
         }
         return ['observers'=>$observers, 'neighbours'=>array_slice($list, 0, self::DISPLAY_NEIGHBOURS),
             'total'=>count($list), 'counts'=>$counts, 'findings'=>$this->findings($list, $observers, $aps)];
+    }
+
+    /**
+     * The AP a per-AP host observes: the AP whose address the host polls, else the one AP named like the host.
+     * @return array{0: ?string, 1: ?string} AP ID and basis (address, host_name), or nulls
+     */
+    public static function attribute(array $owner, array $aps): array {
+        $byAddress = [];
+        $byName = [];
+        foreach ($aps as $ap) {
+            if ($ap['ip_address'] !== null) {
+                $byAddress[$ap['ip_address']][] = $ap['ap_uid'];
+            }
+            if ($ap['name'] !== null) {
+                $byName[strtolower($ap['name'])][] = $ap['ap_uid'];
+            }
+        }
+        foreach ($owner['addresses'] ?? [] as $address) {
+            if (count($byAddress[$address] ?? []) === 1) {
+                return [$byAddress[$address][0], 'address'];
+            }
+        }
+        $name = strtolower((string) ($owner['name'] ?? ''));
+        return count($byName[$name] ?? []) === 1 ? [$byName[$name][0], 'host_name'] : [null, null];
     }
 
     /** @return array{0: string, 1: string, 2: ?string} class, basis, managed AP */

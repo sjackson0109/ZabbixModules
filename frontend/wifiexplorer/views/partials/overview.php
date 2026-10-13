@@ -104,8 +104,46 @@ if ($data['selected_ap'] !== '') {
         }
         $radioTable->addRow($row);
     }
-    $detail->addItem([new CTag('h3', true, _('Radios')), $radioTable,
-        new CLink(_('Clear selection'), $link([]))]);
+    $detail->addItem([new CTag('h3', true, _('Radios')), $radioTable]);
+    $detail->addItem(new CTag('h3', true, _('Wired uplink')));
+    $uplink = $ap['uplink'];
+    $uplinkStates = ['confirmed'=>_('Confirmed by the AP and the switch'), 'switch_only'=>_('Reported by the switch'),
+        'ap_only'=>_('Reported by the AP'), 'conflicting'=>_('The AP and the switch disagree'),
+        'ambiguous'=>_('Seen on more than one switch port'), 'unresolved'=>_('Unresolved')];
+    $bases = ['chassis_mac'=>_('LLDP chassis MAC is the AP\'s MAC'), 'management_address'=>_('LLDP management address is the AP\'s address'),
+        'ap_lldp'=>_('the AP\'s own LLDP')];
+    if ($uplink === null) {
+        $detail->addItem((new CTag('p', true, \Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'] ?? null)))->addClass('we-muted'));
+    }
+    else {
+        $port = (new CTableInfo())->setHeader([_('State'), _('Switch port'), _('Link'), _('VLANs on the port'),
+            _('Matched by'), _('Freshness')]);
+        $vlan = $uplink['vlan'] ?? null;
+        $port->addRow([[$uplinkStates[$uplink['state']], ' ', $kind($uplink['state'] === 'confirmed' ? 'observed' : 'inferred')],
+            $uplink['hostid'] !== null
+                ? new CLink(($uplink['switch_name'] ?? '?').' '.($uplink['interface_name'] ?? '?'),
+                    (string) ($uplink['explorer_url'] ?? ''))
+                : _('None'),
+            $uplink['hostid'] !== null ? $status($uplink['port_freshness'] === 'current'
+                ? (string) ($uplink['oper_status'] ?? 'unknown') : 'unknown') : '—',
+            $vlan !== null ? _s('%1$s, native %2$s, carries %3$s', $vlan['mode'], $vlan['pvid'] ?? '?',
+                $vlan['carried'] !== '' ? $vlan['carried'] : _('none')) : _('Unknown'),
+            $uplink['basis'] !== null ? $bases[$uplink['basis']] ?? $uplink['basis'] : '—',
+            $uplink['freshness']]);
+        $detail->addItem($port);
+    }
+    if ($ap['ssids']) {
+        $ssidNames = array_column($data['ssids'], 'name', 'ssid_uid');
+        $list = [];
+        foreach ($ap['ssids'] as $ssidUid => $row) {
+            $list[] = new CLink(($ssidNames[$ssidUid] ?? $ssidUid).': '.str_replace('_', ' ', $row['status']),
+                $link(['view'=>'ssids', 'ssid'=>$ssidUid]));
+            $list[] = ' · ';
+        }
+        array_pop($list);
+        $detail->addItem([new CTag('h3', true, [_('SSIDs'), ' ', $kind('inferred')]), new CTag('p', true, $list)]);
+    }
+    $detail->addItem(new CLink(_('Clear selection'), $link([])));
     $root->addItem($detail);
 }
 
