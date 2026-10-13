@@ -12,3 +12,4 @@ require __DIR__.'/wifi_floors.php';
 require __DIR__.'/wifi_wired.php';
 require __DIR__.'/wifi_paths.php';
 require __DIR__.'/wifi_impact.php';
+require __DIR__.'/wifi_clients.php';
