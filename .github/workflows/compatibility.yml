@@ -17,6 +17,7 @@ on:
       - "schemas/**"
       - "lab/**"
       - "tests/integration/**"
+      - "tests/browser/wifi.lab.cjs"
       - "scripts/test-compatibility.sh"
       - ".github/workflows/compatibility.yml"
 
@@ -45,7 +46,16 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+      # Wi-Fi Explorer browser checks run in Chromium; Playwright is pinned in tests/browser/package-lock.json.
+      - run: npm ci --no-audit --no-fund
+        working-directory: tests/browser
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests/browser
       - name: Integration tests
+        env:
+          WE_BROWSER: required
         run: sh scripts/test-compatibility.sh "${{ matrix.version }}"
       # Container state only: logs and inspection output can carry the generated lab
       # credentials, and this repository's Actions logs are public (lab/README.md).

@@ -21,6 +21,12 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
   - **Events**: readiness checklists (SSID on air, APs up, VLAN paths, declared capacity, utilisation); credentials are listed as not checked.
   - **Clients**: one masked client snapshot per cluster (`{$WE.CLIENT.IDENTIFIERS}`: full, partial by default, or pseudonymised with the secret `{$WE.CLIENT.KEY}`), a search over what the policy kept, a trace to AP, radio, uplink and VLAN paths, and a sampled association timeline from snapshot history.
 - `wifi-1.0` gains the `ssid`, `client` and `rf_neighbour` datasets.
+- Wi-Fi Explorer, Phase G without hardware ([design](docs/wifi-explorer/DESIGN.md#phase-g-without-hardware-capacity-storage-rf-overlap-large-sites-section-36)):
+  - **Capacity**: clients, the busiest AP, APs up and down and channel utilisation per band over the last day, month or year, from hourly trends of 13 new per-cluster `we.capacity.*` items (`{$WE.CAPACITY.HISTORY}`, `{$WE.CAPACITY.TRENDS}`). Hours without a complete observation are gaps, never zeros.
+  - Storage: a complete attempt is stored as a receipt without its rows (`data_rows`, `data_omitted` in `wifi-1.0`), about halving what each dataset writes, and every dataset's history is a macro (`{$WE.<DATASET>.HISTORY}`).
+  - `wifi_channel_overlap`: an inferred finding for a strong neighbour on a different channel whose spectrum overlaps, from the 802.11 channel plan.
+  - Large sites: a configuration too large for plain storage is packed, so about 2,300 AP placements fit instead of about 750.
+  - Browser checks of the Wi-Fi pages in Chromium (`tests/browser/wifi.lab.cjs`), run by the Compatibility workflow.
 
 ### Fixed
 - Wi-Fi Explorer review fixes:

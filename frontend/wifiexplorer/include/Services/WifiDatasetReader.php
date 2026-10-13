@@ -105,7 +105,10 @@ final class WifiDatasetReader {
             foreach ($byDataset as $dataset => $parts) {
                 $snapshot = $parts['snapshot'] ?? null;
                 $attemptRecord = $parts['attempt'] ?? null;
-                $envelope = $snapshot['success'] ?? $snapshot['latest'] ?? $attemptRecord['success'] ?? null;
+                // A receipt (a complete attempt stored without its rows) is never read as the observation itself.
+                $attemptSuccess = ($attemptRecord['success']['data_omitted'] ?? false) === true
+                    ? null : ($attemptRecord['success'] ?? null);
+                $envelope = $snapshot['success'] ?? $snapshot['latest'] ?? $attemptSuccess;
                 $attempt = $attemptRecord['latest'] ?? $snapshot['latest'] ?? null;
                 $failure = null;
                 foreach ([$snapshot, $attemptRecord] as $record) {

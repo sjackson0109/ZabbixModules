@@ -88,16 +88,16 @@ At most 500 visible owners and 5,000 visible APs per view; Network Explorer's it
 
 ## Storage (principle 14)
 
-Measured on the synthetic lab envelopes (about 115 bytes per AP state row, 175 per AP inventory row, 130 per radio inventory row and 240 per radio state row). Each dataset stores both its attempt and its last complete snapshot. For one cluster of 100 APs and 200 radios at the default intervals:
+Measured on the synthetic lab envelopes (about 115 bytes per AP state row, 175 per AP inventory row, 130 per radio inventory row and 240 per radio state row). Each dataset stores its last complete snapshot and a record of every attempt; since Phase G a complete attempt is stored as a receipt without its rows (`data_omitted`, `data_rows`), because the rows are already in the snapshot, so rows are written once per poll instead of twice. For one cluster of 100 APs and 200 radios at the default intervals:
 
 | Dataset | Envelope | Written per day | Held (history) |
 |---|---|---|---|
-| `ap_state` | ~12 KB | ~7 MB | ~7 MB (1 d) |
-| `radio_state` | ~48 KB | ~28 MB | ~28 MB (1 d) |
-| `ap_inventory` | ~18 KB | ~0.9 MB | ~6 MB (7 d) |
-| `radio_inventory` | ~26 KB | ~1.3 MB | ~9 MB (7 d) |
+| `ap_state` | ~12 KB | ~3.5 MB | ~3.5 MB (1 d) |
+| `radio_state` | ~48 KB | ~14 MB | ~14 MB (1 d) |
+| `ap_inventory` | ~18 KB | ~0.45 MB | ~3 MB (7 d) |
+| `radio_inventory` | ~26 KB | ~0.65 MB | ~4.5 MB (7 d) |
 
-About 37 MB written and 50 MB held per 100-AP cluster before database compression. These are estimates from synthetic rows; the release gate (section 35) still needs a measurement on a representative canary. Radio state dominates; lengthen `{$WE.RADIO.STATE.INTERVAL}` before shortening history if it is too much.
+About 19 MB written and 25 MB held per 100-AP cluster before database compression (37 MB and 50 MB before Phase G). Retention is configurable per dataset with `{$WE.<DATASET>.HISTORY}`. These are estimates from synthetic rows; the release gate (section 35) still needs a measurement on a representative canary. Radio state dominates; lengthen `{$WE.RADIO.STATE.INTERVAL}` before shortening history if it is too much.
 
 ## Verification
 
@@ -112,7 +112,7 @@ Each phase adds a tab to the page: **Floor plans**, **RF neighbours**, **SSIDs**
 
 ### Configuration (sections 17 and 18)
 
-Floors, AP placement, SSID intent, events and known BSSIDs are one JSON document kept in the module's own configuration (`module.update`), edited under **Configure** by a Super admin and validated whole before it is saved (`WifiConfig`): unknown keys are refused (so a PSK cannot be stored by mistake), every problem is reported at once, and the document is capped at 60,000 bytes. A stored document that no longer validates is ignored entirely and the page says so; nothing is half-applied.
+Floors, AP placement, SSID intent, events and known BSSIDs are one JSON document kept in the module's own configuration (`module.update`), edited under **Configure** by a Super admin and validated whole before it is saved (`WifiConfig`): unknown keys are refused (so a PSK cannot be stored by mistake), every problem is reported at once, and the stored form must fit the module configuration's 65,535-byte column (64,000 bytes allowed). A document that fits is stored as plain JSON, about 750 AP placements; a larger one is packed into one string (deflated JSON of everything but the placements, followed by 22-byte placement records, base64), about 2,300 placements across 40 floors. A save that would not fit even packed is refused with its size. A packed document that is damaged is refused whole. A stored document that no longer validates is ignored entirely and the page says so; nothing is half-applied.
 
 - **Floors**: per site and building, an optional Zabbix image (Administration → General → Images) as the plan, its aspect ratio read once on save, an optional width in metres.
 - **Placements**: by `ap_uid` only, never by name or MAC, as fractions of the plan. A Super admin places an AP by clicking the plan.
@@ -170,7 +170,7 @@ A neighbour heard only in stale RF snapshots is listed with when it was last see
 
 ### Not exposed by the sources, so not shown
 
-Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and configured versus observed channel and power are not exposed by AI-AP-MIB on Instant, so none is shown or derived. Long-term trends and discard-unchanged storage with a heartbeat are Phase G: snapshots are text, so Zabbix builds no trends from them yet.
+Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and configured versus observed channel and power are not exposed by AI-AP-MIB on Instant, so none is shown or derived. Snapshots are text, so Zabbix builds no trends from them; since Phase G the numeric capacity items below carry the long-term view.
 
 ### Findings added in Phases B–F
 
@@ -178,6 +178,7 @@ Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and confi
 |---|---|---|
 | `wifi_rf_flagged` | Warning | A current detection the AP itself labels unsecure, DoS or suspected-unsecure |
 | `wifi_co_channel_managed`, `wifi_co_channel_external` | Info | An up radio's own AP hears another network on its channel at 25 dB SNR or more |
+| `wifi_channel_overlap` | Info (inferred) | An up radio's own AP hears, at 25 dB SNR or more, a network in the same band on a different channel whose spectrum overlaps by the 802.11 channel plan (bonded block from the width; 2.4 GHz 40 MHz, 80+80 and unknown widths use only the primary 20 MHz, so overlap may be missed but is never invented) |
 | `wifi_ssid_missing`, `wifi_ssid_disabled` | Warning | A declared SSID that the site's current clusters do not list, or list as disabled |
 | `wifi_ssid_coverage_gap` | Warning | Expected APs that are down or have no radio up in a declared band (inferred) |
 | `wifi_ssid_vlan_undeclared` | Info | An enabled SSID without intent: its VLAN, and so its path, is unknown |
@@ -190,9 +191,39 @@ Beyond the items above: PHY, MIMO, DFS state, 80 versus 160 MHz width, and confi
 
 ### Storage added in Phases B–F
 
-From the synthetic envelopes: about 155 bytes per SSID row, 255 per client row and 200 per RF detection row; like Phase A, each dataset stores its attempt and its snapshot. For one 100-AP cluster with 1,500 clients at the defaults the client dataset is about 380 KB per snapshot, roughly 220 MB written and held per day (1-day history); lengthen `{$WE.CLIENT.INTERVAL}` or shorten its history first if that is too much. Per-AP RF snapshots are bounded to 500 rows (about 100 KB) every 15 minutes, about 19 MB per AP per day. SSID snapshots are negligible. As in Phase A these are estimates; the release gate still needs a canary measurement.
+From the synthetic envelopes: about 155 bytes per SSID row, 255 per client row and 200 per RF detection row; like Phase A, each dataset stores its attempt and its snapshot. For one 100-AP cluster with 1,500 clients at the defaults the client dataset is about 380 KB per snapshot, roughly 110 MB written and held per day (1-day history) now that complete attempts are receipts (220 MB before Phase G); lengthen `{$WE.CLIENT.INTERVAL}` or shorten `{$WE.CLIENT.HISTORY}` first if that is too much. Per-AP RF snapshots are bounded to 500 rows (about 100 KB) every 15 minutes, about 10 MB per AP per day. SSID snapshots are negligible. As in Phase A these are estimates; the release gate still needs a canary measurement.
 
 ### Verification added in Phases B–F
 
 - `tests/php/wifi_floors.php`, `wifi_wired.php`, `wifi_paths.php`, `wifi_impact.php`, `wifi_clients.php` run the real normalisers over the Wi-Fi lab walks (a cluster, lab-ap-01's own host and three switches) and cover hidden switches, stale STP and VLAN data, blocking ports, root disagreement, MSTP instances, LAG members, STP alternates, events, privacy policies and the sampled timeline.
 - `tests/integration/zabbix_runtime.py` replays the lab into a real Zabbix, then checks the uplinks and paths on the data route and renders every tab as a restricted viewer.
+
+## Phase G without hardware: capacity, storage, RF overlap, large sites (section 36)
+
+The parts of Phase G that need no new vendor evidence. Vendor families and Aruba qualification wait for sanitised walks.
+
+### Long-term capacity (section 16)
+
+Each cluster template has 13 numeric items, dependent on the normalised envelope and discarded unless the observation is complete, so a failed poll is a gap and never a zero: APs up and down, radios up per band, average and peak channel utilisation per band, clients, and the most clients on one AP (`we.capacity.*`). History is `{$WE.CAPACITY.HISTORY}` (7 days) and trends `{$WE.CAPACITY.TRENDS}` (365 days), so a year of a cluster costs 13 hourly trend rows.
+
+The **Capacity** tab reads those hourly trends through the API (`API::Trend()`, only for clusters the viewer can read) for the last 24 hours (hourly), 30 days (daily) or 12 months (monthly). A site value adds the clusters that reported in that hour; each period says how many of its hours had data, and one without data shows a dash. Per period: average clients, the busiest hour, the 95th-percentile hour, the busiest AP, APs up and down, and utilisation average, 95th-percentile hour and peak per band, beside client counts so a count is never read as capacity alone. Growth compares the last seven days with the seven before, only when both have data for at least half their hours. The year view reads peaks only, to stay within `WifiLimits::TREND_ROWS` (250,000); a scope beyond it says so instead of truncating.
+
+Not covered yet: capacity per AP, radio, floor or SSID over time (it would need per-AP numeric items, which the per-cluster template avoids), throughput, retry and error rates (not exposed by AI-AP-MIB on Instant), and percentiles of single samples (trends keep hourly averages and peaks only).
+
+### Storage
+
+A complete attempt is stored as a receipt without its rows (see [Storage](#storage-principle-14)), and every dataset's history is a macro. The normalised envelope itself is not kept (`history 0`); it only feeds the attempt, snapshot and capacity items.
+
+### Overlapping channels
+
+`wifi_channel_overlap` (see the findings table) works out the spectrum each channel occupies from the 802.11 channel plan (`ChannelPlan`) and flags a strong neighbour in the same band whose channel differs but still overlaps. It is inferred from channel numbers and widths, not measured, and says so.
+
+### Large sites
+
+The configuration document is packed when it no longer fits as plain JSON (see [Configuration](#configuration-sections-17-and-18)), raising the practical limit from about 750 to about 2,300 AP placements. A save that does not fit is refused with its size.
+
+### Verification added in Phase G
+
+- `tests/php/wifi_capacity.php`: periods, gaps, growth, hidden clusters, the year view's keys and every unavailable reason. `tests/php/wifi_floors.php`: the channel plan, overlap findings, packing and damaged packed documents.
+- `tests/browser/wifi.lab.cjs` runs in Chromium after the integration suite (required in the Compatibility workflow): every tab and capacity range, placing and removing an AP by clicking the plan, saving in the editor and reloading, and an event name with markup shown as text.
+- On a real 7.4 lab with SNMP polling: receipts, the capacity items' values, the Capacity tab over inserted trend rows, and a packed configuration with 1,500 extra placements that loads, edits and saves again.

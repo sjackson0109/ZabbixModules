@@ -147,8 +147,9 @@ def test_templates_carry_no_credentials_token_or_per_client_items():
         assert needle not in text, needle
     export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
     keys = [i["key"] for t in export["templates"] for i in t["items"]]
-    assert [k for k in keys if "client" in k] == ["we.raw.aruba.client", "we.client.attempt", "we.client.snapshot",
-        "we.collection.status[client]", "we.collection.success[client]"], "clients are one bounded snapshot per owner"
+    assert [k for k in keys if "client" in k] == ["we.raw.aruba.client", "we.normalised[client]", "we.client.attempt",
+        "we.client.snapshot", "we.collection.status[client]", "we.collection.success[client]", "we.capacity.clients",
+        "we.capacity.clients.ap_max"], "clients are one bounded snapshot per owner, plus two cluster totals"
     macros = {m["macro"]: m for t in export["templates"] for m in t["macros"]}
     assert macros["{$WE.CLIENT.KEY}"]["value"] == "" and macros["{$WE.CLIENT.KEY}"]["type"] == "SECRET_TEXT"
     assert macros["{$WE.CLIENT.IDENTIFIERS}"]["value"] == "partial", "masked unless an operator chooses otherwise"
@@ -165,8 +166,60 @@ def test_macros_appear_only_where_zabbix_should_expand_them():
                     continue
                 script = step["parameters"][0]
                 found = sorted(set(re.findall(r"\{\$[A-Z0-9_.]+\}", script)))
-                expected = ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"] if item["key"] == "we.client.attempt" else []
+                expected = ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"] if item["key"] == "we.normalised[client]" else []
                 assert found == expected, (item["key"], found)
+
+
+@needs_node
+def test_complete_attempts_are_stored_as_receipts(validator):
+    """The attempt item keeps every outcome, but a complete success without its rows: they are in the snapshot."""
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    items = {i["key"]: i for t in export["templates"] for i in t["items"]}
+    attempt, normalised = items["we.client.attempt"], items["we.normalised[client]"]
+    assert attempt["master_item"]["key"] == "we.normalised[client]" and normalised["history"] == "0"
+    assert items["we.client.snapshot"]["master_item"]["key"] == "we.normalised[client]"
+    assert attempt["history"] == "{$WE.CLIENT.HISTORY}", "retention is a macro"
+    step = attempt["preprocessing"][0]["parameters"][0]
+    receipt = lambda envelope: json.loads(subprocess.run(
+        ["node", "-e", "const value=require('fs').readFileSync(0,'utf8');process.stdout.write((function(value){"
+         + step + "})(value));"], input=json.dumps(envelope), check=True, capture_output=True, text=True).stdout)
+    complete = run("we.raw.aruba.client", VC)
+    stored = receipt(complete)
+    validator.validate(stored)
+    assert stored["data"] == [] and stored["data_omitted"] is True and stored["data_rows"] == len(complete["data"]) > 0
+    assert stored["observed_at"] == complete["observed_at"] and stored["warnings"] == complete["warnings"]
+    failed = dict(complete, status="failed", complete=False, observed_at=None, data=[])
+    assert receipt(failed) == failed, "a failed attempt is stored as it is"
+
+
+@needs_node
+def test_capacity_items_are_cluster_totals_with_trends():
+    """Numeric capacity values come only from complete observations and are never a zero standing in for unknown."""
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    items = {i["key"]: i for t in export["templates"] for i in t["items"]}
+    capacity = {k: i for k, i in items.items() if k.startswith("we.capacity.")}
+    assert all(i["trends"] == "{$WE.CAPACITY.TRENDS}" and i["value_type"] in ("UNSIGNED", "FLOAT") for i in capacity.values())
+
+    def value(key, envelope):
+        steps = capacity[key]["preprocessing"]
+        out = subprocess.run(["node", "-e", "const value=require('fs').readFileSync(0,'utf8');"
+                              "process.stdout.write(String((function(value){" + steps[0]["parameters"][0] + "})(value)));"],
+                             input=json.dumps(envelope), check=True, capture_output=True, text=True).stdout
+        return None if out == GEN._common.DISCARD else float(out)
+
+    aps, radios, clients = (run(raw, VC) for raw in ("we.raw.aruba.ap.state", "we.raw.aruba.radio.state",
+                                                     "we.raw.aruba.client"))
+    assert value("we.capacity.aps.up", aps) == sum(r["status"] == "up" for r in aps["data"])
+    assert value("we.capacity.aps.down", aps) == sum(r["status"] == "down" for r in aps["data"]) == 1
+    assert value("we.capacity.clients", clients) == len(clients["data"])
+    five = [r["utilisation_percent"] for r in radios["data"] if r["status"] == "up" and r["band"] == "5"
+            and r["utilisation_percent"] is not None]
+    assert value("we.capacity.utilisation.max[5]", radios) == max(five)
+    assert abs(value("we.capacity.utilisation.avg[5]", radios) - sum(five) / len(five)) < 1e-9
+    no_six = dict(radios, data=[r for r in radios["data"] if r["band"] != "6"])
+    assert value("we.capacity.utilisation.max[6]", no_six) is None, "no 6 GHz radio: no value, not 0"
+    assert value("we.capacity.radios.up[6]", no_six) == 0, "a complete observation does count zero radios"
+    assert value("we.capacity.clients", dict(clients, status="partial", complete=False)) is None, "partial: no value"
 
 
 def test_template_keys_and_uuids_are_unique():

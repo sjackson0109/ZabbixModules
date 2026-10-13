@@ -12,7 +12,7 @@ use Modules\NetworkExplorer\Services\NetworkScope;
  * address, an SSID secret or a client identifier. An invalid ID selects nothing rather than failing the page.
  */
 final class WifiScope {
-    public const VIEWS = ['overview', 'floors', 'rf', 'ssids', 'paths', 'impact', 'events', 'clients'];
+    public const VIEWS = ['overview', 'floors', 'rf', 'ssids', 'paths', 'impact', 'events', 'clients', 'capacity'];
 
     public string $site = '';
     /** The selected AP's opaque ID, or '' for none. */
@@ -27,6 +27,8 @@ final class WifiScope {
     public string $failHost = '';
     public string $failInterface = '';
     public string $event = '';
+    /** The capacity view's range: day, month or year. */
+    public string $range = 'month';
     /** Free-text search over AP and client fields the viewer can already see. */
     public string $query = '';
 
@@ -51,6 +53,7 @@ final class WifiScope {
         $scope->failInterface = $scope->failHost !== '' && preg_match('/^[A-Za-z0-9_.:-]{1,128}$/D', $value('fail_if'))
             ? $value('fail_if') : '';
         $scope->event = preg_match('/^[a-z0-9][a-z0-9_-]{0,63}$/D', $value('event')) ? $value('event') : '';
+        $scope->range = isset(CapacityService::RANGES[$value('range')]) ? $value('range') : 'month';
         $query = trim($value('q'));
         $scope->query = strlen($query) <= 64 && !preg_match('/[\x00-\x1f\x7f]/', $query) ? $query : '';
         return $scope;

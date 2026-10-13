@@ -14,6 +14,16 @@
           "value": "",
           "type": "SECRET_TEXT",
           "description": "Secret key for client IDs. Set it (as a secret macro on the host or globally) so client IDs cannot be reversed by trying every MAC address. Changing it changes every client ID."
+        },
+        {
+          "macro": "{$WE.CAPACITY.HISTORY}",
+          "value": "7d",
+          "description": "How long the numeric capacity values (APs, radios, utilisation, clients) are kept as history."
+        },
+        {
+          "macro": "{$WE.CAPACITY.TRENDS}",
+          "value": "365d",
+          "description": "How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them."
         }
       ]
     },
