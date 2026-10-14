@@ -104,6 +104,56 @@ html[color-scheme='dark'] {
   border-top: 3px solid var(--zx-tone-unknown);
 }
 
+/* Tabs: links (a view in the address, aria-current) or buttons (in-page, role=tab with aria-selected). */
+.zx-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-1);
+  margin: 0 0 var(--zx-space-3);
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--zx-line);
+}
+.zx-tabs[hidden] {
+  display: none;
+}
+.zx-tabs .zx-tab {
+  display: inline-block;
+  height: auto;
+  margin: 0 0 -1px;
+  padding: var(--zx-space-1) var(--zx-space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  line-height: inherit;
+}
+.zx-tabs button.zx-tab {
+  color: inherit;
+}
+.zx-tabs .zx-tab:hover {
+  border-bottom-color: var(--zx-line-strong);
+  background: transparent;
+}
+.zx-tabs .zx-tab[aria-current='page'],
+.zx-tabs .zx-tab[aria-selected='true'] {
+  border-bottom-color: var(--zx-accent);
+  font-weight: bold;
+}
+/* Sub-tabs (a choice inside one view) are visibly lighter than the view tabs above them. */
+.zx-tabs-sub {
+  border-bottom: 0;
+  font-size: var(--zx-text-sm);
+}
+.zx-tabs-sub .zx-tab {
+  padding: 2px var(--zx-space-2);
+  border-bottom: 0;
+  border-radius: var(--zx-radius);
+}
+.zx-tabs-sub .zx-tab[aria-current='page'] {
+  background: var(--zx-surface-tint);
+}
+
 /* Tone: the one way a state is coloured as text. Words carry the meaning; the tone and weight back it up. */
 .zx-tone-ok,
 .zx-tone-warning,

@@ -17,10 +17,6 @@
 .we-explorer .we-quality { margin: 16px 0 0; }
 .we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
 .we-explorer .we-configure { margin-left: auto; align-self: center; }
-.we-explorer .we-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 0; list-style: none;
-    border-bottom: 1px solid var(--zx-line); }
-.we-explorer .we-tabs li a { display: inline-block; padding: 6px 10px; }
-.we-explorer .we-tabs .we-tab-active a { font-weight: bold; border-bottom: 2px solid currentColor; }
 .we-explorer .we-muted { opacity: 0.7; font-style: italic; }
 .we-explorer .we-kind { display: inline-block; padding: 0 5px; border-radius: 2px; font-size: 11px;
     border: 1px solid var(--zx-line-strong); white-space: nowrap; }

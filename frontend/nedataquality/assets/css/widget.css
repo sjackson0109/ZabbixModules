@@ -116,25 +116,7 @@ html[color-scheme='dark'] .ne-widget {
   background: color-mix(in srgb, var(--ne-colour-unknown, var(--zx-tone-unknown)) 8%, transparent);
 }
 .ne-widget .ne-member-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 8px 0 0;
-}
-.ne-widget .ne-member-tabs[hidden] {
-  display: none;
-}
-.ne-widget button.ne-member-tab {
-  border: 1px solid var(--ne-rule);
-  border-bottom-width: 3px;
-  border-radius: 4px 4px 0 0;
-  padding: 4px 12px;
-  background: transparent;
-  color: inherit;
-}
-.ne-widget button.ne-member-tab[aria-selected='true'] {
-  border-bottom-color: var(--ne-accent);
-  font-weight: bold;
+  margin: var(--zx-space-2) 0 var(--zx-space-1);
 }
 .ne-widget button.ne-port[aria-pressed='true'] {
   outline: 3px solid var(--ne-accent);

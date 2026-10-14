@@ -1063,7 +1063,7 @@
     const layerNote = el('p', undefined, 'zx-note');
     root.appendChild(layerNote);
     applyColours(root, payload.scope?.colours);
-    const tabs = el('div', undefined, 'ne-member-tabs');
+    const tabs = el('div', undefined, 'zx-tabs ne-member-tabs');
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', 'Stack members');
     root.appendChild(tabs);
@@ -1158,7 +1158,7 @@
               draw();
               tabs.querySelector('[aria-selected="true"]')?.focus();
             },
-            'ne-member-tab'
+            'zx-tab ne-member-tab'
           );
           tab.setAttribute('role', 'tab');
           tab.setAttribute('aria-selected', id(member) === state.member ? 'true' : 'false');

@@ -77,15 +77,16 @@ if (isset($data['error'])) {
     return;
 }
 
-$tabs = (new CList())->addClass('we-tabs')->setAttribute('role', 'navigation');
+$tabs = (new CList())->addClass('zx-tabs')->addClass('we-tabs')->setAttribute('role', 'navigation')
+    ->setAttribute('aria-label', _('Views'));
 $tabNames = ['overview'=>_('Overview'), 'floors'=>_('Floor plans'), 'rf'=>_('RF neighbours'), 'ssids'=>_('SSIDs'), 'paths'=>_('VLAN paths'),
     'impact'=>_('Impact'), 'events'=>_('Events'), 'clients'=>_('Clients'), 'capacity'=>_('Capacity')];
 foreach ($tabNames as $key => $name) {
-    $item = new CLink($name, $link(['view'=>$key === 'overview' ? '' : $key, 'q'=>$request['q']]));
+    $item = (new CLink($name, $link(['view'=>$key === 'overview' ? '' : $key, 'q'=>$request['q']])))->addClass('zx-tab');
     if ($key === $view) {
         $item->setAttribute('aria-current', 'page');
     }
-    $tabs->addItem((new CListItem($item))->addClass($key === $view ? 'we-tab-active' : 'we-tab'));
+    $tabs->addItem($item);
 }
 $root->addItem($tabs);
 

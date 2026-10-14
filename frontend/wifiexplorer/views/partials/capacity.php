@@ -8,13 +8,14 @@
  */
 $capacity = $data['capacity'];
 $ranges = ['day'=>_('Last 24 hours'), 'month'=>_('Last 30 days'), 'year'=>_('Last 12 months')];
-$switcher = (new CList())->addClass('we-tabs')->setAttribute('role', 'navigation');
+$switcher = (new CList())->addClass('zx-tabs')->addClass('zx-tabs-sub')->setAttribute('role', 'navigation')
+    ->setAttribute('aria-label', _('Range'));
 foreach ($ranges as $key => $name) {
-    $item = new CLink($name, $link(['view'=>'capacity', 'range'=>$key === 'month' ? '' : $key]));
+    $item = (new CLink($name, $link(['view'=>'capacity', 'range'=>$key === 'month' ? '' : $key])))->addClass('zx-tab');
     if ($key === $capacity['range']) {
         $item->setAttribute('aria-current', 'page');
     }
-    $switcher->addItem((new CListItem($item))->addClass($key === $capacity['range'] ? 'we-tab-active' : 'we-tab'));
+    $switcher->addItem($item);
 }
 $root->addItem($switcher);
 $root->addItem($about(_('From the hourly trends of each cluster\'s capacity items; an hour without a complete observation is a gap, not a zero.'),
