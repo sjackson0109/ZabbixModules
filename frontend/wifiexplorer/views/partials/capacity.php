@@ -17,8 +17,8 @@ foreach ($ranges as $key => $name) {
     $switcher->addItem((new CListItem($item))->addClass($key === $capacity['range'] ? 'we-tab-active' : 'we-tab'));
 }
 $root->addItem($switcher);
-$root->addItem((new CTag('p', true, _('From the hourly trends of each cluster\'s capacity items. Only complete observations give a value, so an hour without one is a gap, not a zero. "Busiest hour" is the highest hourly average; utilisation peaks are the highest sample any radio reported. The current hour is not in the trends yet.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('From the hourly trends of each cluster\'s capacity items; an hour without a complete observation is a gap, not a zero.'),
+    _('Only complete observations give a value. "Busiest hour" is the highest hourly average; utilisation peaks are the highest sample any radio reported. The current hour is not in the trends yet.')));
 
 if (!$capacity['available']) {
     $reasons = [

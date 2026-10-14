@@ -9,8 +9,8 @@
 $clients = $data['clients'];
 $policies = ['full'=>_('full identifiers'), 'partial'=>_('partial (MAC vendor prefix only)'),
     'pseudonymised'=>_('pseudonymised')];
-$root->addItem((new CTag('p', true, _('Clients associated now, from each cluster\'s client snapshot. Identifiers follow the template\'s privacy policy (the WE.CLIENT.IDENTIFIERS macro): with partial or pseudonymised identifiers a full MAC address, IP address or name is not stored and cannot be searched. The SSID of a client is not reported by Aruba Instant over SNMP.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('Clients associated now, from each cluster\'s client snapshot.'),
+    _('Identifiers follow the template\'s privacy policy (the WE.CLIENT.IDENTIFIERS macro): with partial or pseudonymised identifiers a full MAC address, IP address or name is not stored and cannot be searched. The SSID of a client is not reported by Aruba Instant over SNMP.')));
 
 $sources = (new CTableInfo())->setHeader([_('Cluster'), _('Clients'), _('Identifiers'), _('Freshness'), _('Observed')])
     ->setNoDataMessage(_('No visible cluster collects clients.'));

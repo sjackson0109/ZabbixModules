@@ -50,6 +50,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Network Explorer interface detail opens with a summary of state, observed against intended speed (amber when reduced), VLAN mode and every LLDP peer with its remote port selectable; identifiers, MTU, MAC address and port-capability (MAU) evidence move into a collapsed Diagnostics section.
 - Wi-Fi Explorer Clients: the "Client IDs are not keyed" warning is a highlighted callout that links each affected cluster to its host configuration.
 - Network Explorer interface detail: a port with no stack member or slot says "Not placed" instead of "Unknown / Unknown / Unknown".
+- Wi-Fi Explorer: each tab opens with one sentence, with the rest of its explanation behind an "About this view" disclosure.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

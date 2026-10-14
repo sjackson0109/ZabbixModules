@@ -85,3 +85,5 @@
     border-left-width: 4px; border-radius: 2px; }
 .we-explorer .we-callout-warning { border-left-color: #ffc859; background: rgba(255, 200, 89, 0.15); }
 .we-explorer .we-callout-title { font-weight: bold; }
+.we-explorer .we-about { margin: -4px 0 10px; }
+.we-explorer .we-about summary { cursor: pointer; opacity: 0.85; }

@@ -6,8 +6,8 @@
  * @var array $data
  * @var CDiv $root
  */
-$root->addItem((new CTag('p', true, _('What depends on a switch or port, from each AP\'s uplink and its spanning-tree path to the root. "Reroute possible" means a switch below the failure has an STP alternate port that is up; spanning tree may reconverge through it, which is not simulated. Client numbers are the clients associated now, an estimate of who is affected: some may roam to a neighbouring AP. PoE is not collected, so whether an AP also loses power is not shown.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('What depends on a switch or port, from each AP\'s uplink and its spanning-tree path to the root.'),
+    _('"Reroute possible" means a switch below the failure has an STP alternate port that is up; spanning tree may reconverge through it, which is not simulated. Client numbers are the clients associated now, an estimate of who is affected: some may roam to a neighbouring AP. PoE is not collected, so whether an AP also loses power is not shown.')));
 
 if (!$data['wired']['available']) {
     $root->addItem((new CDiv(\Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'])))->addClass('msg-warning'));

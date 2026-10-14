@@ -98,6 +98,13 @@ $urls = array_column($data['owners'], 'dashboard_url', 'hostid');
 $apName = static fn(?string $uid): string => $uid !== null && isset($byUid[$uid])
     ? ($byUid[$uid]['name'] ?? _('Unnamed access point')) : _('Unknown AP');
 
+// Each tab opens with one sentence; the rest of its explanation is one click away, for the first visit.
+$about = static function (string $lead, string $more): array {
+    return [(new CTag('p', true, $lead))->addClass('we-note'),
+        (new CTag('details', true, [new CTag('summary', true, _('About this view')), new CTag('p', true, $more)]))
+            ->addClass('we-about')];
+};
+
 include __DIR__.'/partials/'.$view.'.php';
 
 $page->addItem($root)->show();
