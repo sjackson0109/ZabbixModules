@@ -38,7 +38,7 @@ foreach ($rf['neighbours'] as $row) {
     }
     ++$shown;
     $best = $row['heard_best_by'];
-    $tr = new CRow([$row['ssid'] ?? (new CSpan(_('Hidden')))->addClass('we-muted'), $row['bssid'],
+    $tr = new CRow([$row['ssid'] ?? (new CSpan(_('Hidden')))->addClass('zx-muted'), $row['bssid'],
         [$toned($classNames[$row['class']], $row['class']), ' ',
             $kind($row['class_basis']), $row['known_label'] ? ' '.$row['known_label'] : ''],
         $row['labels'] ? implode(', ', array_map(static fn($l) => str_replace('_', ' ', $l), array_keys($row['labels']))) : '—',
@@ -47,7 +47,7 @@ foreach ($rf['neighbours'] as $row) {
         $row['encryption'] ?? '—', $row['best_snr'] !== null ? $row['best_snr'].' dB' : '?',
         $best === null ? '—' : (strpos($best, 'host:') === 0 ? _('an unmatched host') : new CLink($apName($best), $link(['ap'=>$best]))),
         count($row['observers']),
-        [$row['last_seen'] ?? _('never'), $row['current'] ? '' : [' ', (new CSpan(_('stale')))->addClass('we-muted')]]]);
+        [$row['last_seen'] ?? _('never'), $row['current'] ? '' : [' ', (new CSpan(_('stale')))->addClass('zx-muted')]]]);
     if ($row['class'] === 'flagged' && $row['current']) {
         $tr->addClass('we-row-warning');
     }

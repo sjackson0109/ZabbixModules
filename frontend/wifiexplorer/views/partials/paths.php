@@ -49,7 +49,7 @@ foreach ($data['paths'] as $uid => $path) {
 $root->addItem([new CTag('h2', true, _('Service paths by SSID')), $summary]);
 
 if ($selected === null) {
-    $root->addItem((new CTag('p', true, _('Select an SSID to see each AP\'s path hop by hop.')))->addClass('we-muted'));
+    $root->addItem((new CTag('p', true, _('Select an SSID to see each AP\'s path hop by hop.')))->addClass('zx-muted'));
     return;
 }
 $table = (new CTableInfo())->setHeader([_('Access point'), _('VLAN'), _('Result'), _('Why'), _('Path, AP to root')]);
@@ -71,7 +71,7 @@ foreach ($results as $result) {
         $hops->addItem($item);
     }
     if ($result['chain_status'] === 'complete' && $result['hops']) {
-        $hops->addItem((new CSpan(_('root bridge')))->addClass('we-muted'));
+        $hops->addItem((new CSpan(_('root bridge')))->addClass('zx-muted'));
     }
     $why = $result['reason'] !== null ? ($pathReasons[$result['reason']] ?? $result['reason']) : '';
     if ($result['status'] === 'failed') {

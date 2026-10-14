@@ -115,7 +115,7 @@ if ($data['selected_ap'] !== '') {
     $bases = ['chassis_mac'=>_('LLDP chassis MAC is the AP\'s MAC'), 'management_address'=>_('LLDP management address is the AP\'s address'),
         'ap_lldp'=>_('the AP\'s own LLDP')];
     if ($uplink === null) {
-        $detail->addItem((new CTag('p', true, \Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'] ?? null)))->addClass('we-muted'));
+        $detail->addItem((new CTag('p', true, \Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'] ?? null)))->addClass('zx-muted'));
     }
     else {
         $port = (new CTableInfo())->setHeader([_('State'), _('Switch port'), _('Link'), _('VLANs on the port'),

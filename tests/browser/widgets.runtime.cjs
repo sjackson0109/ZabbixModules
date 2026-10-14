@@ -255,7 +255,7 @@ const assert = require('node:assert/strict');
     const halo = page.locator('svg .ne-node-selected .ne-node-halo');
     assert.notEqual(await halo.evaluate(e => getComputedStyle(e).display), 'none', 'selected switch has a second outline');
     await page.getByPlaceholder('Find switch').fill('switch B');
-    assert.equal(await page.locator('svg .ne-node.ne-muted').count(), 1);
+    assert.equal(await page.locator('svg .ne-node.ne-dimmed').count(), 1);
     // Enter focuses and selects the match without hiding or moving anything.
     await page.getByPlaceholder('Find switch').press('Enter');
     assert.equal(await page.locator('svg .ne-node-selected').getAttribute('data-hostid'), '102');

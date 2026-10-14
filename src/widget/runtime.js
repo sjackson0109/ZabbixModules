@@ -1713,7 +1713,7 @@
       );
     const classes = ['ne-node'];
     const notes = [];
-    if (!matching) classes.push('ne-muted');
+    if (!matching) classes.push('ne-dimmed');
     if (host.out_of_subnet) (classes.push('ne-node-warning'), notes.push('outside management subnet'));
     if (host.outside_site) (classes.push('ne-node-context'), notes.push('outside selected site'));
     if (carries) (classes.push('ne-node-vlan'), notes.push(`has VLAN ${context.vlan}`));
@@ -2211,7 +2211,7 @@
     });
     // Searching only dims non-matching nodes, so it never rebuilds the drawing; Enter focuses a match.
     search.addEventListener('input', () => {
-      for (const [host, node] of nodes) node.classList.toggle('ne-muted', !matches(host));
+      for (const [host, node] of nodes) node.classList.toggle('ne-dimmed', !matches(host));
       searchStatus.textContent = '';
     });
     search.addEventListener('keydown', event => {

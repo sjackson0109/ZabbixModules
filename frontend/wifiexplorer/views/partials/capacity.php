@@ -205,8 +205,8 @@ foreach (array_reverse($periods) as $period) {
     $apRow = new CRow([$periodName($period), $number($period['clients_p95_hour'], 1), $number($period['clients_ap_max']),
         $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])]);
     if ($period['hours_with_data'] === 0) {
-        $row->addClass('we-muted');
-        $apRow->addClass('we-muted');
+        $row->addClass('zx-muted');
+        $apRow->addClass('zx-muted');
     }
     elseif ($partial($period)) {
         $row->addClass('we-row-partial');
@@ -221,7 +221,7 @@ $more->addItem($apTable);
 $root->addItem($more);
 if ($capacity['range'] === 'year') {
     $root->addItem((new CTag('p', true, _('The year view reads peaks only for utilisation, so averages per band are not shown.')))
-        ->addClass('we-muted'));
+        ->addClass('zx-muted'));
 }
 
 $clusters = (new CTableInfo())->setHeader([_('Cluster'), _('Hours with data'), _('Clients, average'), _('Busiest hour'),

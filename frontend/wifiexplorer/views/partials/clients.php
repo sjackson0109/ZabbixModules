@@ -92,7 +92,7 @@ if ($selected !== null) {
     if (!$timeline['available'] || $timeline['samples'] === []) {
         $detail->addItem((new CTag('p', true, $timeline['reason'] === 'history_too_large'
             ? _('The client snapshots of this cluster are too large to read for a timeline.')
-            : _('No client snapshot history is readable for this window.')))->addClass('we-muted'));
+            : _('No client snapshot history is readable for this window.')))->addClass('zx-muted'));
     }
     else {
         $changes = ['appeared'=>_('Appeared'), 'left'=>_('Not in the snapshot'), 'ap_changed'=>_('Associated with another AP'),
@@ -132,5 +132,5 @@ $root->addItem([new CTag('h2', true, _s('Clients now (%1$s)', $clients['matched'
     ? ' '._s('of %1$s', $clients['total']) : ''))), $table]);
 if ($clients['matched'] > count($clients['clients'])) {
     $root->addItem((new CTag('p', true, _s('The first %1$s are listed; search to narrow.', count($clients['clients']))))
-        ->addClass('we-muted'));
+        ->addClass('zx-muted'));
 }

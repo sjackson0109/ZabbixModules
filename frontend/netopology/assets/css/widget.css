@@ -338,8 +338,9 @@ html[color-scheme='dark'] .ne-widget {
   stroke-width: 4px;
   stroke-linejoin: round;
 }
-.ne-widget .ne-muted {
-  opacity: 0.3;
+/* A drawing element the current search or trace leaves out. Text that is merely secondary is zx-muted. */
+.ne-widget .ne-dimmed {
+  opacity: var(--zx-opacity-dimmed);
 }
 @media (max-width: 800px) {
   .ne-widget .ne-port-grid {

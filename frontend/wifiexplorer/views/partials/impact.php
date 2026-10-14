@@ -37,7 +37,7 @@ $form->addItem((new CDiv([new CLabel(_('or this port'), 'we-fail-if-button'), $i
 $form->addItem(new CSubmit('assess', _('Assess')));
 $root->addItem($form);
 if ($request['fail_host'] !== '' && $request['fail_if'] === '' && $interfaces) {
-    $root->addItem((new CTag('p', true, _('Assessing the whole switch. Choose a port and Assess again to narrow it.')))->addClass('we-muted'));
+    $root->addItem((new CTag('p', true, _('Assessing the whole switch. Choose a port and Assess again to narrow it.')))->addClass('zx-muted'));
 }
 
 $impact = $data['impact'];
@@ -52,7 +52,7 @@ if ($impact === null) {
     }
     $root->addItem([new CTag('h2', true, _('Switches with the most depending on them')),
         (new CTag('p', true, _('If each switch failed on its own. Choose one to see the APs, SSIDs, VLANs and floors behind it.')))
-            ->addClass('we-muted'), $ranking]);
+            ->addClass('zx-muted'), $ranking]);
     return;
 }
 if ($impact['status'] !== 'ok') {

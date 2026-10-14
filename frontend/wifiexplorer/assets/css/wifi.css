@@ -15,7 +15,6 @@
 .we-explorer .we-quality { margin: 16px 0 0; }
 .we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
 .we-explorer .we-configure { margin-left: auto; align-self: center; }
-.we-explorer .we-muted { opacity: 0.7; font-style: italic; }
 .we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 6px; align-items: center; }
 .we-explorer .we-overlay-label { font-weight: bold; }
 .we-explorer .we-overlay-active { font-weight: bold; text-decoration: underline; }

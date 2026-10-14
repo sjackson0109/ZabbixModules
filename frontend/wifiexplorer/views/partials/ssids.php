@@ -38,7 +38,7 @@ foreach ($data['ssids'] as $ssid) {
         [$state, ' ', $kind('observed')],
         $ssid['hidden'] ? _('Yes') : _('No'),
         $ssid['clients_reported'] ? $ssid['clients'] : _('Not reported'),
-        $vlans ? [implode(', ', $vlans), ' ', $kind('declared')] : (new CSpan(_('Unknown: not declared')))->addClass('we-muted'),
+        $vlans ? [implode(', ', $vlans), ' ', $kind('declared')] : (new CSpan(_('Unknown: not declared')))->addClass('zx-muted'),
         $ssid['expected'] ? [_s('%1$s of %2$s broadcasting', $counts['broadcasting'], count($ssid['expected']))
             .($counts['unknown'] ? ', '._s('%1$s unknown', $counts['unknown']) : ''), ' ', $kind('inferred')] : '—',
         implode(', ', array_unique(array_column($ssid['observations'], 'owner_name'))) ?: '—']);
