@@ -231,6 +231,14 @@
     }
     return [...groups.values()];
   }
+  /** A port's stack member, slot and port, or a plain statement when the device reports no placement at all. */
+  function placement(port) {
+    if (port.member == null && port.slot == null)
+      return port.port == null
+        ? 'Not placed (no stack member or slot reported)'
+        : `Port ${port.port}; no stack member or slot reported`;
+    return [port.member, port.slot, port.port].map(text).join(' / ');
+  }
   /** Applies configured state colours (six-digit hex from the widget form) as CSS custom properties. */
   function applyColours(root, colours) {
     for (const state of ['normal', 'down', 'degraded', 'disabled', 'unknown']) {
@@ -874,7 +882,7 @@
         ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
         Description: port.description,
         Alias: port.alias,
-        'Member / slot / port': [port.member, port.slot, port.port].map(text).join(' / '),
+        'Member / slot / port': placement(port),
         'Administrative state': enumValue(port.admin_status),
         'Operational state': enumValue(port.oper_status),
         'Observed speed': speed(port.speed_bps),
