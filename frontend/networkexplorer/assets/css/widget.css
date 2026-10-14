@@ -147,6 +147,7 @@ html[color-scheme='dark'] .ne-widget {
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* Tables take Zabbix's list-table header and row look; cells keep a compact rhythm and wrap long identifiers. */
 .ne-widget .ne-table {
   width: 100%;
   border-collapse: collapse;
@@ -156,7 +157,6 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-table td {
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--ne-line);
   padding: var(--zx-space-1) var(--zx-space-2);
   overflow-wrap: anywhere;
 }

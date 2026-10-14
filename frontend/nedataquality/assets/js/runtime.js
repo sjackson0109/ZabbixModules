@@ -677,7 +677,8 @@
     return shown === 'Unknown' ? el('span', shown, 'zx-muted') : document.createTextNode(shown);
   }
   function table(root, columns, rows, caption) {
-    const node = el('table', undefined, 'ne-table');
+    // Zabbix's own list-table styling, as Wi-Fi Explorer's tables and every Zabbix list use.
+    const node = el('table', undefined, 'list-table ne-table');
     if (caption) node.appendChild(el('caption', caption));
     const head = el('thead'),
       tr = el('tr');
