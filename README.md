@@ -36,6 +36,12 @@ Start with [the template contract](templates/specifications/CONTRACT.md) and [ve
 
 The `Network Explorer LAB replay` template is a test data source. It does not perform SNMP monitoring and must not be linked to a production switch. A template author supplies complete canonical datasets using the documented keys; the module contains no vendor-specific SNMP logic.
 
+## Requirements specifications
+
+- [Network Explorer template requirements](docs/network-explorer/TEMPLATE_REQUIREMENTS.md): inventory, capability evidence, monitoring preservation and qualification gates for the switch templates.
+- [Wi-Fi Explorer requirements](docs/wifi-explorer/REQUIREMENTS.md): the product specification for the Wi-Fi module (phases A–G).
+- [Wi-Fi AP template requirements](docs/wifi-explorer/TEMPLATE_REQUIREMENTS.md): what every Wi-Fi access-point template must do, with Aruba Instant as the reference.
+
 ## Isolation and identity
 
 Assign an administrator-controlled `ne.domain` host tag for each customer/network domain. Repeated IPs across isolated domains remain distinct. Technical and display host names must be globally unique by deployment policy. Zabbix host-group permissions determine visibility; proxy assignment alone does not.

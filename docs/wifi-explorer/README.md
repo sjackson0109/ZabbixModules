@@ -7,6 +7,7 @@ It covers Phases A–F of the [roadmap](ROADMAP.md): the site/AP/radio model and
 | Document | What it holds |
 |---|---|
 | [REQUIREMENTS.md](REQUIREMENTS.md) | The product requirements specification (sections 1–38, phases A–G). |
+| [TEMPLATE_REQUIREMENTS.md](TEMPLATE_REQUIREMENTS.md) | Requirements every Wi-Fi access-point template must meet: items, envelope, datasets, capacity, macros, triggers, privacy, errors and acceptance. |
 | [DESIGN.md](DESIGN.md) | How Phases A–F meet them: ownership, datasets, identities, freshness, permissions, configuration, uplinks, paths, impact, events, client privacy, storage. |
 | [ROADMAP.md](ROADMAP.md) | Phases A–G as pull requests, with the gaps the Aruba review found. |
 | [ARUBA_TEMPLATE_REVIEW.md](ARUBA_TEMPLATE_REVIEW.md) | Review of an existing Aruba Instant template: what AI-AP-MIB proves, what each canonical dataset still needs. |
