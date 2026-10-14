@@ -20,10 +20,19 @@ foreach ($clients['sources'] as $source) {
         $source['policy'] !== null ? ($policies[$source['policy']] ?? $source['policy']) : '—',
         $source['freshness'], $source['observed_at'] ?? _('never')]);
 }
-$unkeyed = array_column(array_filter($clients['sources'], static fn($s) => $s['unkeyed']), 'name');
+// A privacy warning, so it is set apart from the explanatory text above it and links to where it is fixed.
+$unkeyed = array_filter($clients['sources'], static fn($s) => $s['unkeyed']);
 if ($unkeyed) {
-    $root->addItem((new CDiv(_s('Client IDs from %1$s are not keyed, so they could be traced back to MAC addresses. Set the WE.CLIENT.KEY secret macro on the template or host.',
-        implode(', ', $unkeyed))))->addClass('msg-warning'));
+    $hosts = [];
+    foreach ($unkeyed as $source) {
+        $hosts[] = new CLink($source['name'], 'zabbix.php?'.http_build_query(['action'=>'host.edit',
+            'hostid'=>$source['hostid']]));
+        $hosts[] = ', ';
+    }
+    array_pop($hosts);
+    $root->addItem((new CDiv([(new CSpan(_('Client IDs are not keyed.')))->addClass('we-callout-title'), ' ',
+        _('Pseudonymised client IDs from these clusters could be traced back to MAC addresses until the {$WE.CLIENT.KEY} secret macro is set on the template or host:'),
+        ' ', $hosts]))->addClass('we-callout')->addClass('we-callout-warning')->setAttribute('role', 'note'));
 }
 $details = (new CTag('details', true))->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Client sources')));

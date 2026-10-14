@@ -48,6 +48,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Wi-Fi Explorer Capacity: periods with data for fewer than half their hours are marked "partial", and the 95th percentile and AP counts move to a second table behind a disclosure.
 - Wi-Fi Explorer Impact: before a switch is chosen, the tab lists the switches on AP paths ranked by the APs that would lose service if each failed on its own, with degraded and possibly rerouted APs and clients on those APs now; each switch links to its full assessment.
 - Network Explorer interface detail opens with a summary of state, observed against intended speed (amber when reduced), VLAN mode and every LLDP peer with its remote port selectable; identifiers, MTU, MAC address and port-capability (MAU) evidence move into a collapsed Diagnostics section.
+- Wi-Fi Explorer Clients: the "Client IDs are not keyed" warning is a highlighted callout that links each affected cluster to its host configuration.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11
