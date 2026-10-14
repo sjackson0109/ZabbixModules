@@ -144,6 +144,11 @@ A `details` element. Plain `zx-disclosure` has a bold summary, for sections such
 diagnostics. Add `zx-disclosure-quiet` for help ("About this view") and grouped lists inside a table cell: normal
 weight, grey.
 
+### Tables
+
+Use Zabbix's own `list-table` (Wi-Fi views: `CTableInfo`; the runtime's `table()` adds the class). Missing values
+in a cell follow Muted above. Don't draw a bespoke table style.
+
 ## Module components
 
 These live in a module sheet because only one module has them. They use the shared tokens.
