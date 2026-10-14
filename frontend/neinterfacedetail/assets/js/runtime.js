@@ -23,6 +23,8 @@
     parallelSpacing: 10,
     blockMarkGap: 14
   };
+  /** Worst first: the order a switch's findings badge picks its colour from. */
+  const SEVERITY_ORDER = ['critical', 'high', 'warning', 'info'];
   function speed(value) {
     const n = Number(value);
     if (!Number.isFinite(n) || n <= 0) return 'Unknown';
@@ -545,7 +547,7 @@
     if (lags) parts.push(count(lags, 'LAG'));
     const severities = new Map();
     for (const finding of findings) severities.set(text(finding.severity), (severities.get(text(finding.severity)) ?? 0) + 1);
-    const order = ['critical', 'high', 'warning', 'info'];
+    const order = SEVERITY_ORDER;
     const bySeverity = [...severities]
       .sort(([a], [b]) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || natural(a, b))
       .map(([severity, n]) => `${n} ${severity}`);
@@ -1616,13 +1618,21 @@
       [has('.ne-node-context'), 'outside site', 'Connected neighbour outside the selected site'],
       [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
       [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
+      [has('.ne-node-stale'), 'stale data', 'A collection source is stale or failed; see Collection quality'],
+      [has('.ne-node-findings.ne-severity-warning'), '●', 'Number of findings; worst is a warning'],
+      [has('.ne-node-findings.ne-severity-info'), '●', 'Number of findings; information only'],
       [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
     ];
     for (const [shown, key, label] of entries) {
       if (!shown) continue;
       const item = el('li');
       const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
-      item.appendChild(el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : 'ne-legend-key'));
+      const severity = /worst is a warning|information only/.exec(label)
+        ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
+        : '';
+      item.appendChild(
+        el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : `ne-legend-key${severity}`)
+      );
       item.appendChild(el('span', label));
       legend.appendChild(item);
     }
@@ -1638,6 +1648,11 @@
       claimsRoot =
         context.mode === 'stp' && !isRoot && context.stp.disputed.length > 0 && context.stp.claimed.has(hostid),
       unreachable = host.snmp_available === false;
+    const findings = asRows(context.payload.findings).filter(f => id(f.hostid) === hostid),
+      worst = SEVERITY_ORDER.find(severity => findings.some(f => f.severity === severity)) ?? null,
+      staleData = asRows(context.payload.quality).some(
+        q => id(q.hostid) === hostid && (q.freshness === 'stale' || q.status === 'failed')
+      );
     const classes = ['ne-node'];
     const notes = [];
     if (!matching) classes.push('ne-muted');
@@ -1649,6 +1664,8 @@
       (classes.push('ne-node-root-disputed'), notes.push('reports itself as spanning-tree root; switches disagree'));
     if (unreachable) (classes.push('ne-node-unreachable'), notes.push('SNMP unreachable'));
     if (host.unresolved) (classes.push('ne-node-unresolved'), notes.push('STP placement unresolved'));
+    if (staleData) (classes.push('ne-node-stale'), notes.push('stale or failed collection'));
+    if (worst) notes.push(`${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}, worst ${worst}`);
     const group = svgEl('g', {
       transform: `translate(${host.x},${host.y})`,
       tabindex: 0,
@@ -1683,7 +1700,8 @@
       host.outside_site && 'outside site',
       host.out_of_subnet && 'off subnet',
       unreachable && 'unreachable',
-      host.unresolved && 'unresolved'
+      host.unresolved && 'unresolved',
+      staleData && 'stale data'
     ].filter(Boolean);
     group.appendChild(
       svgEl(
@@ -1694,6 +1712,18 @@
     );
     if (badges.length)
       group.appendChild(svgEl('text', { 'text-anchor': 'middle', y: 15, class: 'ne-node-badge' }, badges.join(' · ')));
+    // The switch's findings, where they happen: a count on the corner, coloured by the worst severity.
+    if (worst) {
+      const badge = svgEl('g', {
+        class: `ne-node-findings ne-severity-${worst}`,
+        transform: `translate(${LAYOUT.nodeWidth / 2 - 4},${-LAYOUT.nodeHeight / 2 + 4})`
+      });
+      badge.appendChild(svgEl('circle', { r: 10 }));
+      badge.appendChild(
+        svgEl('text', { 'text-anchor': 'middle', y: 4 }, findings.length > 99 ? '99+' : String(findings.length))
+      );
+      group.appendChild(badge);
+    }
     group.appendChild(svgEl('title', {}, text(host.name)));
     onActivate(group, () => context.select.host(host));
     svg.appendChild(group);

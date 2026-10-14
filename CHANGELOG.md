@@ -42,6 +42,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ### Changed
 - Network Explorer page: the topology starts higher. The per-dataset collection notices are one summary line that opens only when a source needs review, the root-bridge note is in the legend, zoom, fit and reset float over the canvas corner, and Focus and Expand LAG member links are secondary buttons.
+- Network Explorer topology: a switch with findings shows a count badge coloured by its worst severity (Zabbix's Warning yellow, Information blue), and a switch with a stale or failed collection source gets a dashed outline and a "stale data" label; both are in the legend and the node's accessible name.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

@@ -319,6 +319,35 @@ html[color-scheme='dark'] .ne-widget {
   fill: var(--ne-node-text);
   font-size: 12px;
 }
+/* Findings badge: Zabbix's own severity colours (Warning yellow, Information blue), never red for a warning. */
+.ne-widget .ne-node .ne-node-findings circle {
+  stroke: var(--ne-halo);
+  stroke-width: 2;
+}
+.ne-widget .ne-node .ne-node-findings text {
+  fill: #1f2c33;
+  font-size: 11px;
+  font-weight: bold;
+}
+.ne-widget .ne-node-findings.ne-severity-critical circle,
+.ne-widget .ne-node-findings.ne-severity-high circle {
+  fill: #e97659;
+}
+.ne-widget .ne-node-findings.ne-severity-warning circle {
+  fill: #ffc859;
+}
+.ne-widget .ne-node-findings.ne-severity-info circle {
+  fill: #7499ff;
+}
+.ne-widget .ne-legend-severity-warning {
+  color: #c99a2e;
+}
+.ne-widget .ne-legend-severity-info {
+  color: #7499ff;
+}
+.ne-widget .ne-node-stale rect:not(.ne-node-halo) {
+  stroke-dasharray: 2 3;
+}
 .ne-widget .ne-node-warning rect {
   stroke: #b37312;
   stroke-width: 3;
