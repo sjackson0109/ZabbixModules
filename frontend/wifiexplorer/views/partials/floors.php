@@ -19,10 +19,14 @@ if ($floors['floors'] === []) {
 }
 else {
     $list = (new CTableInfo())->setHeader([_('Site'), _('Building'), _('Floor'), _('APs placed'), _('Scale')]);
+    // A missing scale says where it is set: a link to the editor for a Super admin, who alone can set it.
+    $noScale = ($data['can_configure'] ?? false)
+        ? [_('Not set').' · ', new CLink(_('set width_m under Configure'), 'zabbix.php?action=wifiexplorer.config.edit')]
+        : _('Not set (a Super admin sets it under Configure)');
     foreach ($floors['floors'] as $floor) {
         $row = new CRow([$floor['site'], $floor['building'] !== '' ? $floor['building'] : '—',
             new CLink($floor['name'], $link(['view'=>'floors', 'floor'=>$floor['floor_id'], 'overlay'=>$request['overlay']])),
-            $floor['ap_count'], $floor['width_m'] !== null ? _s('%1$s m wide', $floor['width_m']) : _('Not set')]);
+            $floor['ap_count'], $floor['width_m'] !== null ? _s('%1$s m wide', $floor['width_m']) : $noScale]);
         if ($selected !== null && $floor['floor_id'] === $selected['floor_id']) {
             $row->addClass('we-selected');
         }
