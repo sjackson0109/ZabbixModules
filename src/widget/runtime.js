@@ -818,72 +818,117 @@
    */
   function showDetail(root, payload, port, broadcast, ctx = {}) {
     root.replaceChildren();
-    root.appendChild(el('h4', `${text(port.name)} · ${stateLabel(port)}`));
-    const list = el('dl', undefined, 'ne-details');
-    const details = {
-      ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
-      Description: port.description,
-      Alias: port.alias,
-      'Interface UID': port.uid,
-      'Current ifIndex': port.if_index,
-      Classification: isPhysical(port) ? 'Physical' : port.physical === false ? 'Logical' : 'Unknown',
-      'Member / slot / port': [port.member, port.slot, port.port].map(text).join(' / '),
-      'Administrative state': enumValue(port.admin_status),
-      'Operational state': enumValue(port.oper_status),
-      'Observed speed': speed(port.speed_bps),
-      'Intended speed': speed(port.expected_speed_bps),
-      'Expected speed source': [port.expected_speed_source ?? port.policy?.source, port.expected_speed_basis]
-        .filter(Boolean)
-        .join(' · '),
-      'Observed at': port.observed_at ?? port.quality?.observed_at,
-      Freshness: port.freshness ?? port.quality?.freshness,
-      Duplex: port.duplex,
-      MTU: port.mtu,
-      'MAC address': port.mac_address
+    const state = portState(port);
+    root.appendChild(el('h4', `${text(port.name)} · ${stateLabel(port)}`, `ne-detail-title ne-detail-${state}`));
+    const peers = peersFor(payload, port);
+    // The answer first: state, speed against intent, VLAN mode and the LLDP peer, before the full record.
+    const strip = el('div', undefined, 'ne-detail-summary');
+    const fact = (label, value, className) => {
+      const item = el('div', undefined, `ne-detail-fact${className ? ` ${className}` : ''}`);
+      item.append(el('span', label, 'ne-detail-fact-label'));
+      const body = el('span', undefined, 'ne-detail-fact-value');
+      body.append(...(Array.isArray(value) ? value : [document.createTextNode(text(value))]));
+      item.append(body);
+      strip.appendChild(item);
     };
-    for (const [label, value] of Object.entries(details)) {
-      list.appendChild(el('dt', label));
-      list.appendChild(el('dd', text(value)));
+    fact('State', `${text(enumValue(port.oper_status))} (admin ${text(enumValue(port.admin_status))})`);
+    const observed = Number(port.speed_bps),
+      intended = Number(port.expected_speed_bps),
+      reduced = observed > 0 && intended > 0 && observed < intended;
+    fact(
+      'Speed',
+      intended > 0 ? `${speed(port.speed_bps)} of ${speed(port.expected_speed_bps)} intended` : speed(port.speed_bps),
+      reduced ? 'ne-detail-fact-reduced' : ''
+    );
+    if (port.vlan)
+      fact('VLAN', `${text(port.vlan.mode)}${port.vlan.pvid ? `, native ${port.vlan.pvid}` : ''}`);
+    // Every resolved peer, with the remote port selectable in place where the page supports it.
+    const peerValue = [];
+    for (const { peer, edge } of peers) {
+      const remote = findInterface(payload, peer.hostid, peer.uid);
+      if (peerValue.length) peerValue.push(el('br'));
+      peerValue.push(
+        peerLink(payload, peer, port.name, broadcast),
+        document.createTextNode(
+          ` · port ${text(remote?.name ?? peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
+        )
+      );
+      if (remote && ctx.selectInterface)
+        peerValue.push(
+          document.createTextNode(' '),
+          button(`Select ${text(remote.name)}`, () => ctx.selectInterface(remote), 'ne-link-button')
+        );
     }
-    root.appendChild(list);
-    const sections = [];
-    if (port.capability) {
-      const c = port.capability,
-        speeds = list => (Array.isArray(list) ? (list.length ? list.map(speed).join(', ') : 'None') : 'Unknown');
-      sections.push([
-        'Port capability',
-        {
-          'Auto-negotiation': c.autoneg_enabled === true ? 'Enabled' : c.autoneg_enabled === false ? 'Disabled' : null,
-          Supported: speeds(c.supported_speeds_bps),
-          Advertised: speeds(c.advertised_speeds_bps),
-          'Partner advertised': speeds(c.partner_advertised_speeds_bps),
-          'Operating (MAU)': `${speed(c.oper_speed_bps)} ${text(c.oper_duplex)}`
-        }
-      ]);
-    }
+    fact('LLDP peers', peers.length ? peerValue : 'No permitted LLDP peer is resolved for this interface.');
+    root.appendChild(strip);
+    const dl = values => {
+      const list = el('dl', undefined, 'ne-details');
+      for (const [label, value] of Object.entries(values)) {
+        list.appendChild(el('dt', label));
+        list.appendChild(el('dd', text(value)));
+      }
+      return list;
+    };
+    root.appendChild(
+      dl({
+        ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
+        Description: port.description,
+        Alias: port.alias,
+        'Member / slot / port': [port.member, port.slot, port.port].map(text).join(' / '),
+        'Administrative state': enumValue(port.admin_status),
+        'Operational state': enumValue(port.oper_status),
+        'Observed speed': speed(port.speed_bps),
+        'Intended speed': speed(port.expected_speed_bps),
+        // Where the intended speed comes from belongs next to it: it is what makes a slower port a finding.
+        'Expected speed source': [port.expected_speed_source ?? port.policy?.source, port.expected_speed_basis]
+          .filter(Boolean)
+          .join(' · '),
+        Duplex: port.duplex,
+        Freshness: port.freshness ?? port.quality?.freshness
+      })
+    );
     if (port.vlan) {
       const v = port.vlan;
-      sections.push([
-        'VLAN membership',
-        {
+      root.appendChild(el('h4', 'VLAN membership', 'ne-detail-heading'));
+      root.appendChild(
+        dl({
           ...(v.via_lag ? { 'Carried via': v.via_lag } : {}),
           Mode: v.mode,
           'Native VLAN (PVID)': v.pvid,
           Untagged: v.untagged || 'None',
           Tagged: v.tagged || 'None',
           Forbidden: v.forbidden || 'None'
-        }
-      ]);
+        })
+      );
     }
-    for (const [title, values] of sections) {
-      root.appendChild(el('h4', title));
-      const dl = el('dl', undefined, 'ne-details');
-      for (const [label, value] of Object.entries(values)) {
-        dl.appendChild(el('dt', label));
-        dl.appendChild(el('dd', text(value)));
-      }
-      root.appendChild(dl);
+    // Identifiers and negotiation evidence: needed to diagnose, not to read the port, so collapsed.
+    const diagnostics = el('details', undefined, 'ne-detail-diagnostics');
+    diagnostics.appendChild(el('summary', 'Diagnostics'));
+    diagnostics.appendChild(
+      dl({
+        'Interface UID': port.uid,
+        'Current ifIndex': port.if_index,
+        Classification: isPhysical(port) ? 'Physical' : port.physical === false ? 'Logical' : 'Unknown',
+        'Observed at': port.observed_at ?? port.quality?.observed_at,
+        MTU: port.mtu,
+        'MAC address': port.mac_address
+      })
+    );
+    if (port.capability) {
+      const c = port.capability,
+        speeds = list => (Array.isArray(list) ? (list.length ? list.map(speed).join(', ') : 'None') : 'Unknown');
+      diagnostics.appendChild(el('h4', 'Port capability', 'ne-detail-heading'));
+      diagnostics.appendChild(
+        dl({
+          'Auto-negotiation': c.autoneg_enabled === true ? 'Enabled' : c.autoneg_enabled === false ? 'Disabled' : null,
+          Supported: speeds(c.supported_speeds_bps),
+          Advertised: speeds(c.advertised_speeds_bps),
+          'Partner advertised': speeds(c.partner_advertised_speeds_bps),
+          'Operating (MAU)': `${speed(c.oper_speed_bps)} ${text(c.oper_duplex)}`
+        })
+      );
     }
+    root.appendChild(diagnostics);
     if (asRows(port.stp).length) {
       table(
         root,
@@ -909,24 +954,6 @@
     }
     if (port.itemid && ctx.linked !== false)
       root.appendChild(button('Select interface in linked widgets', () => broadcast(port.hostid, port.itemid)));
-    const peers = peersFor(payload, port);
-    root.appendChild(el('h4', 'LLDP peers'));
-    if (!peers.length) notice(root, 'No permitted LLDP peer is resolved for this interface.');
-    for (const { peer, edge } of peers) {
-      const row = el('p');
-      const remote = findInterface(payload, peer.hostid, peer.uid);
-      row.append(
-        peerLink(payload, peer, port.name, broadcast),
-        document.createTextNode(
-          ` · port ${text(remote?.name ?? peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
-        )
-      );
-      if (remote && ctx.selectInterface) {
-        row.appendChild(document.createTextNode(' '));
-        row.appendChild(button(`Select ${text(remote.name)}`, () => ctx.selectInterface(remote), 'ne-link-button'));
-      }
-      root.appendChild(row);
-    }
     const lagRows = asRows(payload.lags).filter(
       lag =>
         id(lag.hostid) === id(port.hostid) &&

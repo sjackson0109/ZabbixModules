@@ -560,3 +560,46 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-stp-path ol {
   margin: 4px 0 8px 20px;
 }
+/* Interface detail: the answer first, headings that read as headings, diagnostics collapsed. */
+.ne-widget .ne-detail-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--ne-line);
+  border-radius: 4px;
+}
+.ne-widget .ne-detail-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ne-widget .ne-detail-fact-label {
+  font-size: 11px;
+  color: var(--ne-label);
+}
+.ne-widget .ne-detail-fact-value {
+  font-weight: bold;
+}
+.ne-widget .ne-detail-fact-reduced .ne-detail-fact-value,
+.ne-widget .ne-detail-title.ne-detail-speed_observation,
+.ne-widget .ne-detail-title.ne-detail-duplex_observation,
+.ne-widget .ne-detail-title.ne-detail-degraded {
+  color: #b37312;
+}
+.ne-widget .ne-detail-title.ne-detail-down {
+  color: #b04444;
+}
+.ne-widget .ne-detail-title {
+  font-size: 14px;
+  font-weight: bold;
+  margin: 4px 0;
+}
+.ne-widget .ne-detail-heading {
+  font-weight: bold;
+  margin: 14px 0 4px;
+}
+.ne-widget .ne-detail-diagnostics > summary {
+  font-weight: bold;
+}
