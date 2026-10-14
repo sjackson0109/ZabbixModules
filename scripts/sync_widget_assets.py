@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Copy the shared runtime and stylesheet into each widget module and the Network Explorer page module.
+"""Copy the shared runtime and stylesheets into each widget module and both Explorer page modules.
 
-Zabbix serves a module's assets only from its own directory, so every widget, and the Explorer page, ships a copy:
-one topology implementation, several presentation hosts. The copies are generated from src/widget; edit the source
-and run this script, never the copies.
+Zabbix serves a module's assets only from its own directory, so every widget, and each Explorer page, ships a copy:
+one topology implementation and one set of design tokens, several presentation hosts. The copies are generated from
+src/widget and src/design; edit the source and run this script, never the copies.
 """
 from __future__ import annotations
 
@@ -12,15 +12,19 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "src" / "widget"
 WIDGETS = ("neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings", "networkexplorer")
-ASSETS = {"runtime.js": Path("assets/js/runtime.js"), "widget.css": Path("assets/css/widget.css")}
+# Source file -> (where each copy lives in a module, the modules that ship it).
+ASSETS = {
+    ROOT / "src" / "widget" / "runtime.js": (Path("assets/js/runtime.js"), WIDGETS),
+    ROOT / "src" / "widget" / "widget.css": (Path("assets/css/widget.css"), WIDGETS),
+    ROOT / "src" / "design" / "explorers.css": (Path("assets/css/explorers.css"), WIDGETS + ("wifiexplorer",)),
+}
 
 
 def targets():
-    for widget in WIDGETS:
-        for name, relative in ASSETS.items():
-            yield SOURCE / name, ROOT / "frontend" / widget / relative
+    for source, (relative, modules) in ASSETS.items():
+        for module in modules:
+            yield source, ROOT / "frontend" / module / relative
 
 
 def main() -> int:

@@ -52,6 +52,10 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Network Explorer interface detail: a port with no stack member or slot says "Not placed" instead of "Unknown / Unknown / Unknown".
 - Wi-Fi Explorer: each tab opens with one sentence, with the rest of its explanation behind an "About this view" disclosure.
 - Wi-Fi Explorer Floor plans: a floor without a scale links a Super admin to the configuration editor where it is set.
+- Both Explorers share one design system (`src/design/explorers.css`, documented in [COMPONENTS.md](docs/design/COMPONENTS.md)), shipped in every module by `scripts/sync_widget_assets.py`: status tones that pass WCAG AA in Zabbix's light and dark themes, Zabbix's severity fills, and spacing, type, radius and opacity scales, replacing about 120 colour literals. Wi-Fi Explorer now follows Zabbix's dark themes, and Warning is yellow in both modules (it was red in Wi-Fi Explorer).
+- Shared components replace per-module copies: status tones, callouts and notes, legends (the port panel's is now mini port tiles), tabs (Capacity's range is a lighter sub-tab row), evidence badges (Network Explorer's link tables badge each link's confidence), the filter bar (labels above fields in both modules), disclosures, and one "Unknown" style for missing values. Network Explorer tables use Zabbix's list-table look, and link buttons are underlined only on hover.
+- Wi-Fi Explorer KPI tiles follow one accent rule on every tab: none when healthy, yellow for something to review, red only when APs or radios are down.
+- Port panel state colours left at the widget form's defaults follow the Zabbix theme; a colour someone chose still overrides. The form's defaults for degraded and no-data are the new tones.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

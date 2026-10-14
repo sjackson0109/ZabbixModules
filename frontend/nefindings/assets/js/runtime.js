@@ -660,11 +660,25 @@
     node.addEventListener('click', action);
     return node;
   }
+  /** Link confidences that count as observed from both ends; anything else is drawn and badged as inferred. */
+  const CONFIRMED = ['confirmed', 'bidirectional', 'high'];
+  /** The evidence badge shared with Wi-Fi Explorer: solid for observed, dashed for inferred. */
+  function confidenceBadge(value) {
+    if (value === null || value === undefined || value === '') return null;
+    return el('span', value, `zx-badge ${CONFIRMED.includes(value) ? 'zx-badge-observed' : 'zx-badge-inferred'}`);
+  }
   function notice(root, value, kind = 'info') {
-    root.appendChild(el('p', value, `ne-notice ne-${kind}`));
+    root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
+  }
+  /** A table or detail value; a missing one reads "Unknown" in muted text, so it never looks like data. */
+  function valueNode(value) {
+    if (value instanceof Node) return value;
+    const shown = text(value);
+    return shown === 'Unknown' ? el('span', shown, 'zx-muted') : document.createTextNode(shown);
   }
   function table(root, columns, rows, caption) {
-    const node = el('table', undefined, 'ne-table');
+    // Zabbix's own list-table styling, as Wi-Fi Explorer's tables and every Zabbix list use.
+    const node = el('table', undefined, 'list-table ne-table');
     if (caption) node.appendChild(el('caption', caption));
     const head = el('thead'),
       tr = el('tr');
@@ -681,7 +695,7 @@
       for (const column of columns) {
         const td = el('td'),
           value = column.value(row);
-        td.append(value instanceof Node ? value : document.createTextNode(text(value)));
+        td.append(valueNode(value));
         tr.appendChild(td);
       }
       body.appendChild(tr);
@@ -744,7 +758,7 @@
       const chip = el(
         'details',
         undefined,
-        `ne-collection-chip ${healthy === datasets.length ? 'ne-info' : 'ne-warning'}`
+        `ne-collection-chip zx-callout ${healthy === datasets.length ? 'zx-callout-info' : 'zx-callout-warning'}`
       );
       chip.open = healthy < datasets.length;
       chip.appendChild(
@@ -873,7 +887,7 @@
       const list = el('dl', undefined, 'ne-details');
       for (const [label, value] of Object.entries(values)) {
         list.appendChild(el('dt', label));
-        list.appendChild(el('dd', text(value)));
+        list.appendChild(el('dd')).append(valueNode(value));
       }
       return list;
     };
@@ -910,7 +924,7 @@
       );
     }
     // Identifiers and negotiation evidence: needed to diagnose, not to read the port, so collapsed.
-    const diagnostics = el('details', undefined, 'ne-detail-diagnostics');
+    const diagnostics = el('details', undefined, 'zx-disclosure ne-detail-diagnostics');
     diagnostics.appendChild(el('summary', 'Diagnostics'));
     diagnostics.appendChild(
       dl({
@@ -982,15 +996,24 @@
       return;
     }
     observations(root, payload, hostid);
+    // Each layer's key: a mini tile in the state's own style, then the tile's glyph and words.
     const legends = {
-      physical: Object.values(STATE_LABELS).join('  '),
-      vlan: Object.values(VLAN_LABELS).join('  '),
-      stp: `${Object.entries(STP_MARKS)
-        .map(([state, mark]) => `${mark} ${state[0].toUpperCase()}${state.slice(1)}`)
-        .join('  ')}  * derived role`,
-      lldp: '⇄ LLDP neighbour  · No neighbour'
+      physical: Object.entries(STATE_LABELS).map(([state, label]) => [`ne-state-${state}`, label]),
+      vlan: Object.entries(VLAN_LABELS).map(([state, label]) => [`ne-vlan-${state}`, label]),
+      stp: [
+        ...Object.entries(STP_MARKS).map(([state, mark]) => [
+          `ne-stp-${state}`,
+          `${mark} ${state[0].toUpperCase()}${state.slice(1)}`
+        ]),
+        [null, '* derived role']
+      ],
+      lldp: [
+        ['ne-lldp-peer', '⇄ LLDP neighbour'],
+        ['ne-lldp-none', '· No neighbour']
+      ]
     };
-    const legend = el('p', undefined, 'ne-legend');
+    const legend = el('ul', undefined, 'zx-legend');
+    legend.setAttribute('aria-label', 'Port legend');
     root.appendChild(legend);
     const physical = ports.filter(isPhysical),
       other = ports.filter(p => !isPhysical(p));
@@ -1051,10 +1074,10 @@
     if (state.instance) instancePick.value = state.instance;
     toolbar.append(layer, vlanPick, instancePick);
     root.appendChild(toolbar);
-    const layerNote = el('p', undefined, 'ne-legend');
+    const layerNote = el('p', undefined, 'zx-note');
     root.appendChild(layerNote);
     applyColours(root, payload.scope?.colours);
-    const tabs = el('div', undefined, 'ne-member-tabs');
+    const tabs = el('div', undefined, 'zx-tabs ne-member-tabs');
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', 'Stack members');
     root.appendChild(tabs);
@@ -1111,7 +1134,14 @@
       state.instance = instancePick.value;
       vlanPick.hidden = layer.value !== 'vlan';
       instancePick.hidden = layer.value !== 'stp';
-      legend.textContent = legends[layer.value];
+      legend.replaceChildren(
+        ...legends[layer.value].map(([tile, label]) => {
+          const item = el('li');
+          if (tile) item.appendChild(el('span', undefined, `ne-legend-tile ${tile}`));
+          item.appendChild(el('span', label));
+          return item;
+        })
+      );
       layerNote.textContent =
         layer.value === 'vlan' && !vlanIds.size
           ? 'No VLAN membership has been collected for this host.'
@@ -1142,7 +1172,7 @@
               draw();
               tabs.querySelector('[aria-selected="true"]')?.focus();
             },
-            'ne-member-tab'
+            'zx-tab ne-member-tab'
           );
           tab.setAttribute('role', 'tab');
           tab.setAttribute('aria-selected', id(member) === state.member ? 'true' : 'false');
@@ -1207,7 +1237,7 @@
         state.last_broadcast = `${selected.hostid}:${selected.uid}`;
       }
     }
-    const details = el('details');
+    const details = el('details', undefined, 'zx-disclosure');
     details.appendChild(el('summary', `Interface table (${ports.length}; ${other.length} logical or unclassified)`));
     table(
       details,
@@ -1346,7 +1376,7 @@
           label: 'STP role and state (source / destination)',
           value: e => (e.stp ? `${stpEnd(e.stp.source)} / ${stpEnd(e.stp.target)}` : 'Unknown')
         },
-        { label: 'Confidence', value: e => e.confidence },
+        { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
         { label: 'Freshness', value: e => e.freshness }
       ],
       edge.members,
@@ -1378,7 +1408,7 @@
     const list = el('dl', undefined, 'ne-details');
     for (const [label, value] of Object.entries(facts)) {
       list.appendChild(el('dt', label));
-      list.appendChild(el('dd', text(value)));
+      list.appendChild(el('dd')).append(valueNode(value));
     }
     details.appendChild(list);
     if (host.out_of_subnet)
@@ -1398,7 +1428,7 @@
     const ports = asRows(payload.interfaces)
       .filter(p => id(p.hostid) === hostid)
       .sort((a, b) => natural(a.member ?? Infinity, b.member ?? Infinity) || natural(a.name, b.name));
-    const section = el('details');
+    const section = el('details', undefined, 'zx-disclosure');
     section.open = true;
     section.appendChild(el('summary', `Interfaces (${ports.length})`));
     if (!ports.length) notice(section, 'No validated interface observations are available for this switch.');
@@ -1448,7 +1478,7 @@
       !b ||
       edge.freshness === 'stale' ||
       edge.confidence === 'ambiguous' ||
-      !['confirmed', 'bidirectional', 'high'].includes(edge.confidence ?? edge.status);
+      !CONFIRMED.includes(edge.confidence ?? edge.status);
     const visible = a ?? b;
     const label =
       a && b
@@ -1666,7 +1696,7 @@
         ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
         : '';
       item.appendChild(
-        el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : `ne-legend-key${severity}`)
+        el('span', swatch ? '' : key, swatch ? `zx-swatch ne-swatch-${key}` : `zx-legend-key${severity}`)
       );
       item.appendChild(el('span', label));
       legend.appendChild(item);
@@ -1690,7 +1720,7 @@
       );
     const classes = ['ne-node'];
     const notes = [];
-    if (!matching) classes.push('ne-muted');
+    if (!matching) classes.push('ne-dimmed');
     if (host.out_of_subnet) (classes.push('ne-node-warning'), notes.push('outside management subnet'));
     if (host.outside_site) (classes.push('ne-node-context'), notes.push('outside selected site'));
     if (carries) (classes.push('ne-node-vlan'), notes.push(`has VLAN ${context.vlan}`));
@@ -1855,7 +1885,7 @@
     const frame = el('div', undefined, 'ne-graph-frame'),
       controls = el('div', undefined, 'ne-view-controls'),
       graph = el('div', undefined, 'ne-graph'),
-      legend = el('ul', undefined, 'ne-topology-legend');
+      legend = el('ul', undefined, 'zx-legend ne-topology-legend');
     graph.tabIndex = 0;
     graph.setAttribute('role', 'region');
     graph.setAttribute(
@@ -2188,7 +2218,7 @@
     });
     // Searching only dims non-matching nodes, so it never rebuilds the drawing; Enter focuses a match.
     search.addEventListener('input', () => {
-      for (const [host, node] of nodes) node.classList.toggle('ne-muted', !matches(host));
+      for (const [host, node] of nodes) node.classList.toggle('ne-dimmed', !matches(host));
       searchStatus.textContent = '';
     });
     search.addEventListener('keydown', event => {
@@ -2221,7 +2251,7 @@
       if (port) select.iface(port, true);
       else notice(details, 'The selected interface is not in the current scope or observation.', 'warning');
     }
-    const tabular = el('details');
+    const tabular = el('details', undefined, 'zx-disclosure');
     tabular.appendChild(el('summary', `Accessible link table (${edges.length})`));
     table(
       tabular,
@@ -2231,7 +2261,7 @@
         { label: 'Peer', value: e => (e.target ? hostName(payload, e.target) : 'Undisclosed peer') },
         { label: 'Peer port', value: e => (e.target ? interfaceName(payload, e.target, e.target_uid) : null) },
         { label: 'Resolution', value: e => e.status },
-        { label: 'Confidence', value: e => e.confidence },
+        { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
         { label: 'Freshness', value: e => e.freshness }
       ],
       edges,

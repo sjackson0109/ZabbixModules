@@ -39,7 +39,7 @@ $selected = $data['paths'][$request['ssid']] ?? null;
 foreach ($data['paths'] as $uid => $path) {
     $vlans = array_unique(array_column($path['results'], 'vlan'));
     $row = new CRow([new CLink($path['name'], $link(['view'=>'paths', 'ssid'=>$uid])), implode(', ', $vlans),
-        $path['counts']['complete'], (new CSpan($path['counts']['failed']))->addClass($path['counts']['failed'] ? 'we-path-failed' : ''),
+        $path['counts']['complete'], $toned($path['counts']['failed'], $path['counts']['failed'] ? 'failed' : ''),
         $path['counts']['partial'], $path['counts']['unknown']]);
     if ($uid === $request['ssid']) {
         $row->addClass('we-selected');
@@ -49,7 +49,7 @@ foreach ($data['paths'] as $uid => $path) {
 $root->addItem([new CTag('h2', true, _('Service paths by SSID')), $summary]);
 
 if ($selected === null) {
-    $root->addItem((new CTag('p', true, _('Select an SSID to see each AP\'s path hop by hop.')))->addClass('we-muted'));
+    $root->addItem((new CTag('p', true, _('Select an SSID to see each AP\'s path hop by hop.')))->addClass('zx-muted'));
     return;
 }
 $table = (new CTableInfo())->setHeader([_('Access point'), _('VLAN'), _('Result'), _('Why'), _('Path, AP to root')]);
@@ -71,7 +71,7 @@ foreach ($results as $result) {
         $hops->addItem($item);
     }
     if ($result['chain_status'] === 'complete' && $result['hops']) {
-        $hops->addItem((new CSpan(_('root bridge')))->addClass('we-muted'));
+        $hops->addItem((new CSpan(_('root bridge')))->addClass('zx-muted'));
     }
     $why = $result['reason'] !== null ? ($pathReasons[$result['reason']] ?? $result['reason']) : '';
     if ($result['status'] === 'failed') {
@@ -83,6 +83,6 @@ foreach ($results as $result) {
         $why .= ($why !== '' ? '; ' : '')._('MSTP: checked along the CIST');
     }
     $table->addRow([new CLink($apName($result['ap_uid']), $link(['ap'=>$result['ap_uid']])), $result['vlan'],
-        (new CSpan($pathStates[$result['status']]))->addClass('we-path-'.$result['status']), $why, $hops]);
+        $toned($pathStates[$result['status']], $result['status']), $why, $hops]);
 }
 $root->addItem([new CTag('h2', true, _s('%1$s: path per access point', $selected['name'])), $table]);

@@ -128,6 +128,10 @@ final class Manager {
     $payload = WidgetPayload::build(['layout'=>4, 'layer'=>9, 'colour_down'=>'ff0000', 'colour_normal'=>'red'], true, true);
     $assert($payload['scope']['layout'] === 'stack' && $payload['scope']['layer'] === 'physical'
         && $payload['scope']['colours'] === ['down'=>'FF0000'], 'Form values map to known names and colours only.');
+    $payload = WidgetPayload::build(['colour_normal'=>'287e3f', 'colour_degraded'=>'B37312', 'colour_unknown'=>'3A4752',
+        'colour_disabled'=>'123456'], true, true);
+    $assert($payload['scope']['colours'] === ['disabled'=>'123456'],
+        'Default state colours are not sent, so the theme decides; a chosen colour still overrides.');
 
     $assert(Errors::code(new RuntimeException('SQL error near "secret"')) === Errors::READ_FAILED
         && Errors::code(new RuntimeException('host_budget_exceeded')) === 'host_budget_exceeded',

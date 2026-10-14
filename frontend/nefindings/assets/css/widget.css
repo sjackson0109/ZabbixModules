@@ -1,7 +1,7 @@
 .ne-widget {
   /* Theme tokens: light by default, overridden for Zabbix's dark and high-contrast dark themes. */
-  --ne-accent: #387ac4;
-  --ne-link: #2676b9;
+  --ne-accent: var(--zx-accent);
+  --ne-link: var(--zx-accent);
   --ne-rule: #909ba5;
   --ne-line: #a2adb7;
   --ne-edge: #536c82;
@@ -9,17 +9,15 @@
   --ne-node-stroke: #52718b;
   --ne-node-text: #183142;
   --ne-node-vlan-fill: #e3f2e7;
-  --ne-label: #607080;
-  --ne-halo: #ffffff;
-  padding: 10px;
+  --ne-label: var(--zx-tone-unknown);
+  --ne-halo: var(--zx-halo);
+  padding: var(--zx-space-2);
   overflow: auto;
   max-height: 100%;
   color: inherit;
   box-sizing: border-box;
 }
 html[color-scheme='dark'] .ne-widget {
-  --ne-accent: #5d9de0;
-  --ne-link: #6fb2ec;
   --ne-rule: #5d6973;
   --ne-line: #5d6973;
   --ne-edge: #8aa4ba;
@@ -27,45 +25,30 @@ html[color-scheme='dark'] .ne-widget {
   --ne-node-stroke: #8aa4ba;
   --ne-node-text: #e6edf3;
   --ne-node-vlan-fill: #1f3a29;
-  --ne-label: #b5c0ca;
-  --ne-halo: #1e252b;
 }
 .ne-widget * {
   box-sizing: border-box;
 }
-.ne-widget .ne-notice {
-  padding: 7px 9px;
-  margin: 5px 0;
-  border-left: 3px solid #6b849c;
-  background: rgba(100, 125, 150, 0.07);
-}
-.ne-widget .ne-warning {
-  border-left-color: #ae6810;
-}
 .ne-widget .ne-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--zx-space-2);
   align-items: center;
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-toolbar input {
   max-width: 260px;
 }
-.ne-widget .ne-legend {
-  line-height: 1.8;
-  padding: 5px 0;
-}
 .ne-widget .ne-port-member {
-  margin-bottom: 12px;
+  margin-bottom: var(--zx-space-3);
 }
 .ne-widget .ne-port-member h4 {
-  margin: 8px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-port-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(48px, 1fr));
-  gap: 5px;
+  gap: var(--zx-space-1);
   max-width: 1200px;
 }
 .ne-widget .ne-layout-24 {
@@ -85,10 +68,10 @@ html[color-scheme='dark'] .ne-widget {
   height: auto;
   min-height: 80px;
   margin: 0;
-  padding: 5px 3px;
-  border: 2px solid #607080;
-  border-radius: 4px;
-  background: rgba(100, 125, 150, 0.1);
+  padding: var(--zx-space-1) 3px;
+  border: 2px solid var(--zx-tone-unknown);
+  border-radius: var(--zx-radius);
+  background: var(--zx-surface-tint);
   color: inherit;
   white-space: normal;
   line-height: 1.3;
@@ -103,50 +86,37 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-port-status,
 .ne-widget .ne-port-speed {
-  font-size: 10px;
+  font-size: var(--zx-text-xs);
   margin-top: 3px;
 }
-.ne-widget button.ne-state-up {
-  border-color: var(--ne-colour-normal, #287e3f);
-  background: color-mix(in srgb, var(--ne-colour-normal, #287e3f) 10%, transparent);
+.ne-widget button.ne-state-up,
+.ne-widget .ne-legend-tile.ne-state-up {
+  border-color: var(--ne-colour-normal, var(--zx-tone-ok));
+  background: color-mix(in srgb, var(--ne-colour-normal, var(--zx-tone-ok)) 10%, transparent);
 }
-.ne-widget button.ne-state-down {
-  border-color: var(--ne-colour-down, #b04444);
-  background: color-mix(in srgb, var(--ne-colour-down, #b04444) 10%, transparent);
+.ne-widget button.ne-state-down,
+.ne-widget .ne-legend-tile.ne-state-down {
+  border-color: var(--ne-colour-down, var(--zx-tone-critical));
+  background: color-mix(in srgb, var(--ne-colour-down, var(--zx-tone-critical)) 10%, transparent);
 }
-.ne-widget button.ne-state-degraded {
-  border-color: var(--ne-colour-degraded, #b37312);
-  background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 13%, transparent);
+.ne-widget button.ne-state-degraded,
+.ne-widget .ne-legend-tile.ne-state-degraded {
+  border-color: var(--ne-colour-degraded, var(--zx-tone-warning));
+  background: color-mix(in srgb, var(--ne-colour-degraded, var(--zx-tone-warning)) 13%, transparent);
 }
-.ne-widget button.ne-state-disabled {
-  border-color: var(--ne-colour-disabled, #607080);
+.ne-widget button.ne-state-disabled,
+.ne-widget .ne-legend-tile.ne-state-disabled {
+  border-color: var(--ne-colour-disabled, var(--zx-tone-unknown));
   border-style: dashed;
-  opacity: 0.75;
+  opacity: var(--zx-opacity-disabled);
 }
-.ne-widget button.ne-state-unknown {
-  border-color: var(--ne-colour-unknown, #3a4752);
-  background: color-mix(in srgb, var(--ne-colour-unknown, #3a4752) 8%, transparent);
+.ne-widget button.ne-state-unknown,
+.ne-widget .ne-legend-tile.ne-state-unknown {
+  border-color: var(--ne-colour-unknown, var(--zx-tone-unknown));
+  background: color-mix(in srgb, var(--ne-colour-unknown, var(--zx-tone-unknown)) 8%, transparent);
 }
 .ne-widget .ne-member-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 8px 0 0;
-}
-.ne-widget .ne-member-tabs[hidden] {
-  display: none;
-}
-.ne-widget button.ne-member-tab {
-  border: 1px solid var(--ne-rule);
-  border-bottom-width: 3px;
-  border-radius: 4px 4px 0 0;
-  padding: 4px 12px;
-  background: transparent;
-  color: inherit;
-}
-.ne-widget button.ne-member-tab[aria-selected='true'] {
-  border-bottom-color: var(--ne-accent);
-  font-weight: bold;
+  margin: var(--zx-space-2) 0 var(--zx-space-1);
 }
 .ne-widget button.ne-port[aria-pressed='true'] {
   outline: 3px solid var(--ne-accent);
@@ -158,9 +128,9 @@ html[color-scheme='dark'] .ne-widget {
   outline-offset: 2px;
 }
 .ne-widget .ne-drawer {
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
   border-top: 1px solid var(--ne-rule);
-  padding-top: 8px;
+  padding-top: var(--zx-space-2);
 }
 .ne-widget .ne-drawer:empty {
   display: none;
@@ -168,7 +138,7 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-details {
   display: grid;
   grid-template-columns: minmax(110px, 180px) 1fr;
-  gap: 4px 12px;
+  gap: var(--zx-space-1) var(--zx-space-3);
 }
 .ne-widget .ne-details dt {
   font-weight: bold;
@@ -177,23 +147,23 @@ html[color-scheme='dark'] .ne-widget {
   margin: 0;
   overflow-wrap: anywhere;
 }
+/* Tables take Zabbix's list-table header and row look; cells keep a compact rhythm and wrap long identifiers. */
 .ne-widget .ne-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-table th,
 .ne-widget .ne-table td {
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid var(--ne-line);
-  padding: 6px;
+  padding: var(--zx-space-1) var(--zx-space-2);
   overflow-wrap: anywhere;
 }
 .ne-widget .ne-table caption {
   text-align: left;
   font-weight: bold;
-  padding-bottom: 5px;
+  padding-bottom: var(--zx-space-1);
 }
 .ne-widget button.ne-link-button {
   background: none;
@@ -203,12 +173,18 @@ html[color-scheme='dark'] .ne-widget {
   text-align: left;
   height: auto;
   white-space: normal;
+  text-decoration: none;
+}
+/* Link buttons look like Zabbix links: underlined only on hover and focus. */
+.ne-widget button.ne-link-button:hover,
+.ne-widget button.ne-link-button:focus-visible {
+  background: none;
   text-decoration: underline;
 }
-.ne-widget details {
-  margin: 10px 0;
+.ne-widget .zx-disclosure {
+  margin: var(--zx-space-2) 0;
 }
-.ne-widget summary {
+.ne-widget .ne-collection-chip > summary {
   cursor: pointer;
 }
 .ne-widget .ne-graph {
@@ -217,7 +193,7 @@ html[color-scheme='dark'] .ne-widget {
   max-width: 100%;
   min-height: 180px;
   border: 1px solid var(--ne-line);
-  border-radius: 4px;
+  border-radius: var(--zx-radius);
 }
 .ne-widget .ne-graph:focus-visible {
   outline: 2px solid var(--ne-accent);
@@ -243,68 +219,55 @@ html[color-scheme='dark'] .ne-widget {
   top: 6px;
   right: 6px;
   display: flex;
-  gap: 4px;
+  gap: var(--zx-space-1);
 }
 .ne-widget .ne-view-controls .ne-view-control {
   min-width: 28px;
-  padding: 0 7px;
+  padding: 0 var(--zx-space-2);
 }
-/* The collection summary is one line until a source needs review. */
+/* The collection summary is a one-line callout until a source needs review. */
 .ne-widget .ne-collection-chip {
   display: inline-block;
-  margin: 5px 0;
-  padding: 3px 9px;
-  border-left: 3px solid #6b849c;
-  background: rgba(100, 125, 150, 0.07);
+  padding: var(--zx-space-1) var(--zx-space-2);
 }
-.ne-widget .ne-collection-chip.ne-warning {
-  border-left-color: #ae6810;
+.ne-widget .ne-collection-chip .zx-callout {
+  margin: var(--zx-space-1) 0;
 }
 .ne-widget .ne-collection-chip[open] {
   display: block;
 }
-.ne-widget .ne-topology-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 6px 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  color: var(--ne-label);
-}
-.ne-widget .ne-topology-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.ne-widget .ne-legend-key {
-  font-weight: bold;
+.ne-widget .zx-legend-key {
   color: var(--ne-node-text);
 }
-.ne-widget .ne-swatch {
+.ne-widget .zx-swatch {
+  border-top-color: var(--ne-edge);
+}
+/* A port-panel legend key is a small copy of a port tile in that state. */
+.ne-widget .ne-legend-tile {
   display: inline-block;
-  width: 26px;
-  height: 0;
-  border-top: 3px solid var(--ne-edge);
+  width: 16px;
+  height: 12px;
+  border: 2px solid var(--zx-tone-unknown);
+  border-radius: var(--zx-radius);
+  background: var(--zx-surface-tint);
 }
 .ne-widget .ne-swatch-dashed {
   border-top-style: dashed;
 }
 .ne-widget .ne-swatch-rootpath {
-  border-top: 5px solid #2676b9;
+  border-top: 5px solid var(--zx-tone-info);
 }
 .ne-widget .ne-swatch-path {
-  border-top: 6px double #b8620b;
+  border-top: 6px double var(--zx-tone-warning);
 }
 .ne-widget .ne-swatch-carried {
-  border-top: 4px solid #287e3f;
+  border-top: 4px solid var(--zx-tone-ok);
 }
 .ne-widget .ne-swatch-stopped {
-  border-top: 4px dotted #b04444;
+  border-top: 4px dotted var(--zx-tone-critical);
 }
 .ne-widget .ne-node .ne-node-badge {
-  font-size: 10px;
+  font-size: var(--zx-text-xs);
   fill: var(--ne-label);
 }
 .ne-widget .ne-node {
@@ -317,7 +280,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-node text {
   fill: var(--ne-node-text);
-  font-size: 12px;
+  font-size: var(--zx-text-md);
 }
 /* Findings badge: Zabbix's own severity colours (Warning yellow, Information blue), never red for a warning. */
 .ne-widget .ne-node .ne-node-findings circle {
@@ -325,31 +288,32 @@ html[color-scheme='dark'] .ne-widget {
   stroke-width: 2;
 }
 .ne-widget .ne-node .ne-node-findings text {
-  fill: #1f2c33;
-  font-size: 11px;
+  fill: var(--zx-on-fill);
+  font-size: var(--zx-text-sm);
   font-weight: bold;
 }
 .ne-widget .ne-node-findings.ne-severity-critical circle,
 .ne-widget .ne-node-findings.ne-severity-high circle {
-  fill: #e97659;
+  fill: var(--zx-fill-high);
 }
 .ne-widget .ne-node-findings.ne-severity-warning circle {
-  fill: #ffc859;
+  fill: var(--zx-fill-warning);
 }
 .ne-widget .ne-node-findings.ne-severity-info circle {
-  fill: #7499ff;
+  fill: var(--zx-fill-info);
 }
+/* The legend's dot is the badge's own fill. */
 .ne-widget .ne-legend-severity-warning {
-  color: #c99a2e;
+  color: var(--zx-fill-warning);
 }
 .ne-widget .ne-legend-severity-info {
-  color: #7499ff;
+  color: var(--zx-fill-info);
 }
 .ne-widget .ne-node-stale rect:not(.ne-node-halo) {
   stroke-dasharray: 2 3;
 }
 .ne-widget .ne-node-warning rect {
-  stroke: #b37312;
+  stroke: var(--zx-tone-warning);
   stroke-width: 3;
 }
 .ne-widget .ne-node:focus rect {
@@ -373,15 +337,16 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-svg-label {
   fill: var(--ne-label);
-  font-size: 12px;
+  font-size: var(--zx-text-md);
   text-anchor: middle;
   paint-order: stroke;
   stroke: var(--ne-halo);
   stroke-width: 4px;
   stroke-linejoin: round;
 }
-.ne-widget .ne-muted {
-  opacity: 0.3;
+/* A drawing element the current search or trace leaves out. Text that is merely secondary is zx-muted. */
+.ne-widget .ne-dimmed {
+  opacity: var(--zx-opacity-dimmed);
 }
 @media (max-width: 800px) {
   .ne-widget .ne-port-grid {
@@ -402,54 +367,69 @@ html[color-scheme='dark'] .ne-widget {
   }
 }
 .ne-widget button.ne-state-speed_observation,
-.ne-widget button.ne-state-duplex_observation {
-  border-color: var(--ne-colour-degraded, #b37312);
+.ne-widget .ne-legend-tile.ne-state-speed_observation,
+.ne-widget button.ne-state-duplex_observation,
+.ne-widget .ne-legend-tile.ne-state-duplex_observation {
+  border-color: var(--ne-colour-degraded, var(--zx-tone-warning));
   border-style: dashed;
-  background: color-mix(in srgb, var(--ne-colour-degraded, #b37312) 7%, transparent);
+  background: color-mix(in srgb, var(--ne-colour-degraded, var(--zx-tone-warning)) 7%, transparent);
 }
 .ne-widget button.ne-vlan-access,
-.ne-widget button.ne-vlan-native {
-  border-color: #287e3f;
-  background: rgba(40, 126, 63, 0.14);
+.ne-widget .ne-legend-tile.ne-vlan-access,
+.ne-widget button.ne-vlan-native,
+.ne-widget .ne-legend-tile.ne-vlan-native {
+  border-color: var(--zx-tone-ok);
+  background: color-mix(in srgb, var(--zx-tone-ok) 14%, transparent);
 }
-.ne-widget button.ne-vlan-tagged {
-  border-color: #2676b9;
-  background: rgba(38, 118, 185, 0.12);
+.ne-widget button.ne-vlan-tagged,
+.ne-widget .ne-legend-tile.ne-vlan-tagged {
+  border-color: var(--zx-tone-info);
+  background: color-mix(in srgb, var(--zx-tone-info) 12%, transparent);
 }
-.ne-widget button.ne-vlan-not_permitted {
-  border-color: #b04444;
+.ne-widget button.ne-vlan-not_permitted,
+.ne-widget .ne-legend-tile.ne-vlan-not_permitted {
+  border-color: var(--zx-tone-critical);
   border-style: dashed;
-  background: rgba(176, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--zx-tone-critical) 8%, transparent);
 }
 .ne-widget button.ne-vlan-unrelated,
+.ne-widget .ne-legend-tile.ne-vlan-unrelated,
 .ne-widget button.ne-vlan-unknown,
+.ne-widget .ne-legend-tile.ne-vlan-unknown,
 .ne-widget button.ne-lldp-none,
-.ne-widget button.ne-stp-unknown {
-  opacity: 0.55;
+.ne-widget .ne-legend-tile.ne-lldp-none,
+.ne-widget button.ne-stp-unknown,
+.ne-widget .ne-legend-tile.ne-stp-unknown {
+  opacity: var(--zx-opacity-faded);
 }
 .ne-widget button.ne-stp-forwarding,
-.ne-widget button.ne-lldp-peer {
-  border-color: #287e3f;
-  background: rgba(40, 126, 63, 0.1);
+.ne-widget .ne-legend-tile.ne-stp-forwarding,
+.ne-widget button.ne-lldp-peer,
+.ne-widget .ne-legend-tile.ne-lldp-peer {
+  border-color: var(--zx-tone-ok);
+  background: color-mix(in srgb, var(--zx-tone-ok) 10%, transparent);
 }
-.ne-widget button.ne-stp-blocking {
-  border-color: #b04444;
-  background: rgba(176, 68, 68, 0.12);
+.ne-widget button.ne-stp-blocking,
+.ne-widget .ne-legend-tile.ne-stp-blocking {
+  border-color: var(--zx-tone-critical);
+  background: color-mix(in srgb, var(--zx-tone-critical) 12%, transparent);
 }
-.ne-widget button.ne-stp-learning {
-  border-color: #b37312;
-  background: rgba(179, 115, 18, 0.1);
+.ne-widget button.ne-stp-learning,
+.ne-widget .ne-legend-tile.ne-stp-learning {
+  border-color: var(--zx-tone-warning);
+  background: color-mix(in srgb, var(--zx-tone-warning) 10%, transparent);
 }
-.ne-widget button.ne-stp-disabled {
+.ne-widget button.ne-stp-disabled,
+.ne-widget .ne-legend-tile.ne-stp-disabled {
   border-style: dashed;
-  opacity: 0.75;
+  opacity: var(--zx-opacity-disabled);
 }
 .ne-widget .ne-edge-vlan-carried {
-  stroke: #287e3f;
+  stroke: var(--zx-tone-ok);
   stroke-width: 4;
 }
 .ne-widget .ne-edge-vlan-stopped {
-  stroke: #b04444;
+  stroke: var(--zx-tone-critical);
   stroke-dasharray: 3 3;
   stroke-width: 4;
 }
@@ -461,27 +441,27 @@ html[color-scheme='dark'] .ne-widget {
   stroke-width: 7;
 }
 .ne-widget .ne-edge-stp-blocked {
-  stroke: #b04444;
+  stroke: var(--zx-tone-critical);
   stroke-dasharray: 2 4;
 }
 .ne-widget .ne-edge-stp-rootpath {
-  stroke: #2676b9;
+  stroke: var(--zx-tone-info);
   stroke-width: 5;
 }
 .ne-widget .ne-stp-block-mark {
-  fill: #b04444;
+  fill: var(--zx-tone-critical);
   font-size: 16px;
 }
 .ne-widget .ne-node-vlan rect {
   fill: var(--ne-node-vlan-fill);
-  stroke: #287e3f;
+  stroke: var(--zx-tone-ok);
 }
 .ne-widget .ne-node-root rect {
-  stroke: #2676b9;
+  stroke: var(--zx-tone-info);
   stroke-width: 4;
 }
 .ne-widget .ne-node-unreachable rect {
-  stroke: #b04444;
+  stroke: var(--zx-tone-critical);
   stroke-dasharray: 5 3;
 }
 /* Selection is shown by weight and shape as well as colour. */
@@ -531,44 +511,44 @@ html[color-scheme='dark'] .ne-widget {
   stroke-dasharray: 8 3;
 }
 .ne-widget .ne-node-root-disputed rect {
-  stroke: #2676b9;
+  stroke: var(--zx-tone-info);
   stroke-dasharray: 4 3;
   stroke-width: 3;
 }
 .ne-widget a.ne-open-dashboard {
   display: inline-block;
-  margin: 4px 0 8px;
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
   font-weight: bold;
 }
 /* Path to the root bridge: a double-weight dashed amber line and a dashed outline, so it never rests on colour. */
 .ne-widget .ne-edge-path {
-  stroke: #b8620b;
+  stroke: var(--zx-tone-warning);
   stroke-width: 7;
   stroke-dasharray: 14 5;
 }
 .ne-widget .ne-node-path rect:not(.ne-node-halo) {
-  stroke: #b8620b;
+  stroke: var(--zx-tone-warning);
   stroke-width: 4;
 }
 .ne-widget .ne-scope-summary {
-  margin: 0 0 6px;
+  margin: 0 0 var(--zx-space-1);
   font-weight: bold;
 }
 .ne-widget .ne-search-status {
   align-self: center;
 }
 .ne-widget .ne-stp-path ol {
-  margin: 4px 0 8px 20px;
+  margin: var(--zx-space-1) 0 var(--zx-space-2) var(--zx-space-4);
 }
 /* Interface detail: the answer first, headings that read as headings, diagnostics collapsed. */
 .ne-widget .ne-detail-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 20px;
-  margin: 6px 0 10px;
-  padding: 8px 10px;
+  gap: var(--zx-space-1) var(--zx-space-4);
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-3);
   border: 1px solid var(--ne-line);
-  border-radius: 4px;
+  border-radius: var(--zx-radius);
 }
 .ne-widget .ne-detail-fact {
   display: flex;
@@ -576,7 +556,7 @@ html[color-scheme='dark'] .ne-widget {
   gap: 2px;
 }
 .ne-widget .ne-detail-fact-label {
-  font-size: 11px;
+  font-size: var(--zx-text-sm);
   color: var(--ne-label);
 }
 .ne-widget .ne-detail-fact-value {
@@ -586,20 +566,18 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-detail-title.ne-detail-speed_observation,
 .ne-widget .ne-detail-title.ne-detail-duplex_observation,
 .ne-widget .ne-detail-title.ne-detail-degraded {
-  color: #b37312;
+  color: var(--zx-tone-warning);
 }
 .ne-widget .ne-detail-title.ne-detail-down {
-  color: #b04444;
+  color: var(--zx-tone-critical);
 }
 .ne-widget .ne-detail-title {
-  font-size: 14px;
+  font-size: var(--zx-text-lg);
   font-weight: bold;
-  margin: 4px 0;
+  margin: var(--zx-space-1) 0;
 }
 .ne-widget .ne-detail-heading {
   font-weight: bold;
-  margin: 14px 0 4px;
+  margin: var(--zx-space-3) 0 var(--zx-space-1);
 }
-.ne-widget .ne-detail-diagnostics > summary {
-  font-weight: bold;
-}
+

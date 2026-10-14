@@ -12,6 +12,8 @@ The requirements specification asks for these seven artefacts to be reviewed bef
 | 6 | [Frontend module architecture](06-frontend-module-architecture.md) | Implemented; open items marked |
 | 7 | [Test plan](07-test-plan.md) | In force; roadmap additions listed |
 
+Shared visual tokens and components for both Explorers (colours, spacing, tabs, callouts, badges and the rest) are documented in [COMPONENTS.md](COMPONENTS.md).
+
 Tools for the first action in spec §40 (collect the vendor/model matrix) are in [`tools/inventory/`](../../tools/inventory/).
 
 ## Working assumptions (now confirmed by the build)

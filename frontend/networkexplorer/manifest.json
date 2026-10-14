@@ -26,6 +26,7 @@
       "runtime.js"
     ],
     "css": [
+      "explorers.css",
       "widget.css",
       "explorer.css"
     ]

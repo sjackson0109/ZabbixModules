@@ -8,13 +8,14 @@
  */
 $capacity = $data['capacity'];
 $ranges = ['day'=>_('Last 24 hours'), 'month'=>_('Last 30 days'), 'year'=>_('Last 12 months')];
-$switcher = (new CList())->addClass('we-tabs')->setAttribute('role', 'navigation');
+$switcher = (new CList())->addClass('zx-tabs')->addClass('zx-tabs-sub')->setAttribute('role', 'navigation')
+    ->setAttribute('aria-label', _('Range'));
 foreach ($ranges as $key => $name) {
-    $item = new CLink($name, $link(['view'=>'capacity', 'range'=>$key === 'month' ? '' : $key]));
+    $item = (new CLink($name, $link(['view'=>'capacity', 'range'=>$key === 'month' ? '' : $key])))->addClass('zx-tab');
     if ($key === $capacity['range']) {
         $item->setAttribute('aria-current', 'page');
     }
-    $switcher->addItem((new CListItem($item))->addClass($key === $capacity['range'] ? 'we-tab-active' : 'we-tab'));
+    $switcher->addItem($item);
 }
 $root->addItem($switcher);
 $root->addItem($about(_('From the hourly trends of each cluster\'s capacity items; an hour without a complete observation is a gap, not a zero.'),
@@ -46,9 +47,12 @@ $maxOf = static function (array $values) {
     return $values ? max($values) : null;
 };
 $tiles = (new CDiv())->addClass('we-tiles');
-$tile = static fn(string $title, string $value, string $detail) => (new CDiv([
-    (new CDiv($title))->addClass('we-tile-title'), (new CDiv($value))->addClass('we-tile-value'),
-    (new CDiv($detail))->addClass('we-tile-detail')]))->addClass('we-tile');
+// The same accent rule as Overview: a tile is accented only when it shows something to act on.
+$tile = static function (string $title, string $value, string $detail, string $class = ''): CDiv {
+    $tile = (new CDiv([(new CDiv($title))->addClass('we-tile-title'), (new CDiv($value))->addClass('we-tile-value'),
+        (new CDiv($detail))->addClass('we-tile-detail')]))->addClass('we-tile');
+    return $class !== '' ? $tile->addClass($class) : $tile;
+};
 $growth = $capacity['growth'];
 $tiles->addItem($tile(_('Clients, busiest hour'), $number($maxOf(array_column($withData, 'clients_peak_hour'))),
     $growth !== null && $growth['percent'] !== null
@@ -69,11 +73,13 @@ foreach (\Modules\WifiExplorer\Services\CapacityService::BANDS as $band) {
     $peak = $maxOf(array_map(static fn($p) => $p['utilisation'][$band]['max'], $withData));
     if ($peak !== null) {
         $tiles->addItem($tile(_s('%1$s GHz utilisation peak', $band), $percent($peak),
-            _s('%1$s radios up in the last full hour', $number(array_column($capacity['bands'], 'radios_up', 'band')[$band] ?? null))));
+            _s('%1$s radios up in the last full hour', $number(array_column($capacity['bands'], 'radios_up', 'band')[$band] ?? null)),
+            $peak >= \Modules\WifiExplorer\Services\WifiLimits::HIGH_UTILISATION ? 'we-tile-warning' : ''));
     }
 }
 $tiles->addItem($tile(_('Hours with data'), $capacity['hours_with_data'].' / '.$capacity['hours'],
-    _('Hours in the range for which at least one cluster reported a complete observation.')));
+    _('Hours in the range for which at least one cluster reported a complete observation.'),
+    $capacity['hours_with_data'] * 2 < $capacity['hours'] ? 'we-tile-warning' : ''));
 $root->addItem($tiles);
 
 // Clients per period: the average and the busiest hour, with a value axis, time labels and a hover tooltip per
@@ -194,13 +200,13 @@ foreach (array_reverse($periods) as $period) {
     }
     $hours = $period['hours_with_data'].' / '.$period['hours'];
     $row = new CRow(array_merge([$periodName($period),
-        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('we-kind')->addClass('we-kind-partial')] : $hours,
+        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('zx-badge')->addClass('zx-badge-partial')] : $hours,
         $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1)], $bands));
     $apRow = new CRow([$periodName($period), $number($period['clients_p95_hour'], 1), $number($period['clients_ap_max']),
         $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])]);
     if ($period['hours_with_data'] === 0) {
-        $row->addClass('we-muted');
-        $apRow->addClass('we-muted');
+        $row->addClass('zx-muted');
+        $apRow->addClass('zx-muted');
     }
     elseif ($partial($period)) {
         $row->addClass('we-row-partial');
@@ -209,13 +215,13 @@ foreach (array_reverse($periods) as $period) {
     $apTable->addRow($apRow);
 }
 $root->addItem([new CTag('h2', true, _('By period')), $table]);
-$more = (new CTag('details', true))->addClass('we-quality');
+$more = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $more->addItem(new CTag('summary', true, _('Access points and 95th percentile by period')));
 $more->addItem($apTable);
 $root->addItem($more);
 if ($capacity['range'] === 'year') {
     $root->addItem((new CTag('p', true, _('The year view reads peaks only for utilisation, so averages per band are not shown.')))
-        ->addClass('we-muted'));
+        ->addClass('zx-muted'));
 }
 
 $clusters = (new CTableInfo())->setHeader([_('Cluster'), _('Hours with data'), _('Clients, average'), _('Busiest hour'),

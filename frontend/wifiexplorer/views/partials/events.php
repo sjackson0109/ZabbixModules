@@ -19,7 +19,7 @@ foreach ($data['events'] as $event) {
     $row = new CRow([new CLink($event['name'], $link(['view'=>'events', 'event'=>$event['event_id']])), $event['site'],
         $event['ssid_uid'] !== null ? new CLink($event['ssid'], $link(['view'=>'ssids', 'ssid'=>$event['ssid_uid']])) : $event['ssid'],
         $event['starts'], $event['ends'], $timings[$event['timing']],
-        (new CSpan($statusNames[$event['status']]))->addClass('we-ready-'.$event['status'])]);
+        $toned($statusNames[$event['status']], $event['status'])]);
     if ($event['event_id'] === $request['event']) {
         $row->addClass('we-selected');
     }
@@ -39,7 +39,7 @@ $checkNames = ['ssid_enabled'=>_('SSID enabled'), 'aps_expected'=>_('APs expecte
 $results = ['pass'=>_('Pass'), 'fail'=>_('Fail'), 'unknown'=>_('Unknown'), 'warn'=>_('Warning'), 'not_checked'=>_('Not checked')];
 $detail = (new CDiv())->addClass('we-detail');
 $detail->addItem(new CTag('h2', true, [$selected['name'], ' ',
-    (new CSpan($statusNames[$selected['status']]))->addClass('we-ready-'.$selected['status'])]));
+    $toned($statusNames[$selected['status']], $selected['status'])]));
 $facts = [_s('%1$s on %2$s, %3$s to %4$s.', $selected['ssid'], $selected['site'], $selected['starts'], $selected['ends'])];
 if ($selected['floors']) {
     $names = array_column($data['floors']['floors'], 'name', 'floor_id');
@@ -52,7 +52,7 @@ $detail->addItem(new CTag('p', true, implode(' ', $facts)));
 $checks = (new CTableInfo())->setHeader([_('Check'), _('Result'), _('Detail'), _('Basis')]);
 foreach ($selected['checks'] as $check) {
     $checks->addRow([$checkNames[$check['check']] ?? $check['check'],
-        (new CSpan($results[$check['status']]))->addClass('we-check-'.$check['status']), $check['detail'], $kind($check['kind'])]);
+        $toned($results[$check['status']], $check['status']), $check['detail'], $kind($check['kind'])]);
 }
 $detail->addItem($checks);
 $aps = [];

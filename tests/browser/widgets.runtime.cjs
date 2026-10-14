@@ -18,6 +18,7 @@ const assert = require('node:assert/strict');
     await page.setContent(
       '<!doctype html><html><head><title>Network Explorer browser fixture</title></head><body><div id="widget" class="ne-widget"></div></body></html>'
     );
+    await page.addStyleTag({ path: path.join(__dirname, '../../src/design/explorers.css') });
     await page.addStyleTag({ path: path.join(__dirname, '../../src/widget/widget.css') });
     await page.addScriptTag({ path: path.join(__dirname, '../../src/widget/runtime.js') });
     // Synthetic schema fixtures only; this test makes no vendor qualification claim.
@@ -254,7 +255,7 @@ const assert = require('node:assert/strict');
     const halo = page.locator('svg .ne-node-selected .ne-node-halo');
     assert.notEqual(await halo.evaluate(e => getComputedStyle(e).display), 'none', 'selected switch has a second outline');
     await page.getByPlaceholder('Find switch').fill('switch B');
-    assert.equal(await page.locator('svg .ne-node.ne-muted').count(), 1);
+    assert.equal(await page.locator('svg .ne-node.ne-dimmed').count(), 1);
     // Enter focuses and selects the match without hiding or moving anything.
     await page.getByPlaceholder('Find switch').press('Enter');
     assert.equal(await page.locator('svg .ne-node-selected').getAttribute('data-hostid'), '102');

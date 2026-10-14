@@ -28,16 +28,16 @@ foreach ($interfaces as $interface) {
     $interfaceSelect->addOption(new CSelectOption($interface['uid'], $interface['name']));
 }
 $interfaceSelect->setValue($request['fail_if']);
-$form = (new CForm('get'))->setAction('zabbix.php')->addClass('we-scope');
+$form = (new CForm('get'))->setAction('zabbix.php')->addClass('zx-filter-bar');
 $form->addVar('action', 'wifiexplorer.view');
 $form->addVar('view', 'impact');
 $form->addVar('site', $request['site']);
-$form->addItem((new CDiv([new CLabel(_('If this switch fails'), 'we-fail-host-button'), $hostSelect]))->addClass('we-scope-field'));
-$form->addItem((new CDiv([new CLabel(_('or this port'), 'we-fail-if-button'), $interfaceSelect]))->addClass('we-scope-field'));
+$form->addItem((new CDiv([new CLabel(_('If this switch fails'), 'we-fail-host-button'), $hostSelect]))->addClass('zx-filter-field'));
+$form->addItem((new CDiv([new CLabel(_('or this port'), 'we-fail-if-button'), $interfaceSelect]))->addClass('zx-filter-field'));
 $form->addItem(new CSubmit('assess', _('Assess')));
 $root->addItem($form);
 if ($request['fail_host'] !== '' && $request['fail_if'] === '' && $interfaces) {
-    $root->addItem((new CTag('p', true, _('Assessing the whole switch. Choose a port and Assess again to narrow it.')))->addClass('we-muted'));
+    $root->addItem((new CTag('p', true, _('Assessing the whole switch. Choose a port and Assess again to narrow it.')))->addClass('zx-muted'));
 }
 
 $impact = $data['impact'];
@@ -52,7 +52,7 @@ if ($impact === null) {
     }
     $root->addItem([new CTag('h2', true, _('Switches with the most depending on them')),
         (new CTag('p', true, _('If each switch failed on its own. Choose one to see the APs, SSIDs, VLANs and floors behind it.')))
-            ->addClass('we-muted'), $ranking]);
+            ->addClass('zx-muted'), $ranking]);
     return;
 }
 if ($impact['status'] !== 'ok') {
@@ -118,7 +118,7 @@ foreach ($impact['aps'] as $row) {
             .($alternate['carried'] !== null ? ' ('._s('carries %1$s', $alternate['carried']).')' : '');
     }
     $apTable->addRow([new CLink($apName($row['ap_uid']), $link(['ap'=>$row['ap_uid']])),
-        (new CSpan($impacts[$row['impact']]))->addClass('we-impact-'.$row['impact']),
-        $why[$row['reason']] ?? $row['reason'], $row['clients'] ?? _('Unknown'), $alternates ? implode('; ', $alternates) : '—']);
+        $toned($impacts[$row['impact']], $row['impact']),
+        $why[$row['reason']] ?? $row['reason'], $row['clients'] ?? $missing(), $alternates ? implode('; ', $alternates) : '—']);
 }
 $root->addItem([new CTag('h2', true, _('Access points')), $apTable]);

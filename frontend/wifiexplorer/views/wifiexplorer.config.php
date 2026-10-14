@@ -17,7 +17,7 @@ if ($data['problems']) {
     $root->addItem((new CDiv([new CTag('strong', true, _('Not saved:')), $list]))->addClass('msg-bad'));
 }
 $root->addItem((new CTag('p', true, _('Floors, AP positions, SSID-to-VLAN intent, event definitions and known external BSSIDs. This is declared intent and configuration: Wi-Fi Explorer compares observations against it and never infers it. Never put a password, PSK or RADIUS secret here.')))
-    ->addClass('we-note'));
+    ->addClass('zx-note'));
 
 $form = (new CForm('post'))->setAction((new CUrl('zabbix.php'))->setArgument('action', 'wifiexplorer.config.update')->getUrl())
     ->addVar(CCsrfTokenHelper::CSRF_TOKEN_NAME, CCsrfTokenHelper::get('wifiexplorer.config.update'));
@@ -37,7 +37,7 @@ $example = [
         'clients_per_ap'=>60]],
     'known_bssids'=>[['bssid'=>'00:00:5e:00:53:f4', 'label'=>'Neighbouring office']]
 ];
-$details = (new CTag('details', true))->addClass('we-quality');
+$details = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Document format')));
 $details->addItem(new CTag('p', true, _('x and y are fractions (0 to 1) of the plan\'s width and height. expect is site (every visible AP at the site), floors (the APs placed on the listed floors) or aps (the listed AP IDs). Events need an SSID declared for their site, and expected_clients needs clients_per_ap, the declared capacity of one AP.')));
 $details->addItem((new CTag('pre', true, json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)))->addClass('we-config-example'));

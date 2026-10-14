@@ -6,9 +6,12 @@ use Zabbix\Widgets\CWidgetForm;
 use Zabbix\Widgets\Fields\{CWidgetFieldColor, CWidgetFieldMultiSelectOverrideHost, CWidgetFieldSelect};
 
 class WidgetForm extends CWidgetForm {
-    /** Default port state colours (spec §3.1); every state also keeps its label and icon. */
-    public const COLOURS = ['normal'=>'287E3F', 'degraded'=>'B37312', 'down'=>'B04444', 'disabled'=>'607080',
-        'unknown'=>'3A4752'];
+    /**
+     * Default port state colours (spec §3.1): the light theme's design tokens. Left at its default, a state follows
+     * the Zabbix theme instead (the payload drops defaults); every state also keeps its label and icon.
+     */
+    public const COLOURS = ['normal'=>'287E3F', 'degraded'=>'946200', 'down'=>'B04444', 'disabled'=>'607080',
+        'unknown'=>'607080'];
 
     public function addFields(): self {
         $labels = ['normal'=>_('Normal colour'), 'degraded'=>_('Degraded or observation colour'),

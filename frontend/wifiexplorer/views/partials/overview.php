@@ -29,10 +29,11 @@ $datasets = $overview['datasets'];
 $tiles = (new CDiv())->addClass('we-tiles');
 $tiles->addItem($tile(_('Access points'), $aps['total'],
     _s('%1$s up, %2$s down, %3$s unknown, %4$s degraded', $aps['up'], $aps['down'], $aps['unknown'], $aps['degraded']),
-    $aps['down'] > 0 ? 'we-tile-warning' : ''));
+    $aps['down'] > 0 ? 'we-tile-critical' : ($aps['degraded'] > 0 ? 'we-tile-warning' : '')));
 $tiles->addItem($tile(_('Radios'), $radios['total'],
     _s('%1$s up, %2$s down, %3$s unknown', $radios['up'], $radios['down'], $radios['unknown'])
-        .($bandText ? ' · '.implode(', ', $bandText) : '')));
+        .($bandText ? ' · '.implode(', ', $bandText) : ''),
+    $radios['down'] > 0 ? 'we-tile-critical' : ''));
 $tiles->addItem($tile(_('Channel utilisation'), _s('%1$s high', $overview['high_utilisation_radios']),
     ($utilisation ? implode('; ', $utilisation) : _('No current utilisation'))
         .' · '._s('high is %1$s%% or more', $overview['high_utilisation_threshold']),
@@ -56,7 +57,7 @@ $tiles->addItem($tile(_('RF neighbours'), $rf['current_total'],
 $notAvailable = ['poe'=>_('PoE'), 'auth_failures'=>_('authentication failures'), 'retry_rates'=>_('retry and error rates')];
 $root->addItem((new CTag('p', true, _('Not exposed by the current sources, so not counted: ')
     .implode(', ', array_map(static fn($key) => $notAvailable[$key] ?? $key, $overview['not_available'])).'.'))
-    ->addClass('we-not-available'));
+    ->addClass('zx-note'));
 
 $radioAps = [];
 foreach ($data['aps'] as $ap) {
@@ -78,10 +79,10 @@ if ($data['selected_ap'] !== '') {
         _('Firmware'), _('Uptime'), _('CPU'), _('Memory used'), _('Clients'), _('Placement'), _('Data source')]);
     $facts->addRow([$status($ap['status'], $ap['status_reason']), $unknown($ap['model']), $unknown($ap['serial']),
         $unknown($ap['mac_address']), $unknown($ap['ip_address']),
-        $ap['firmware'] ?? ($ap['cluster_firmware'] !== null ? $ap['cluster_firmware'].' '._('(cluster)') : _('Unknown')),
-        $ap['uptime_s'] !== null ? zbx_date2age(time() - $ap['uptime_s']) : _('Unknown'),
+        $ap['firmware'] ?? ($ap['cluster_firmware'] !== null ? $ap['cluster_firmware'].' '._('(cluster)') : $missing()),
+        $ap['uptime_s'] !== null ? zbx_date2age(time() - $ap['uptime_s']) : $missing(),
         $unknown($ap['cpu_percent'], '%'), $unknown($ap['memory_used_percent'], '%'),
-        $ap['clients'] !== null ? $ap['clients'] : _('Unknown'),
+        $ap['clients'] !== null ? $ap['clients'] : $missing(),
         $ap['placement'] !== null
             ? [$kind('configured'), ' ', new CLink(array_column($data['floors']['floors'], 'name', 'floor_id')[$ap['placement']['floor_id']]
                 ?? $ap['placement']['floor_id'], $link(['view'=>'floors', 'floor'=>$ap['placement']['floor_id'], 'ap'=>$ap['ap_uid']]))]
@@ -93,10 +94,10 @@ if ($data['selected_ap'] !== '') {
         ->setNoDataMessage(_('This AP reports no radios.'));
     foreach ($ap['radios'] as $radio) {
         $row = new CRow([$unknown($radio['radio_index']), $status($radio['status'], $radio['status_reason']),
-            $radio['band'] !== null ? $radio['band'].' GHz' : _('Unknown'), $unknown($radio['channel']),
-            $radio['channel_width'] !== null ? $radio['channel_width'].' MHz' : _('Unknown'),
+            $radio['band'] !== null ? $radio['band'].' GHz' : $missing(), $unknown($radio['channel']),
+            $radio['channel_width'] !== null ? $radio['channel_width'].' MHz' : $missing(),
             $radio['utilisation_percent'] !== null
-                ? _s('%1$s%% over %2$s s', $radio['utilisation_percent'], $radio['utilisation_window_s'] ?? '?') : _('Unknown'),
+                ? _s('%1$s%% over %2$s s', $radio['utilisation_percent'], $radio['utilisation_window_s'] ?? '?') : $missing(),
             $unknown($radio['tx_power_dbm'], ' dBm'), $unknown($radio['noise_floor_dbm'], ' dBm'),
             $unknown($radio['bssid']), $radio['state_freshness'].' / '.($radio['state_observed_at'] ?? _('never'))]);
         if ($radio['status'] === 'up' && $radio['utilisation_percent'] !== null
@@ -114,7 +115,7 @@ if ($data['selected_ap'] !== '') {
     $bases = ['chassis_mac'=>_('LLDP chassis MAC is the AP\'s MAC'), 'management_address'=>_('LLDP management address is the AP\'s address'),
         'ap_lldp'=>_('the AP\'s own LLDP')];
     if ($uplink === null) {
-        $detail->addItem((new CTag('p', true, \Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'] ?? null)))->addClass('we-muted'));
+        $detail->addItem((new CTag('p', true, \Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'] ?? null)))->addClass('zx-muted'));
     }
     else {
         $port = (new CTableInfo())->setHeader([_('State'), _('Switch port'), _('Link'), _('VLANs on the port'),
@@ -128,7 +129,7 @@ if ($data['selected_ap'] !== '') {
             $uplink['hostid'] !== null ? $status($uplink['port_freshness'] === 'current'
                 ? (string) ($uplink['oper_status'] ?? 'unknown') : 'unknown') : '—',
             $vlan !== null ? _s('%1$s, native %2$s, carries %3$s', $vlan['mode'], $vlan['pvid'] ?? '?',
-                $vlan['carried'] !== '' ? $vlan['carried'] : _('none')) : _('Unknown'),
+                $vlan['carried'] !== '' ? $vlan['carried'] : _('none')) : $missing(),
             $uplink['basis'] !== null ? $bases[$uplink['basis']] ?? $uplink['basis'] : '—',
             $uplink['freshness']]);
         $detail->addItem($port);
@@ -170,12 +171,12 @@ foreach ($rows as $finding) {
                 .($member['last_observed'] !== null ? ' / '.$member['last_observed'] : ''));
         }
         $reasons = array_unique(array_column($finding['group'], 'reason'));
-        $findings->addRow([(new CSpan(_('Warning')))->addClass('we-severity-warning'),
+        $findings->addRow([$toned(_('Warning'), 'warning'),
             ($ownerNames[$finding['hostid']] ?? $finding['hostid']).': '.implode(', ', $parts),
             count($reasons) === 1 ? reset($reasons)
                 : _('Objects from these datasets are reported as unknown, or from their last complete observation.'),
             (new CTag('details', true, [new CTag('summary', true, _n('%1$s dataset', '%1$s datasets',
-                count($finding['group']))), $list])),
+                count($finding['group']))), $list]))->addClass('zx-disclosure')->addClass('zx-disclosure-quiet'),
             $finding['remediation'] ?? '']);
         continue;
     }
@@ -187,8 +188,7 @@ foreach ($rows as $finding) {
             ? 'paths' : 'ssids', 'ssid'=>$finding['object_id']]))
         : ($finding['object_type'] === 'event' ? new CLink($finding['title'], $link(['view'=>'events', 'event'=>$finding['object_id']]))
         : $finding['title'])));
-    $findings->addRow([(new CSpan($finding['severity'] === 'warning' ? _('Warning') : _('Info')))
-            ->addClass('we-severity-'.$finding['severity']), $title, $finding['reason'],
+    $findings->addRow([$toned($finding['severity'] === 'warning' ? _('Warning') : _('Info'), $finding['severity']), $title, $finding['reason'],
         $finding['freshness'].($finding['last_observed'] !== null ? ' / '.$finding['last_observed'] : ''),
         $finding['remediation'] ?? '']);
 }
@@ -226,10 +226,10 @@ foreach (array_filter($data['aps'], $matches) as $ap) {
                 && $radio['status'] === 'up' ? $radio['utilisation_percent'].'%' : '');
     }
     $row = new CRow([new CLink($ap['name'] ?? _('Unnamed access point'), $link(['ap'=>$ap['ap_uid'], 'q'=>$request['q']])),
-        $ap['site'] !== '' ? $ap['site'] : _('Unknown'),
+        $ap['site'] !== '' ? $ap['site'] : $missing(),
         [$status($ap['status'], $ap['status_reason']), $ap['degraded'] ? ' '._('degraded') : ''],
         $summary ? implode(', ', array_map('trim', $summary)) : _('None reported'),
-        $ap['clients'] !== null ? $ap['clients'] : _('Unknown'),
+        $ap['clients'] !== null ? $ap['clients'] : $missing(),
         $ap['placement'] !== null
             ? new CLink($floorNames[$ap['placement']['floor_id']] ?? $ap['placement']['floor_id'],
                 $link(['view'=>'floors', 'floor'=>$ap['placement']['floor_id'], 'ap'=>$ap['ap_uid']]))
@@ -254,7 +254,7 @@ foreach ($data['quality'] as $row) {
         str_replace('_', ' ', $roles[$hostid] ?? 'unknown'), $row['dataset'], $row['status'], $row['freshness'],
         $row['observed_at'] ?? _('never'), implode(', ', array_merge($row['errors'], $row['warnings']))]);
 }
-$details = (new CTag('details', true))->addClass('we-quality');
+$details = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Data quality')));
 $details->addItem($quality);
 $root->addItem($details);

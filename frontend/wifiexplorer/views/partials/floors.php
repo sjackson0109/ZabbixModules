@@ -59,8 +59,8 @@ if ($selected !== null) {
     $legend = $selected['legend'];
     $root->addItem([new CTag('h2', true, $selected['site'].' · '.($selected['building'] !== '' ? $selected['building'].' · ' : '')
         .$selected['name']), $bar,
-        (new CDiv([$kind('configured'), ' '._('AP positions.').' ', $kind($legend['kind']), ' '.$legend['text']]))
-            ->addClass('we-legend')]);
+        (new CList([[$kind('configured'), ' '._('AP positions.')], [$kind($legend['kind']), ' '.$legend['text']]]))
+            ->addClass('zx-legend')]);
 
     $width = 1000;
     $height = (int) round(1000 * $selected['aspect_used']);
@@ -154,7 +154,7 @@ if ($selected !== null) {
         }
         $root->addItem((new CDiv([new CLabel(_('Place AP'), 'we-place-ap-button'),
             $choices->setFocusableElementId('we-place-ap-button'),
-            (new CSpan(_('then click its position on the plan.')))->addClass('we-hint'),
+            (new CSpan(_('then click its position on the plan.')))->addClass('zx-note'),
             (new CButton('we-place-remove', _('Remove placement')))->addClass(ZBX_STYLE_BTN_ALT)->setId('we-place-remove'),
             (new CSpan(''))->setId('we-place-status')->setAttribute('role', 'status')]))
             ->addClass('we-placement')
@@ -170,7 +170,7 @@ $unplaced = (new CTableInfo())->setHeader([_('Access point'), _('Site'), _('Stat
 foreach ($floors['unplaced'] as $apUid) {
     $ap = $byUid[$apUid];
     $unplaced->addRow([new CLink($ap['name'] ?? _('Unnamed access point'), $link(['ap'=>$apUid, 'view'=>'floors',
-        'floor'=>$selected['floor_id'] ?? ''])), $ap['site'] !== '' ? $ap['site'] : _('Unknown'),
+        'floor'=>$selected['floor_id'] ?? ''])), $ap['site'] !== '' ? $ap['site'] : $missing(),
         $status($ap['status'], $ap['status_reason']), $unknown($ap['model'])]);
 }
 $root->addItem([new CTag('h2', true, _s('Unplaced APs (%1$s)', count($floors['unplaced']))), $unplaced]);
