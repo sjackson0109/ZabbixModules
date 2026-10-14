@@ -1,9 +1,9 @@
-.ne-explorer .ne-export { display: inline-block; margin: 0 1rem 0.5rem 0; }
-.ne-explorer h2 { margin-top: 1.5rem; }
+.ne-explorer .ne-export { display: inline-block; margin: 0 var(--zx-space-4) var(--zx-space-2) 0; }
+.ne-explorer h2 { margin-top: var(--zx-space-5); }
 .ne-explorer .ne-selected-interface { outline: 2px solid var(--zx-accent); outline-offset: -2px; }
 .ne-explorer .ne-explorer-app.ne-widget { max-height: none; overflow: visible; padding: 0; }
-.ne-explorer .ne-explorer-section { margin-bottom: 1.2rem; }
-.ne-explorer .ne-explorer-section h3 { font-size: 1.15em; margin: 0.6rem 0; }
-.ne-explorer .ne-explorer-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.ne-explorer .ne-explorer-section { margin-bottom: var(--zx-space-4); }
+.ne-explorer .ne-explorer-section h3 { font-size: var(--zx-text-lg); margin: var(--zx-space-2) 0; }
+.ne-explorer .ne-explorer-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--zx-space-2); }
 .ne-explorer .ne-explorer-quality { overflow-x: auto; }
-.ne-explorer details.ne-tables > summary { cursor: pointer; font-weight: bold; margin: 1rem 0 0.5rem; }
+.ne-explorer details.ne-tables > summary { cursor: pointer; font-weight: bold; margin: var(--zx-space-4) 0 var(--zx-space-2); }

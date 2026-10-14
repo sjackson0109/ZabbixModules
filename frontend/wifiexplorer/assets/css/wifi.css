@@ -1,21 +1,21 @@
 /* Wi-Fi Explorer page. Colours come from the shared tokens in explorers.css, so dark and high-contrast themes work. */
-.we-explorer .we-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 0 0 8px; }
-.we-explorer .we-tile { border: 1px solid var(--zx-line); border-radius: 2px; padding: 8px 10px; }
+.we-explorer .we-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--zx-space-2); margin: 0 0 var(--zx-space-2); }
+.we-explorer .we-tile { border: 1px solid var(--zx-line); border-radius: var(--zx-radius); padding: var(--zx-space-2) var(--zx-space-3); }
 /* One accent rule for every tile on every tab: none when healthy, Zabbix Warning yellow, red only for down. */
 .we-explorer .we-tile-warning { border-left: 4px solid var(--zx-fill-warning); }
 .we-explorer .we-tile-critical { border-left: 4px solid var(--zx-fill-high); }
-.we-explorer .we-tile-title { font-weight: bold; opacity: 0.8; }
-.we-explorer .we-tile-value { font-size: 20px; margin: 4px 0; }
-.we-explorer .we-tile-detail { opacity: 0.8; }
-.we-explorer h2 { margin: 16px 0 6px; font-size: 14px; }
-.we-explorer h3 { margin: 10px 0 6px; font-size: 13px; }
-.we-explorer .we-detail { border: 1px solid var(--zx-line); padding: 8px 10px; margin: 0 0 12px; }
+.we-explorer .we-tile-title { font-weight: bold; color: var(--zx-tone-unknown); }
+.we-explorer .we-tile-value { font-size: var(--zx-text-xl); margin: var(--zx-space-1) 0; }
+.we-explorer .we-tile-detail { color: var(--zx-tone-unknown); }
+.we-explorer h2 { margin: var(--zx-space-4) 0 var(--zx-space-1); font-size: var(--zx-text-lg); }
+.we-explorer h3 { margin: var(--zx-space-2) 0 var(--zx-space-1); font-size: var(--zx-text-md); }
+.we-explorer .we-detail { border: 1px solid var(--zx-line); padding: var(--zx-space-2) var(--zx-space-3); margin: 0 0 var(--zx-space-3); }
 .we-explorer .we-row-warning td, .we-explorer .we-selected td { background: color-mix(in srgb, var(--zx-fill-warning) 15%, transparent); }
-.we-explorer .we-empty { padding: 16px 0; }
-.we-explorer .we-quality { margin: 16px 0 0; }
+.we-explorer .we-empty { padding: var(--zx-space-4) 0; }
+.we-explorer .we-quality { margin: var(--zx-space-4) 0 0; }
 .we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
 .we-explorer .we-configure { margin-left: auto; align-self: center; }
-.we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 6px; align-items: center; }
+.we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: var(--zx-space-1) var(--zx-space-2); margin: 0 0 var(--zx-space-1); align-items: center; }
 .we-explorer .we-overlay-label { font-weight: bold; }
 .we-explorer .we-overlay-active { font-weight: bold; text-decoration: underline; }
 .we-explorer .we-floor-canvas { max-width: 1100px; border: 1px solid var(--zx-line); }
@@ -38,11 +38,11 @@
 .we-explorer .we-marker text { font-size: 18px; text-anchor: middle; fill: currentColor; paint-order: stroke;
     stroke: var(--zx-halo); stroke-width: 4px; }
 .we-explorer .we-marker .we-marker-value { font-weight: bold; }
-.we-explorer .we-placement { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.we-explorer .we-placement { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); align-items: center; margin: var(--zx-space-2) 0; }
 .we-explorer .we-config-text { width: 100%; max-width: 1100px; min-height: 420px; font-family: monospace; }
 .we-explorer .we-config-example, .we-explorer .we-mono { font-family: monospace; }
-.we-explorer .we-hops { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-.we-explorer .we-hop { border: 1px solid var(--zx-line-strong); border-radius: 2px; padding: 1px 5px; white-space: nowrap; }
+.we-explorer .we-hops { display: flex; flex-wrap: wrap; gap: var(--zx-space-1); align-items: center; }
+.we-explorer .we-hop { border: 1px solid var(--zx-line-strong); border-radius: var(--zx-radius); padding: 1px var(--zx-space-1); white-space: nowrap; }
 .we-explorer .we-hop-failed { border-color: var(--zx-tone-critical); border-width: 2px; }
 .we-explorer .we-hop-unknown { border-style: dashed; }
 .we-explorer .we-capacity-chart { display: block; width: 100%; height: auto; border: 1px solid var(--zx-line); }
@@ -53,13 +53,13 @@
 .we-explorer .we-capacity-peak { stroke: var(--zx-tone-unknown); stroke-width: 1.5; }
 .we-explorer circle.we-capacity-peak { fill: var(--zx-tone-unknown); }
 .we-explorer .we-capacity-grid { stroke: var(--zx-line); stroke-width: 1; }
-.we-explorer .we-capacity-axis, .we-explorer .we-capacity-label { font-size: 11px; fill: currentColor; opacity: 0.8; }
-.we-explorer .we-capacity-label { font-weight: bold; opacity: 1; }
+.we-explorer .we-capacity-axis, .we-explorer .we-capacity-label { font-size: var(--zx-text-sm); fill: var(--zx-tone-unknown); }
+.we-explorer .we-capacity-label { font-weight: bold; }
 .we-explorer .we-capacity-avg-label { fill: var(--zx-tone-info); }
 .we-explorer .we-capacity-peak-label { fill: var(--zx-tone-unknown); }
 .we-explorer .we-capacity-hit { fill: transparent; }
 .we-explorer .we-capacity-hit:hover { fill: var(--zx-surface-tint); }
-.we-explorer .we-finding-group { margin: 4px 0 0; padding-left: 16px; list-style: disc; }
+.we-explorer .we-finding-group { margin: var(--zx-space-1) 0 0; padding-left: var(--zx-space-4); list-style: disc; }
 .we-explorer .we-row-partial td { background: color-mix(in srgb, var(--zx-fill-warning) 12%, transparent); }
-.we-explorer .we-about { margin: -4px 0 10px; }
-.we-explorer .we-about summary { cursor: pointer; opacity: 0.85; }
+.we-explorer .we-about { margin: calc(-1 * var(--zx-space-1)) 0 var(--zx-space-2); }
+.we-explorer .we-about summary { cursor: pointer; color: var(--zx-tone-unknown); }

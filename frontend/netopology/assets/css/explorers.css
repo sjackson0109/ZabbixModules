@@ -42,9 +42,10 @@
   --zx-text-lg: 14px;
   --zx-text-xl: 20px;
 
-  /* De-emphasis: a filtered-out drawing element, and an unrelated or not-applicable control. */
+  /* De-emphasis: a filtered-out drawing element, an unrelated control, an administratively disabled one. */
   --zx-opacity-dimmed: 0.3;
   --zx-opacity-faded: 0.55;
+  --zx-opacity-disabled: 0.75;
 }
 html[color-scheme='dark'] {
   --zx-tone-ok: #59db8f;

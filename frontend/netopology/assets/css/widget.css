@@ -11,7 +11,7 @@
   --ne-node-vlan-fill: #e3f2e7;
   --ne-label: var(--zx-tone-unknown);
   --ne-halo: var(--zx-halo);
-  padding: 10px;
+  padding: var(--zx-space-2);
   overflow: auto;
   max-height: 100%;
   color: inherit;
@@ -32,23 +32,23 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--zx-space-2);
   align-items: center;
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-toolbar input {
   max-width: 260px;
 }
 .ne-widget .ne-port-member {
-  margin-bottom: 12px;
+  margin-bottom: var(--zx-space-3);
 }
 .ne-widget .ne-port-member h4 {
-  margin: 8px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-port-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(48px, 1fr));
-  gap: 5px;
+  gap: var(--zx-space-1);
   max-width: 1200px;
 }
 .ne-widget .ne-layout-24 {
@@ -68,9 +68,9 @@ html[color-scheme='dark'] .ne-widget {
   height: auto;
   min-height: 80px;
   margin: 0;
-  padding: 5px 3px;
+  padding: var(--zx-space-1) 3px;
   border: 2px solid var(--zx-tone-unknown);
-  border-radius: 4px;
+  border-radius: var(--zx-radius);
   background: var(--zx-surface-tint);
   color: inherit;
   white-space: normal;
@@ -86,7 +86,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-port-status,
 .ne-widget .ne-port-speed {
-  font-size: 10px;
+  font-size: var(--zx-text-xs);
   margin-top: 3px;
 }
 .ne-widget button.ne-state-up,
@@ -108,7 +108,7 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-legend-tile.ne-state-disabled {
   border-color: var(--ne-colour-disabled, var(--zx-tone-unknown));
   border-style: dashed;
-  opacity: 0.75;
+  opacity: var(--zx-opacity-disabled);
 }
 .ne-widget button.ne-state-unknown,
 .ne-widget .ne-legend-tile.ne-state-unknown {
@@ -128,9 +128,9 @@ html[color-scheme='dark'] .ne-widget {
   outline-offset: 2px;
 }
 .ne-widget .ne-drawer {
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
   border-top: 1px solid var(--ne-rule);
-  padding-top: 8px;
+  padding-top: var(--zx-space-2);
 }
 .ne-widget .ne-drawer:empty {
   display: none;
@@ -138,7 +138,7 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-details {
   display: grid;
   grid-template-columns: minmax(110px, 180px) 1fr;
-  gap: 4px 12px;
+  gap: var(--zx-space-1) var(--zx-space-3);
 }
 .ne-widget .ne-details dt {
   font-weight: bold;
@@ -150,20 +150,20 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget .ne-table th,
 .ne-widget .ne-table td {
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--ne-line);
-  padding: 6px;
+  padding: var(--zx-space-1) var(--zx-space-2);
   overflow-wrap: anywhere;
 }
 .ne-widget .ne-table caption {
   text-align: left;
   font-weight: bold;
-  padding-bottom: 5px;
+  padding-bottom: var(--zx-space-1);
 }
 .ne-widget button.ne-link-button {
   background: none;
@@ -182,7 +182,7 @@ html[color-scheme='dark'] .ne-widget {
   text-decoration: underline;
 }
 .ne-widget details {
-  margin: 10px 0;
+  margin: var(--zx-space-2) 0;
 }
 .ne-widget summary {
   cursor: pointer;
@@ -193,7 +193,7 @@ html[color-scheme='dark'] .ne-widget {
   max-width: 100%;
   min-height: 180px;
   border: 1px solid var(--ne-line);
-  border-radius: 4px;
+  border-radius: var(--zx-radius);
 }
 .ne-widget .ne-graph:focus-visible {
   outline: 2px solid var(--ne-accent);
@@ -219,11 +219,11 @@ html[color-scheme='dark'] .ne-widget {
   top: 6px;
   right: 6px;
   display: flex;
-  gap: 4px;
+  gap: var(--zx-space-1);
 }
 .ne-widget .ne-view-controls .ne-view-control {
   min-width: 28px;
-  padding: 0 7px;
+  padding: 0 var(--zx-space-2);
 }
 /* The collection summary is a one-line callout until a source needs review. */
 .ne-widget .ne-collection-chip {
@@ -267,7 +267,7 @@ html[color-scheme='dark'] .ne-widget {
   border-top: 4px dotted var(--zx-tone-critical);
 }
 .ne-widget .ne-node .ne-node-badge {
-  font-size: 10px;
+  font-size: var(--zx-text-xs);
   fill: var(--ne-label);
 }
 .ne-widget .ne-node {
@@ -280,7 +280,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-node text {
   fill: var(--ne-node-text);
-  font-size: 12px;
+  font-size: var(--zx-text-md);
 }
 /* Findings badge: Zabbix's own severity colours (Warning yellow, Information blue), never red for a warning. */
 .ne-widget .ne-node .ne-node-findings circle {
@@ -289,7 +289,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-node .ne-node-findings text {
   fill: var(--zx-on-fill);
-  font-size: 11px;
+  font-size: var(--zx-text-sm);
   font-weight: bold;
 }
 .ne-widget .ne-node-findings.ne-severity-critical circle,
@@ -337,7 +337,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-svg-label {
   fill: var(--ne-label);
-  font-size: 12px;
+  font-size: var(--zx-text-md);
   text-anchor: middle;
   paint-order: stroke;
   stroke: var(--ne-halo);
@@ -400,7 +400,7 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-legend-tile.ne-lldp-none,
 .ne-widget button.ne-stp-unknown,
 .ne-widget .ne-legend-tile.ne-stp-unknown {
-  opacity: 0.55;
+  opacity: var(--zx-opacity-faded);
 }
 .ne-widget button.ne-stp-forwarding,
 .ne-widget .ne-legend-tile.ne-stp-forwarding,
@@ -422,7 +422,7 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget button.ne-stp-disabled,
 .ne-widget .ne-legend-tile.ne-stp-disabled {
   border-style: dashed;
-  opacity: 0.75;
+  opacity: var(--zx-opacity-disabled);
 }
 .ne-widget .ne-edge-vlan-carried {
   stroke: var(--zx-tone-ok);
@@ -517,7 +517,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget a.ne-open-dashboard {
   display: inline-block;
-  margin: 4px 0 8px;
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
   font-weight: bold;
 }
 /* Path to the root bridge: a double-weight dashed amber line and a dashed outline, so it never rests on colour. */
@@ -531,24 +531,24 @@ html[color-scheme='dark'] .ne-widget {
   stroke-width: 4;
 }
 .ne-widget .ne-scope-summary {
-  margin: 0 0 6px;
+  margin: 0 0 var(--zx-space-1);
   font-weight: bold;
 }
 .ne-widget .ne-search-status {
   align-self: center;
 }
 .ne-widget .ne-stp-path ol {
-  margin: 4px 0 8px 20px;
+  margin: var(--zx-space-1) 0 var(--zx-space-2) var(--zx-space-4);
 }
 /* Interface detail: the answer first, headings that read as headings, diagnostics collapsed. */
 .ne-widget .ne-detail-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 20px;
-  margin: 6px 0 10px;
-  padding: 8px 10px;
+  gap: var(--zx-space-1) var(--zx-space-4);
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
+  padding: var(--zx-space-2) var(--zx-space-3);
   border: 1px solid var(--ne-line);
-  border-radius: 4px;
+  border-radius: var(--zx-radius);
 }
 .ne-widget .ne-detail-fact {
   display: flex;
@@ -556,7 +556,7 @@ html[color-scheme='dark'] .ne-widget {
   gap: 2px;
 }
 .ne-widget .ne-detail-fact-label {
-  font-size: 11px;
+  font-size: var(--zx-text-sm);
   color: var(--ne-label);
 }
 .ne-widget .ne-detail-fact-value {
@@ -572,13 +572,13 @@ html[color-scheme='dark'] .ne-widget {
   color: var(--zx-tone-critical);
 }
 .ne-widget .ne-detail-title {
-  font-size: 14px;
+  font-size: var(--zx-text-lg);
   font-weight: bold;
-  margin: 4px 0;
+  margin: var(--zx-space-1) 0;
 }
 .ne-widget .ne-detail-heading {
   font-weight: bold;
-  margin: 14px 0 4px;
+  margin: var(--zx-space-3) 0 var(--zx-space-1);
 }
 .ne-widget .ne-detail-diagnostics > summary {
   font-weight: bold;
