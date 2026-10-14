@@ -45,6 +45,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Network Explorer topology: a switch with findings shows a count badge coloured by its worst severity (Zabbix's Warning yellow, Information blue), and a switch with a stale or failed collection source gets a dashed outline and a "stale data" label; both are in the legend and the node's accessible name.
 - Wi-Fi Explorer Overview: findings list AP and radio problems first within each severity, collection problems last, and one host's failed and stale datasets share one row with the datasets behind a disclosure. Findings, their IDs and the tile count are unchanged.
 - Wi-Fi Explorer Capacity: the clients chart spans the page with a value axis, gridlines, time labels, direct line labels and a hover value per period; the busiest hour is a neutral line rather than red dashes, and the 24-hour view draws a single hourly line.
+- Wi-Fi Explorer Capacity: periods with data for fewer than half their hours are marked "partial", and the 95th percentile and AP counts move to a second table behind a disclosure.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

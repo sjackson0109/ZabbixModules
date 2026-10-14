@@ -177,24 +177,42 @@ foreach ($periods as $i => $period) {
 }
 $root->addItem([new CTag('h2', true, _('Clients')), $svg]);
 
+// By period: the clients and utilisation per period. Periods with data for fewer than half their hours are marked,
+// since their averages rest on few samples. AP counts and the 95th percentile, which the tiles already summarise,
+// are in a second table behind a disclosure.
+$partial = static fn(array $period): bool => $period['hours_with_data'] > 0
+    && $period['hours_with_data'] * 2 < $period['hours'];
 $table = (new CTableInfo())->setHeader([_('Period'), _('Hours with data'), _('Clients, average'), _('Busiest hour'),
-    _('95th percentile hour'), _('Most on one AP'), _('APs up, average'), _('APs down, most'),
     _('2.4 GHz avg / peak'), _('5 GHz avg / peak'), _('6 GHz avg / peak')]);
+$apTable = (new CTableInfo())->setHeader([_('Period'), _('95th percentile hour'), _('Most on one AP'),
+    _('APs up, average'), _('APs down, most')]);
 foreach (array_reverse($periods) as $period) {
     $bands = [];
     foreach (\Modules\WifiExplorer\Services\CapacityService::BANDS as $band) {
         $u = $period['utilisation'][$band];
         $bands[] = $u['avg'] === null && $u['max'] === null ? '—' : $percent($u['avg']).' / '.$percent($u['max']);
     }
-    $row = new CRow(array_merge([$periodName($period), $period['hours_with_data'].' / '.$period['hours'],
-        $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1), $number($period['clients_p95_hour'], 1),
-        $number($period['clients_ap_max']), $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])], $bands));
+    $hours = $period['hours_with_data'].' / '.$period['hours'];
+    $row = new CRow(array_merge([$periodName($period),
+        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('we-kind')->addClass('we-kind-partial')] : $hours,
+        $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1)], $bands));
+    $apRow = new CRow([$periodName($period), $number($period['clients_p95_hour'], 1), $number($period['clients_ap_max']),
+        $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])]);
     if ($period['hours_with_data'] === 0) {
         $row->addClass('we-muted');
+        $apRow->addClass('we-muted');
+    }
+    elseif ($partial($period)) {
+        $row->addClass('we-row-partial');
     }
     $table->addRow($row);
+    $apTable->addRow($apRow);
 }
 $root->addItem([new CTag('h2', true, _('By period')), $table]);
+$more = (new CTag('details', true))->addClass('we-quality');
+$more->addItem(new CTag('summary', true, _('Access points and 95th percentile by period')));
+$more->addItem($apTable);
+$root->addItem($more);
 if ($capacity['range'] === 'year') {
     $root->addItem((new CTag('p', true, _('The year view reads peaks only for utilisation, so averages per band are not shown.')))
         ->addClass('we-muted'));

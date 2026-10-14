@@ -79,3 +79,5 @@
 .we-explorer .we-capacity-hit { fill: transparent; }
 .we-explorer .we-capacity-hit:hover { fill: rgba(128, 128, 128, 0.12); }
 .we-explorer .we-finding-group { margin: 4px 0 0; padding-left: 16px; list-style: disc; }
+.we-explorer .we-row-partial td { background: rgba(255, 200, 89, 0.12); }
+.we-explorer .we-kind-partial { border-color: #d08a1c; }
