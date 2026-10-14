@@ -1,6 +1,4 @@
 /* Wi-Fi Explorer page. Colours come from the shared tokens in explorers.css, so dark and high-contrast themes work. */
-.we-explorer .we-scope { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; margin: 0 0 12px; }
-.we-explorer .we-scope-field { display: flex; flex-direction: column; gap: 4px; }
 .we-explorer .we-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 0 0 8px; }
 .we-explorer .we-tile { border: 1px solid var(--zx-line); border-radius: 2px; padding: 8px 10px; }
 /* One accent rule for every tile on every tab: none when healthy, Zabbix Warning yellow, red only for down. */

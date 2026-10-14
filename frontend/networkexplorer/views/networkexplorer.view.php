@@ -24,19 +24,20 @@ $select = static function (string $name, string $label, array $values, string $s
         $field->addOption(new CSelectOption($selected, $selected));
     }
     $field->setValue($selected === '' && $name === 'hostid' ? '0' : $selected);
-    return [(new CDiv([new CLabel($label, 'ne-scope-'.$name.'-button'), $field]))->addClass('ne-scope-field')];
+    return [(new CDiv([new CLabel($label, 'ne-scope-'.$name.'-button'), $field]))->addClass('zx-filter-field')];
 };
 $sites = array_combine($options['sites'], $options['sites']) ?: [];
 $domains = array_combine($options['domains'], $options['domains']) ?: [];
 $devices = array_column($data['scope']['candidates'] ?? [], 'name', 'hostid');
 
-$form = (new CForm('get'))->setAction('zabbix.php')->addClass('ne-scope')->setAttribute('aria-label', _('Scope'));
+$form = (new CForm('get'))->setAction('zabbix.php')->addClass('zx-filter-bar')->addClass('ne-scope')
+    ->setAttribute('aria-label', _('Scope'));
 $form->addVar('action', 'networkexplorer.view');
 $form->addItem($select('site', _('Site'), $sites, $request['site']));
 $form->addItem($select('domain', _('Domain'), $domains, $request['domain']));
 $form->addItem((new CDiv([new CLabel(_('Management subnet'), 'management_cidr'),
     (new CTextBox('management_cidr', $request['management_cidr']))->setAttribute('placeholder', _('All (for example 10.1.0.0/16)'))
-        ->setWidth(ZBX_TEXTAREA_MEDIUM_WIDTH)]))->addClass('ne-scope-field'));
+        ->setWidth(ZBX_TEXTAREA_MEDIUM_WIDTH)]))->addClass('zx-filter-field'));
 $form->addItem($select('hostid', _('Seed device'), $devices, $request['hostid']));
 // The page keeps the view, VLAN and trace source in these as they change, so Apply keeps them; empty ones are
 // not sent. A selection belongs to one scope, so Apply drops it.

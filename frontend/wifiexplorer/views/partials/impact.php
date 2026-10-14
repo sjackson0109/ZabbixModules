@@ -28,12 +28,12 @@ foreach ($interfaces as $interface) {
     $interfaceSelect->addOption(new CSelectOption($interface['uid'], $interface['name']));
 }
 $interfaceSelect->setValue($request['fail_if']);
-$form = (new CForm('get'))->setAction('zabbix.php')->addClass('we-scope');
+$form = (new CForm('get'))->setAction('zabbix.php')->addClass('zx-filter-bar');
 $form->addVar('action', 'wifiexplorer.view');
 $form->addVar('view', 'impact');
 $form->addVar('site', $request['site']);
-$form->addItem((new CDiv([new CLabel(_('If this switch fails'), 'we-fail-host-button'), $hostSelect]))->addClass('we-scope-field'));
-$form->addItem((new CDiv([new CLabel(_('or this port'), 'we-fail-if-button'), $interfaceSelect]))->addClass('we-scope-field'));
+$form->addItem((new CDiv([new CLabel(_('If this switch fails'), 'we-fail-host-button'), $hostSelect]))->addClass('zx-filter-field'));
+$form->addItem((new CDiv([new CLabel(_('or this port'), 'we-fail-if-button'), $interfaceSelect]))->addClass('zx-filter-field'));
 $form->addItem(new CSubmit('assess', _('Assess')));
 $root->addItem($form);
 if ($request['fail_host'] !== '' && $request['fail_if'] === '' && $interfaces) {

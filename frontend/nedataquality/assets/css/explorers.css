@@ -56,6 +56,20 @@ html[color-scheme='dark'] {
   --zx-halo: #1e252b;
 }
 
+/* Filter bar: the page's scope form. Labels stacked above their fields, as in Zabbix 7 filters. */
+.zx-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-2) var(--zx-space-4);
+  align-items: flex-end;
+  margin: 0 0 var(--zx-space-3);
+}
+.zx-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zx-space-1);
+}
+
 /* Callout: a message that must not be read past. Info for context, warning for something to act on. */
 .zx-callout {
   margin: var(--zx-space-1) 0 var(--zx-space-3);

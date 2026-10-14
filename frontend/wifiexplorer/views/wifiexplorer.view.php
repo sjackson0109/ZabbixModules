@@ -58,13 +58,14 @@ if ($request['site'] !== '' && !in_array($request['site'], $sites, true)) {
     $select->addOption(new CSelectOption($request['site'], $request['site']));
 }
 $select->setValue($request['site']);
-$form = (new CForm('get'))->setAction('zabbix.php')->addClass('we-scope')->setAttribute('aria-label', _('Scope'));
+$form = (new CForm('get'))->setAction('zabbix.php')->addClass('zx-filter-bar')->addClass('we-scope')
+    ->setAttribute('aria-label', _('Scope'));
 $form->addVar('action', 'wifiexplorer.view');
 $form->addVar('view', $view);
-$form->addItem((new CDiv([new CLabel(_('Site'), 'we-site-button'), $select]))->addClass('we-scope-field'));
+$form->addItem((new CDiv([new CLabel(_('Site'), 'we-site-button'), $select]))->addClass('zx-filter-field'));
 $form->addItem((new CDiv([new CLabel(_('Search'), 'we-q'), (new CTextBox('q', $request['q']))->setId('we-q')
     ->setAttribute('maxlength', 64)->setAttribute('placeholder', _('AP, model, SSID, BSSID, channel, client'))
-    ->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)]))->addClass('we-scope-field'));
+    ->setWidth(ZBX_TEXTAREA_STANDARD_WIDTH)]))->addClass('zx-filter-field'));
 $form->addItem(new CSubmit('apply', _('Apply')));
 if ($data['can_configure'] ?? false) {
     $form->addItem((new CLink(_('Configure'), 'zabbix.php?action=wifiexplorer.config.edit'))->addClass('we-configure'));
