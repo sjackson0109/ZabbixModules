@@ -6,4 +6,4 @@
 .ne-explorer .ne-explorer-section h3 { font-size: var(--zx-text-lg); margin: var(--zx-space-2) 0; }
 .ne-explorer .ne-explorer-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--zx-space-2); }
 .ne-explorer .ne-explorer-quality { overflow-x: auto; }
-.ne-explorer details.ne-tables > summary { cursor: pointer; font-weight: bold; margin: var(--zx-space-4) 0 var(--zx-space-2); }
+.ne-explorer details.ne-tables > summary { margin: var(--zx-space-4) 0 var(--zx-space-2); }

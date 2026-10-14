@@ -34,7 +34,7 @@ if ($unkeyed) {
         _('Pseudonymised client IDs from these clusters could be traced back to MAC addresses until the {$WE.CLIENT.KEY} secret macro is set on the template or host:'),
         ' ', $hosts]))->addClass('zx-callout')->addClass('zx-callout-warning')->setAttribute('role', 'note'));
 }
-$details = (new CTag('details', true))->addClass('we-quality');
+$details = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Client sources')));
 $details->addItem($sources);
 $root->addItem($details);

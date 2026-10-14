@@ -200,6 +200,16 @@ html[color-scheme='dark'] {
   font-style: italic;
 }
 
+/* Disclosure: a details element. Bold summary for a section; quiet (secondary) for "About this view" help. */
+.zx-disclosure > summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.zx-disclosure-quiet > summary {
+  font-weight: normal;
+  color: var(--zx-tone-unknown);
+}
+
 /* Tone: the one way a state is coloured as text. Words carry the meaning; the tone and weight back it up. */
 .zx-tone-ok,
 .zx-tone-warning,

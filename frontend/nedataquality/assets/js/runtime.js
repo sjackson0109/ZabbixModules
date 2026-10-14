@@ -923,7 +923,7 @@
       );
     }
     // Identifiers and negotiation evidence: needed to diagnose, not to read the port, so collapsed.
-    const diagnostics = el('details', undefined, 'ne-detail-diagnostics');
+    const diagnostics = el('details', undefined, 'zx-disclosure ne-detail-diagnostics');
     diagnostics.appendChild(el('summary', 'Diagnostics'));
     diagnostics.appendChild(
       dl({
@@ -1236,7 +1236,7 @@
         state.last_broadcast = `${selected.hostid}:${selected.uid}`;
       }
     }
-    const details = el('details');
+    const details = el('details', undefined, 'zx-disclosure');
     details.appendChild(el('summary', `Interface table (${ports.length}; ${other.length} logical or unclassified)`));
     table(
       details,
@@ -1427,7 +1427,7 @@
     const ports = asRows(payload.interfaces)
       .filter(p => id(p.hostid) === hostid)
       .sort((a, b) => natural(a.member ?? Infinity, b.member ?? Infinity) || natural(a.name, b.name));
-    const section = el('details');
+    const section = el('details', undefined, 'zx-disclosure');
     section.open = true;
     section.appendChild(el('summary', `Interfaces (${ports.length})`));
     if (!ports.length) notice(section, 'No validated interface observations are available for this switch.');
@@ -2250,7 +2250,7 @@
       if (port) select.iface(port, true);
       else notice(details, 'The selected interface is not in the current scope or observation.', 'warning');
     }
-    const tabular = el('details');
+    const tabular = el('details', undefined, 'zx-disclosure');
     tabular.appendChild(el('summary', `Accessible link table (${edges.length})`));
     table(
       tabular,

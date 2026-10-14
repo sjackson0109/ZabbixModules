@@ -215,7 +215,7 @@ foreach (array_reverse($periods) as $period) {
     $apTable->addRow($apRow);
 }
 $root->addItem([new CTag('h2', true, _('By period')), $table]);
-$more = (new CTag('details', true))->addClass('we-quality');
+$more = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $more->addItem(new CTag('summary', true, _('Access points and 95th percentile by period')));
 $more->addItem($apTable);
 $root->addItem($more);

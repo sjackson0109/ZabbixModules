@@ -181,10 +181,10 @@ html[color-scheme='dark'] .ne-widget {
   background: none;
   text-decoration: underline;
 }
-.ne-widget details {
+.ne-widget .zx-disclosure {
   margin: var(--zx-space-2) 0;
 }
-.ne-widget summary {
+.ne-widget .ne-collection-chip > summary {
   cursor: pointer;
 }
 .ne-widget .ne-graph {
@@ -580,6 +580,4 @@ html[color-scheme='dark'] .ne-widget {
   font-weight: bold;
   margin: var(--zx-space-3) 0 var(--zx-space-1);
 }
-.ne-widget .ne-detail-diagnostics > summary {
-  font-weight: bold;
-}
+

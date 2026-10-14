@@ -13,7 +13,6 @@
 .we-explorer .we-row-warning td, .we-explorer .we-selected td { background: color-mix(in srgb, var(--zx-fill-warning) 15%, transparent); }
 .we-explorer .we-empty { padding: var(--zx-space-4) 0; }
 .we-explorer .we-quality { margin: var(--zx-space-4) 0 0; }
-.we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
 .we-explorer .we-configure { margin-left: auto; align-self: center; }
 .we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: var(--zx-space-1) var(--zx-space-2); margin: 0 0 var(--zx-space-1); align-items: center; }
 .we-explorer .we-overlay-label { font-weight: bold; }
@@ -62,4 +61,3 @@
 .we-explorer .we-finding-group { margin: var(--zx-space-1) 0 0; padding-left: var(--zx-space-4); list-style: disc; }
 .we-explorer .we-row-partial td { background: color-mix(in srgb, var(--zx-fill-warning) 12%, transparent); }
 .we-explorer .we-about { margin: calc(-1 * var(--zx-space-1)) 0 var(--zx-space-2); }
-.we-explorer .we-about summary { cursor: pointer; color: var(--zx-tone-unknown); }

@@ -176,7 +176,7 @@ foreach ($rows as $finding) {
             count($reasons) === 1 ? reset($reasons)
                 : _('Objects from these datasets are reported as unknown, or from their last complete observation.'),
             (new CTag('details', true, [new CTag('summary', true, _n('%1$s dataset', '%1$s datasets',
-                count($finding['group']))), $list])),
+                count($finding['group']))), $list]))->addClass('zx-disclosure')->addClass('zx-disclosure-quiet'),
             $finding['remediation'] ?? '']);
         continue;
     }
@@ -254,7 +254,7 @@ foreach ($data['quality'] as $row) {
         str_replace('_', ' ', $roles[$hostid] ?? 'unknown'), $row['dataset'], $row['status'], $row['freshness'],
         $row['observed_at'] ?? _('never'), implode(', ', array_merge($row['errors'], $row['warnings']))]);
 }
-$details = (new CTag('details', true))->addClass('we-quality');
+$details = (new CTag('details', true))->addClass('zx-disclosure')->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Data quality')));
 $details->addItem($quality);
 $root->addItem($details);

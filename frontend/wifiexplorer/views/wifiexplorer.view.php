@@ -116,7 +116,7 @@ $apName = static fn(?string $uid): string => $uid !== null && isset($byUid[$uid]
 $about = static function (string $lead, string $more): array {
     return [(new CTag('p', true, $lead))->addClass('zx-note'),
         (new CTag('details', true, [new CTag('summary', true, _('About this view')), new CTag('p', true, $more)]))
-            ->addClass('we-about')];
+            ->addClass('zx-disclosure')->addClass('zx-disclosure-quiet')->addClass('we-about')];
 };
 
 include __DIR__.'/partials/'.$view.'.php';

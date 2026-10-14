@@ -92,7 +92,7 @@ foreach (['csv'=>'CSV', 'json'=>'JSON'] as $format => $formatLabel) {
     $exports->addItem($row);
 }
 
-$tables = (new CTag('details', true))->addClass('ne-tables');
+$tables = (new CTag('details', true))->addClass('zx-disclosure')->addClass('ne-tables');
 $tables->addItem(new CTag('summary', true, _('Exports and tables')));
 $tables->addItem($exports);
 $hosts = (new CTableInfo())->setHeader([_('Host'), _('Vendor / model'), _('Site'), _('Domain'),
