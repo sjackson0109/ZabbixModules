@@ -31,6 +31,7 @@
   },
   "assets": {
     "css": [
+      "explorers.css",
       "wifi.css"
     ],
     "js": [

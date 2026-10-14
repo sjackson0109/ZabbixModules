@@ -25,6 +25,7 @@ const payload = fs.readFileSync(file, 'utf8');
       await page.setContent(
         '<!doctype html><html><head><title>Network Explorer render budget</title></head><body><div id="widget" class="ne-widget"></div></body></html>'
       );
+      await page.addStyleTag({ path: path.join(__dirname, '../../src/design/explorers.css') });
       await page.addStyleTag({ path: path.join(__dirname, '../../src/widget/widget.css') });
       await page.addScriptTag({ path: path.join(__dirname, '../../src/widget/runtime.js') });
       const result = await page.evaluate(

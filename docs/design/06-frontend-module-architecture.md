@@ -98,7 +98,7 @@ Unchanged and already tested: the peer link opens the peer's host dashboard with
 
 ### Maintainability
 
-`runtime.js` and `widget.css` have one source in `src/widget/`. Zabbix serves a module's assets only from its own directory, so `scripts/sync_widget_assets.py` copies them into each widget; the copies are committed, and the dev checks, CI and a Node test fail if any copy drifts. Edit the source, then run the script.
+`runtime.js` and `widget.css` have one source in `src/widget/`, and the design tokens shared with Wi-Fi Explorer (`explorers.css`, see [COMPONENTS.md](COMPONENTS.md)) one source in `src/design/`. Zabbix serves a module's assets only from its own directory, so `scripts/sync_widget_assets.py` copies them into each widget and both page modules; the copies are committed, and the dev checks, CI and a Node test fail if any copy drifts. Edit the source, then run the script.
 
 ## Native widgets reused
 

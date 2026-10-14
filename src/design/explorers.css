@@ -1,0 +1,57 @@
+/*
+ * Shared design tokens for Network Explorer and Wi-Fi Explorer. One copy ships in every module (Zabbix serves a
+ * module's assets only from its own directory); edit this file and run scripts/sync_widget_assets.py.
+ *
+ * Tones are for text and lines: each passes WCAG AA (4.5:1) on Zabbix's light and dark backgrounds.
+ * Fills are Zabbix's own severity colours, for badges and areas, always with --zx-on-fill text on top.
+ * Component reference: docs/design/COMPONENTS.md.
+ */
+:root {
+  --zx-tone-ok: #287e3f;
+  --zx-tone-warning: #946200;
+  --zx-tone-critical: #b04444;
+  --zx-tone-info: #1d6aab;
+  --zx-tone-unknown: #607080;
+  --zx-accent: #2676b9;
+
+  --zx-fill-ok: #59db8f;
+  --zx-fill-info: #7499ff;
+  --zx-fill-warning: #ffc859;
+  --zx-fill-average: #ffa059;
+  --zx-fill-high: #e97659;
+  --zx-fill-disaster: #e45959;
+  --zx-fill-unknown: #97aab3;
+  --zx-on-fill: #1f2c33;
+
+  --zx-line: rgba(128, 128, 128, 0.35);
+  --zx-line-strong: rgba(128, 128, 128, 0.6);
+  --zx-surface-tint: rgba(128, 128, 128, 0.08);
+  --zx-halo: #ffffff;
+
+  --zx-space-1: 4px;
+  --zx-space-2: 8px;
+  --zx-space-3: 12px;
+  --zx-space-4: 16px;
+  --zx-space-5: 24px;
+
+  --zx-radius: 2px;
+
+  --zx-text-xs: 10px;
+  --zx-text-sm: 11px;
+  --zx-text-md: 12px;
+  --zx-text-lg: 14px;
+  --zx-text-xl: 20px;
+
+  /* De-emphasis: a filtered-out drawing element, and an unrelated or not-applicable control. */
+  --zx-opacity-dimmed: 0.3;
+  --zx-opacity-faded: 0.55;
+}
+html[color-scheme='dark'] {
+  --zx-tone-ok: #59db8f;
+  --zx-tone-warning: #ffc859;
+  --zx-tone-critical: #ff8f7a;
+  --zx-tone-info: #8fb1ff;
+  --zx-tone-unknown: #a8b4bf;
+  --zx-accent: #6fb2ec;
+  --zx-halo: #1e252b;
+}

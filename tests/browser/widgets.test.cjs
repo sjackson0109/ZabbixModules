@@ -305,7 +305,7 @@ test('CSV exports escape quotes and spreadsheet formulas', () => {
 });
 test('widget manifests use only native host/item broadcasts and ship the shared runtime and stylesheet', () => {
   const ids = ['neportpanel', 'netopology', 'neinterfacedetail', 'nedataquality', 'nefindings'];
-  const source = path.join(__dirname, '../../src/widget');
+  const source = path.join(__dirname, '../../src');
   for (const id of ids) {
     const directory = path.join(__dirname, '../../frontend', id);
     const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));
@@ -313,15 +313,17 @@ test('widget manifests use only native host/item broadcasts and ship the shared 
     assert.equal(manifest.widget.in.override_hostid.type, '_hostid');
     assert.ok(manifest.widget.out.every(o => ['_hostid', '_itemid'].includes(o.type)));
     for (const [name, copy] of [
-      ['runtime.js', 'assets/js/runtime.js'],
-      ['widget.css', 'assets/css/widget.css']
+      ['widget/runtime.js', 'assets/js/runtime.js'],
+      ['widget/widget.css', 'assets/css/widget.css'],
+      ['design/explorers.css', 'assets/css/explorers.css']
     ]) {
       assert.equal(
         hash(fs.readFileSync(path.join(directory, copy))),
         hash(fs.readFileSync(path.join(source, name))),
-        `${id} ${copy} must match src/widget/${name}; run scripts/sync_widget_assets.py`
+        `${id} ${copy} must match src/${name}; run scripts/sync_widget_assets.py`
       );
     }
+    assert.deepEqual(manifest.assets.css, ['explorers.css', 'widget.css'], 'design tokens load before the widget sheet');
   }
 });
 test('the STP root comes from bridge evidence agreed within a domain, never from layout', () => {
@@ -353,15 +355,25 @@ test('the Explorer page module ships the same shared runtime and stylesheet as t
   const directory = path.join(__dirname, '../../frontend/networkexplorer');
   const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));
   assert.deepEqual(manifest.assets.js, ['runtime.js']);
-  assert.ok(manifest.assets.css.includes('widget.css'));
+  assert.deepEqual(manifest.assets.css, ['explorers.css', 'widget.css', 'explorer.css']);
   for (const [name, copy] of [
-    ['runtime.js', 'assets/js/runtime.js'],
-    ['widget.css', 'assets/css/widget.css']
+    ['widget/runtime.js', 'assets/js/runtime.js'],
+    ['widget/widget.css', 'assets/css/widget.css'],
+    ['design/explorers.css', 'assets/css/explorers.css']
   ])
     assert.equal(
       hash(fs.readFileSync(path.join(directory, copy))),
-      hash(fs.readFileSync(path.join(__dirname, '../../src/widget', name)))
+      hash(fs.readFileSync(path.join(__dirname, '../../src', name)))
     );
+});
+test('Wi-Fi Explorer ships the same design tokens as Network Explorer, loaded before its own sheet', () => {
+  const directory = path.join(__dirname, '../../frontend/wifiexplorer');
+  const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));
+  assert.deepEqual(manifest.assets.css, ['explorers.css', 'wifi.css']);
+  assert.equal(
+    hash(fs.readFileSync(path.join(directory, 'assets/css/explorers.css'))),
+    hash(fs.readFileSync(path.join(__dirname, '../../src/design/explorers.css')))
+  );
 });
 test('path to root follows observed root ports only and says where evidence stops', () => {
   const hosts = ['1', '2', '3', '4'].map(n => ({ hostid: n, name: `S${n}`, domain: 'd' }));

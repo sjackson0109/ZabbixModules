@@ -42,6 +42,7 @@
       "class.widget.js"
     ],
     "css": [
+      "explorers.css",
       "widget.css"
     ]
   }
