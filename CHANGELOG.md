@@ -46,6 +46,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Wi-Fi Explorer Overview: findings list AP and radio problems first within each severity, collection problems last, and one host's failed and stale datasets share one row with the datasets behind a disclosure. Findings, their IDs and the tile count are unchanged.
 - Wi-Fi Explorer Capacity: the clients chart spans the page with a value axis, gridlines, time labels, direct line labels and a hover value per period; the busiest hour is a neutral line rather than red dashes, and the 24-hour view draws a single hourly line.
 - Wi-Fi Explorer Capacity: periods with data for fewer than half their hours are marked "partial", and the 95th percentile and AP counts move to a second table behind a disclosure.
+- Wi-Fi Explorer Impact: before a switch is chosen, the tab lists the switches on AP paths ranked by the APs that would lose service if each failed on its own, with degraded and possibly rerouted APs and clients on those APs now; each switch links to its full assessment.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

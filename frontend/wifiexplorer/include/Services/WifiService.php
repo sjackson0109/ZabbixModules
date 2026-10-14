@@ -130,6 +130,9 @@ final class WifiService {
             if ($scope->failHost !== '') {
                 $impact = (new ImpactService($network))->build($scope->failHost, $scope->failInterface, $aps, $ssids['ssids']);
             }
+            else {
+                $wired['ranking'] = (new ImpactService($network))->ranking($aps, $ssids['ssids']);
+            }
         }
         $clients = $scope->view === 'clients'
             ? (new ClientService($this->history, $now))->build($owners, $datasets, $aps, $scope->query, $scope->client)

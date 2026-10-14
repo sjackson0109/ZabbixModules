@@ -108,6 +108,37 @@ final class ImpactService {
                 'aps_without_count'=>count($lost) - count($known), 'kind'=>'estimated']];
     }
 
+    /**
+     * The switches whose failure would cost the most service, for the Impact tab before a switch is chosen: each
+     * switch on some AP's uplink or path, assessed as a whole switch, ordered by APs that lose service, then clients.
+     * Switches on no path affect no AP and are left out.
+     * @return array<int, array{hostid: string, name: string, lost: int, degraded: int, reroute_possible: int,
+     *     clients: int, aps_without_count: int}>
+     */
+    public function ranking(array $aps, array $ssids): array {
+        $candidates = [];
+        foreach ($aps as $ap) {
+            foreach ($ap['chain']['ports'] ?? [] as $port) {
+                if (isset($this->hosts[$port['hostid']])) {
+                    $candidates[$port['hostid']] = true;
+                }
+            }
+        }
+        $rows = [];
+        foreach (array_keys($candidates) as $hostid) {
+            $result = $this->build((string) $hostid, '', $aps, $ssids);
+            if ($result['status'] !== 'ok') {
+                continue;
+            }
+            $rows[] = ['hostid'=>(string) $hostid, 'name'=>$result['target']['name'], 'lost'=>$result['counts']['lost'],
+                'degraded'=>$result['counts']['degraded'], 'reroute_possible'=>$result['counts']['reroute_possible'],
+                'clients'=>$result['clients']['estimated'], 'aps_without_count'=>$result['clients']['aps_without_count']];
+        }
+        usort($rows, static fn($a, $b) => [-$a['lost'], -$a['clients'], -$a['reroute_possible'], $a['name']]
+            <=> [-$b['lost'], -$b['clients'], -$b['reroute_possible'], $b['name']]);
+        return $rows;
+    }
+
     /** @return array{impact: string, reason: string, at_hop: ?int, alternates: array}|null null when unaffected */
     private function apImpact(array $ap, string $failHost, string $failInterface, ?string $aggregator): ?array {
         $uplink = $ap['uplink'];

@@ -42,6 +42,17 @@ if ($request['fail_host'] !== '' && $request['fail_if'] === '' && $interfaces) {
 
 $impact = $data['impact'];
 if ($impact === null) {
+    // Before a switch is chosen: the switches whose failure would cost the most, each one link from its assessment.
+    $ranking = (new CTableInfo())->setHeader([_('Switch'), _('APs that lose service'), _('Degraded'), _('May reroute'),
+        _('Clients on those APs now')])->setNoDataMessage(_('No AP\'s uplink or path to the root is known, so no switch can be ranked.'));
+    foreach ($data['wired']['ranking'] ?? [] as $row) {
+        $ranking->addRow([new CLink($row['name'], $link(['view'=>'impact', 'fail_host'=>$row['hostid']])), $row['lost'],
+            $row['degraded'], $row['reroute_possible'],
+            [$row['clients'], $row['aps_without_count'] ? ' '._s('(and %1$s AP(s) without a current count)', $row['aps_without_count']) : '']]);
+    }
+    $root->addItem([new CTag('h2', true, _('Switches with the most depending on them')),
+        (new CTag('p', true, _('If each switch failed on its own. Choose one to see the APs, SSIDs, VLANs and floors behind it.')))
+            ->addClass('we-muted'), $ranking]);
     return;
 }
 if ($impact['status'] !== 'ok') {
