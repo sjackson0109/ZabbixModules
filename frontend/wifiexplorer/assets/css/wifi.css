@@ -18,11 +18,6 @@
 .we-explorer .we-quality summary { cursor: pointer; font-weight: bold; }
 .we-explorer .we-configure { margin-left: auto; align-self: center; }
 .we-explorer .we-muted { opacity: 0.7; font-style: italic; }
-.we-explorer .we-kind { display: inline-block; padding: 0 5px; border-radius: 2px; font-size: 11px;
-    border: 1px solid var(--zx-line-strong); white-space: nowrap; }
-.we-explorer .we-kind-interpolated, .we-explorer .we-kind-inferred, .we-explorer .we-kind-estimated { border-style: dashed; }
-.we-explorer .we-kind-declared, .we-explorer .we-kind-configured { background: var(--zx-surface-tint); }
-.we-explorer .we-kind-not_collected { opacity: 0.7; }
 .we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 6px; align-items: center; }
 .we-explorer .we-overlay-label { font-weight: bold; }
 .we-explorer .we-overlay-active { font-weight: bold; text-decoration: underline; }
@@ -69,6 +64,5 @@
 .we-explorer .we-capacity-hit:hover { fill: var(--zx-surface-tint); }
 .we-explorer .we-finding-group { margin: 4px 0 0; padding-left: 16px; list-style: disc; }
 .we-explorer .we-row-partial td { background: color-mix(in srgb, var(--zx-fill-warning) 12%, transparent); }
-.we-explorer .we-kind-partial { border-color: var(--zx-tone-warning); }
 .we-explorer .we-about { margin: -4px 0 10px; }
 .we-explorer .we-about summary { cursor: pointer; opacity: 0.85; }

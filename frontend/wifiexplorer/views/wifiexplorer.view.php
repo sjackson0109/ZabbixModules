@@ -44,7 +44,7 @@ $kind = static function (string $kind): CSpan {
     $names = ['observed'=>_('Observed'), 'interpolated'=>_('Interpolated'), 'configured'=>_('Configured'),
         'inferred'=>_('Inferred'), 'declared'=>_('Declared intent'), 'estimated'=>_('Estimated'),
         'not_collected'=>_('Not collected')];
-    return (new CSpan($names[$kind] ?? $kind))->addClass('we-kind')->addClass('we-kind-'.$kind);
+    return (new CSpan($names[$kind] ?? $kind))->addClass('zx-badge')->addClass('zx-badge-'.$kind);
 };
 
 // Scope: a site narrows the view; changing it drops selections, which belong to one scope.

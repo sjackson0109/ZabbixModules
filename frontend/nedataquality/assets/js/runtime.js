@@ -660,6 +660,13 @@
     node.addEventListener('click', action);
     return node;
   }
+  /** Link confidences that count as observed from both ends; anything else is drawn and badged as inferred. */
+  const CONFIRMED = ['confirmed', 'bidirectional', 'high'];
+  /** The evidence badge shared with Wi-Fi Explorer: solid for observed, dashed for inferred. */
+  function confidenceBadge(value) {
+    if (value === null || value === undefined || value === '') return null;
+    return el('span', value, `zx-badge ${CONFIRMED.includes(value) ? 'zx-badge-observed' : 'zx-badge-inferred'}`);
+  }
   function notice(root, value, kind = 'info') {
     root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
   }
@@ -1362,7 +1369,7 @@
           label: 'STP role and state (source / destination)',
           value: e => (e.stp ? `${stpEnd(e.stp.source)} / ${stpEnd(e.stp.target)}` : 'Unknown')
         },
-        { label: 'Confidence', value: e => e.confidence },
+        { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
         { label: 'Freshness', value: e => e.freshness }
       ],
       edge.members,
@@ -1464,7 +1471,7 @@
       !b ||
       edge.freshness === 'stale' ||
       edge.confidence === 'ambiguous' ||
-      !['confirmed', 'bidirectional', 'high'].includes(edge.confidence ?? edge.status);
+      !CONFIRMED.includes(edge.confidence ?? edge.status);
     const visible = a ?? b;
     const label =
       a && b
@@ -2247,7 +2254,7 @@
         { label: 'Peer', value: e => (e.target ? hostName(payload, e.target) : 'Undisclosed peer') },
         { label: 'Peer port', value: e => (e.target ? interfaceName(payload, e.target, e.target_uid) : null) },
         { label: 'Resolution', value: e => e.status },
-        { label: 'Confidence', value: e => e.confidence },
+        { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
         { label: 'Freshness', value: e => e.freshness }
       ],
       edges,

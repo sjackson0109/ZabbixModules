@@ -154,6 +154,31 @@ html[color-scheme='dark'] {
   background: var(--zx-surface-tint);
 }
 
+/* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured. */
+.zx-badge {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--zx-line-strong);
+  border-radius: var(--zx-radius);
+  font-size: var(--zx-text-sm);
+  white-space: nowrap;
+}
+.zx-badge-inferred,
+.zx-badge-interpolated,
+.zx-badge-estimated {
+  border-style: dashed;
+}
+.zx-badge-configured,
+.zx-badge-declared {
+  background: var(--zx-surface-tint);
+}
+.zx-badge-not_collected {
+  opacity: var(--zx-opacity-faded);
+}
+.zx-badge-partial {
+  border-color: var(--zx-tone-warning);
+}
+
 /* Tone: the one way a state is coloured as text. Words carry the meaning; the tone and weight back it up. */
 .zx-tone-ok,
 .zx-tone-warning,

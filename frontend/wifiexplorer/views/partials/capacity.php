@@ -200,7 +200,7 @@ foreach (array_reverse($periods) as $period) {
     }
     $hours = $period['hours_with_data'].' / '.$period['hours'];
     $row = new CRow(array_merge([$periodName($period),
-        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('we-kind')->addClass('we-kind-partial')] : $hours,
+        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('zx-badge')->addClass('zx-badge-partial')] : $hours,
         $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1)], $bands));
     $apRow = new CRow([$periodName($period), $number($period['clients_p95_hour'], 1), $number($period['clients_ap_max']),
         $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])]);
