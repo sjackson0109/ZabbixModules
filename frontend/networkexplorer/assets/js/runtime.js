@@ -23,6 +23,8 @@
     parallelSpacing: 10,
     blockMarkGap: 14
   };
+  /** Worst first: the order a switch's findings badge picks its colour from. */
+  const SEVERITY_ORDER = ['critical', 'high', 'warning', 'info'];
   function speed(value) {
     const n = Number(value);
     if (!Number.isFinite(n) || n <= 0) return 'Unknown';
@@ -228,6 +230,14 @@
       groups.get(key).ports.push(port);
     }
     return [...groups.values()];
+  }
+  /** A port's stack member, slot and port, or a plain statement when the device reports no placement at all. */
+  function placement(port) {
+    if (port.member == null && port.slot == null)
+      return port.port == null
+        ? 'Not placed (no stack member or slot reported)'
+        : `Port ${port.port}; no stack member or slot reported`;
+    return [port.member, port.slot, port.port].map(text).join(' / ');
   }
   /** Applies configured state colours (six-digit hex from the widget form) as CSS custom properties. */
   function applyColours(root, colours) {
@@ -545,7 +555,7 @@
     if (lags) parts.push(count(lags, 'LAG'));
     const severities = new Map();
     for (const finding of findings) severities.set(text(finding.severity), (severities.get(text(finding.severity)) ?? 0) + 1);
-    const order = ['critical', 'high', 'warning', 'info'];
+    const order = SEVERITY_ORDER;
     const bySeverity = [...severities]
       .sort(([a], [b]) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99) || natural(a, b))
       .map(([severity, n]) => `${n} ${severity}`);
@@ -724,15 +734,34 @@
       ['interfaces', 'interfaces.inventory', 'interfaces.state', 'lldp', 'lag'].includes(q.dataset)
     );
     if (!hostid && new Set(summaries.map(q => id(q.hostid))).size > 1) {
-      for (const dataset of [...new Set(summaries.map(q => q.dataset))]) {
+      // Many switches: one line for all collection sources, opened only when one needs review, so the drawing
+      // stays near the top of the page.
+      const datasets = [...new Set(summaries.map(q => q.dataset))].map(dataset => {
         const rows = summaries.filter(q => q.dataset === dataset);
-        const current = rows.filter(q => q.freshness === 'current' && q.status === 'ok').length;
+        return { dataset, rows, current: rows.filter(q => q.freshness === 'current' && q.status === 'ok').length };
+      });
+      const healthy = datasets.filter(d => d.current === d.rows.length).length;
+      const chip = el(
+        'details',
+        undefined,
+        `ne-collection-chip ${healthy === datasets.length ? 'ne-info' : 'ne-warning'}`
+      );
+      chip.open = healthy < datasets.length;
+      chip.appendChild(
+        el(
+          'summary',
+          healthy === datasets.length
+            ? `Collection: ${healthy} of ${datasets.length} sources current on every switch`
+            : `Collection: ${datasets.length - healthy} of ${datasets.length} sources need review`
+        )
+      );
+      for (const { dataset, rows, current } of datasets)
         notice(
-          root,
+          chip,
           `${dataset}: ${current} current successful observations of ${rows.length} permitted hosts; ${rows.length - current} need quality review.`,
           current === rows.length ? 'info' : 'warning'
         );
-      }
+      root.appendChild(chip);
       return;
     }
     for (const row of summaries) {
@@ -797,72 +826,117 @@
    */
   function showDetail(root, payload, port, broadcast, ctx = {}) {
     root.replaceChildren();
-    root.appendChild(el('h4', `${text(port.name)} · ${stateLabel(port)}`));
-    const list = el('dl', undefined, 'ne-details');
-    const details = {
-      ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
-      Description: port.description,
-      Alias: port.alias,
-      'Interface UID': port.uid,
-      'Current ifIndex': port.if_index,
-      Classification: isPhysical(port) ? 'Physical' : port.physical === false ? 'Logical' : 'Unknown',
-      'Member / slot / port': [port.member, port.slot, port.port].map(text).join(' / '),
-      'Administrative state': enumValue(port.admin_status),
-      'Operational state': enumValue(port.oper_status),
-      'Observed speed': speed(port.speed_bps),
-      'Intended speed': speed(port.expected_speed_bps),
-      'Expected speed source': [port.expected_speed_source ?? port.policy?.source, port.expected_speed_basis]
-        .filter(Boolean)
-        .join(' · '),
-      'Observed at': port.observed_at ?? port.quality?.observed_at,
-      Freshness: port.freshness ?? port.quality?.freshness,
-      Duplex: port.duplex,
-      MTU: port.mtu,
-      'MAC address': port.mac_address
+    const state = portState(port);
+    root.appendChild(el('h4', `${text(port.name)} · ${stateLabel(port)}`, `ne-detail-title ne-detail-${state}`));
+    const peers = peersFor(payload, port);
+    // The answer first: state, speed against intent, VLAN mode and the LLDP peer, before the full record.
+    const strip = el('div', undefined, 'ne-detail-summary');
+    const fact = (label, value, className) => {
+      const item = el('div', undefined, `ne-detail-fact${className ? ` ${className}` : ''}`);
+      item.append(el('span', label, 'ne-detail-fact-label'));
+      const body = el('span', undefined, 'ne-detail-fact-value');
+      body.append(...(Array.isArray(value) ? value : [document.createTextNode(text(value))]));
+      item.append(body);
+      strip.appendChild(item);
     };
-    for (const [label, value] of Object.entries(details)) {
-      list.appendChild(el('dt', label));
-      list.appendChild(el('dd', text(value)));
+    fact('State', `${text(enumValue(port.oper_status))} (admin ${text(enumValue(port.admin_status))})`);
+    const observed = Number(port.speed_bps),
+      intended = Number(port.expected_speed_bps),
+      reduced = observed > 0 && intended > 0 && observed < intended;
+    fact(
+      'Speed',
+      intended > 0 ? `${speed(port.speed_bps)} of ${speed(port.expected_speed_bps)} intended` : speed(port.speed_bps),
+      reduced ? 'ne-detail-fact-reduced' : ''
+    );
+    if (port.vlan)
+      fact('VLAN', `${text(port.vlan.mode)}${port.vlan.pvid ? `, native ${port.vlan.pvid}` : ''}`);
+    // Every resolved peer, with the remote port selectable in place where the page supports it.
+    const peerValue = [];
+    for (const { peer, edge } of peers) {
+      const remote = findInterface(payload, peer.hostid, peer.uid);
+      if (peerValue.length) peerValue.push(el('br'));
+      peerValue.push(
+        peerLink(payload, peer, port.name, broadcast),
+        document.createTextNode(
+          ` · port ${text(remote?.name ?? peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
+        )
+      );
+      if (remote && ctx.selectInterface)
+        peerValue.push(
+          document.createTextNode(' '),
+          button(`Select ${text(remote.name)}`, () => ctx.selectInterface(remote), 'ne-link-button')
+        );
     }
-    root.appendChild(list);
-    const sections = [];
-    if (port.capability) {
-      const c = port.capability,
-        speeds = list => (Array.isArray(list) ? (list.length ? list.map(speed).join(', ') : 'None') : 'Unknown');
-      sections.push([
-        'Port capability',
-        {
-          'Auto-negotiation': c.autoneg_enabled === true ? 'Enabled' : c.autoneg_enabled === false ? 'Disabled' : null,
-          Supported: speeds(c.supported_speeds_bps),
-          Advertised: speeds(c.advertised_speeds_bps),
-          'Partner advertised': speeds(c.partner_advertised_speeds_bps),
-          'Operating (MAU)': `${speed(c.oper_speed_bps)} ${text(c.oper_duplex)}`
-        }
-      ]);
-    }
+    fact('LLDP peers', peers.length ? peerValue : 'No permitted LLDP peer is resolved for this interface.');
+    root.appendChild(strip);
+    const dl = values => {
+      const list = el('dl', undefined, 'ne-details');
+      for (const [label, value] of Object.entries(values)) {
+        list.appendChild(el('dt', label));
+        list.appendChild(el('dd', text(value)));
+      }
+      return list;
+    };
+    root.appendChild(
+      dl({
+        ...(ctx.showHost ? { Switch: hostName(payload, port.hostid) } : {}),
+        Description: port.description,
+        Alias: port.alias,
+        'Member / slot / port': placement(port),
+        'Administrative state': enumValue(port.admin_status),
+        'Operational state': enumValue(port.oper_status),
+        'Observed speed': speed(port.speed_bps),
+        'Intended speed': speed(port.expected_speed_bps),
+        // Where the intended speed comes from belongs next to it: it is what makes a slower port a finding.
+        'Expected speed source': [port.expected_speed_source ?? port.policy?.source, port.expected_speed_basis]
+          .filter(Boolean)
+          .join(' · '),
+        Duplex: port.duplex,
+        Freshness: port.freshness ?? port.quality?.freshness
+      })
+    );
     if (port.vlan) {
       const v = port.vlan;
-      sections.push([
-        'VLAN membership',
-        {
+      root.appendChild(el('h4', 'VLAN membership', 'ne-detail-heading'));
+      root.appendChild(
+        dl({
           ...(v.via_lag ? { 'Carried via': v.via_lag } : {}),
           Mode: v.mode,
           'Native VLAN (PVID)': v.pvid,
           Untagged: v.untagged || 'None',
           Tagged: v.tagged || 'None',
           Forbidden: v.forbidden || 'None'
-        }
-      ]);
+        })
+      );
     }
-    for (const [title, values] of sections) {
-      root.appendChild(el('h4', title));
-      const dl = el('dl', undefined, 'ne-details');
-      for (const [label, value] of Object.entries(values)) {
-        dl.appendChild(el('dt', label));
-        dl.appendChild(el('dd', text(value)));
-      }
-      root.appendChild(dl);
+    // Identifiers and negotiation evidence: needed to diagnose, not to read the port, so collapsed.
+    const diagnostics = el('details', undefined, 'ne-detail-diagnostics');
+    diagnostics.appendChild(el('summary', 'Diagnostics'));
+    diagnostics.appendChild(
+      dl({
+        'Interface UID': port.uid,
+        'Current ifIndex': port.if_index,
+        Classification: isPhysical(port) ? 'Physical' : port.physical === false ? 'Logical' : 'Unknown',
+        'Observed at': port.observed_at ?? port.quality?.observed_at,
+        MTU: port.mtu,
+        'MAC address': port.mac_address
+      })
+    );
+    if (port.capability) {
+      const c = port.capability,
+        speeds = list => (Array.isArray(list) ? (list.length ? list.map(speed).join(', ') : 'None') : 'Unknown');
+      diagnostics.appendChild(el('h4', 'Port capability', 'ne-detail-heading'));
+      diagnostics.appendChild(
+        dl({
+          'Auto-negotiation': c.autoneg_enabled === true ? 'Enabled' : c.autoneg_enabled === false ? 'Disabled' : null,
+          Supported: speeds(c.supported_speeds_bps),
+          Advertised: speeds(c.advertised_speeds_bps),
+          'Partner advertised': speeds(c.partner_advertised_speeds_bps),
+          'Operating (MAU)': `${speed(c.oper_speed_bps)} ${text(c.oper_duplex)}`
+        })
+      );
     }
+    root.appendChild(diagnostics);
     if (asRows(port.stp).length) {
       table(
         root,
@@ -888,24 +962,6 @@
     }
     if (port.itemid && ctx.linked !== false)
       root.appendChild(button('Select interface in linked widgets', () => broadcast(port.hostid, port.itemid)));
-    const peers = peersFor(payload, port);
-    root.appendChild(el('h4', 'LLDP peers'));
-    if (!peers.length) notice(root, 'No permitted LLDP peer is resolved for this interface.');
-    for (const { peer, edge } of peers) {
-      const row = el('p');
-      const remote = findInterface(payload, peer.hostid, peer.uid);
-      row.append(
-        peerLink(payload, peer, port.name, broadcast),
-        document.createTextNode(
-          ` · port ${text(remote?.name ?? peer.name ?? peer.uid)} · ${text(edge.confidence ?? edge.status)} · ${text(edge.freshness)}`
-        )
-      );
-      if (remote && ctx.selectInterface) {
-        row.appendChild(document.createTextNode(' '));
-        row.appendChild(button(`Select ${text(remote.name)}`, () => ctx.selectInterface(remote), 'ne-link-button'));
-      }
-      root.appendChild(row);
-    }
     const lagRows = asRows(payload.lags).filter(
       lag =>
         id(lag.hostid) === id(port.hostid) &&
@@ -1201,7 +1257,7 @@
   function stpNotes(root, info, mode) {
     const marked = mode === 'stp' ? info.roots : info.current;
     const parts = [];
-    if (marked.size) parts.push('★ marks the observed spanning-tree root bridge (instance 0).');
+    // The ★ itself is explained in the legend under the drawing.
     if (info.outside.length)
       parts.push(
         `The spanning-tree root (bridge ${info.outside.join(', ')}) is not a visible switch, so it is not drawn.`
@@ -1597,13 +1653,21 @@
       [has('.ne-node-context'), 'outside site', 'Connected neighbour outside the selected site'],
       [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
       [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
+      [has('.ne-node-stale'), 'stale data', 'A collection source is stale or failed; see Collection quality'],
+      [has('.ne-node-findings.ne-severity-warning'), '●', 'Number of findings; worst is a warning'],
+      [has('.ne-node-findings.ne-severity-info'), '●', 'Number of findings; information only'],
       [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
     ];
     for (const [shown, key, label] of entries) {
       if (!shown) continue;
       const item = el('li');
       const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
-      item.appendChild(el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : 'ne-legend-key'));
+      const severity = /worst is a warning|information only/.exec(label)
+        ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
+        : '';
+      item.appendChild(
+        el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : `ne-legend-key${severity}`)
+      );
       item.appendChild(el('span', label));
       legend.appendChild(item);
     }
@@ -1619,6 +1683,11 @@
       claimsRoot =
         context.mode === 'stp' && !isRoot && context.stp.disputed.length > 0 && context.stp.claimed.has(hostid),
       unreachable = host.snmp_available === false;
+    const findings = asRows(context.payload.findings).filter(f => id(f.hostid) === hostid),
+      worst = SEVERITY_ORDER.find(severity => findings.some(f => f.severity === severity)) ?? null,
+      staleData = asRows(context.payload.quality).some(
+        q => id(q.hostid) === hostid && (q.freshness === 'stale' || q.status === 'failed')
+      );
     const classes = ['ne-node'];
     const notes = [];
     if (!matching) classes.push('ne-muted');
@@ -1630,6 +1699,8 @@
       (classes.push('ne-node-root-disputed'), notes.push('reports itself as spanning-tree root; switches disagree'));
     if (unreachable) (classes.push('ne-node-unreachable'), notes.push('SNMP unreachable'));
     if (host.unresolved) (classes.push('ne-node-unresolved'), notes.push('STP placement unresolved'));
+    if (staleData) (classes.push('ne-node-stale'), notes.push('stale or failed collection'));
+    if (worst) notes.push(`${findings.length} ${findings.length === 1 ? 'finding' : 'findings'}, worst ${worst}`);
     const group = svgEl('g', {
       transform: `translate(${host.x},${host.y})`,
       tabindex: 0,
@@ -1664,7 +1735,8 @@
       host.outside_site && 'outside site',
       host.out_of_subnet && 'off subnet',
       unreachable && 'unreachable',
-      host.unresolved && 'unresolved'
+      host.unresolved && 'unresolved',
+      staleData && 'stale data'
     ].filter(Boolean);
     group.appendChild(
       svgEl(
@@ -1675,6 +1747,18 @@
     );
     if (badges.length)
       group.appendChild(svgEl('text', { 'text-anchor': 'middle', y: 15, class: 'ne-node-badge' }, badges.join(' · ')));
+    // The switch's findings, where they happen: a count on the corner, coloured by the worst severity.
+    if (worst) {
+      const badge = svgEl('g', {
+        class: `ne-node-findings ne-severity-${worst}`,
+        transform: `translate(${LAYOUT.nodeWidth / 2 - 4},${-LAYOUT.nodeHeight / 2 + 4})`
+      });
+      badge.appendChild(svgEl('circle', { r: 10 }));
+      badge.appendChild(
+        svgEl('text', { 'text-anchor': 'middle', y: 4 }, findings.length > 99 ? '99+' : String(findings.length))
+      );
+      group.appendChild(badge);
+    }
     group.appendChild(svgEl('title', {}, text(host.name)));
     onActivate(group, () => context.select.host(host));
     svg.appendChild(group);
@@ -1718,14 +1802,19 @@
     search.setAttribute('list', names.id);
     const searchStatus = el('span', undefined, 'ne-search-status');
     searchStatus.setAttribute('role', 'status');
-    toolbar.append(search, names, button('Focus', () => focusMatch()), searchStatus);
+    // Only the page's Apply is a primary button; drawing actions are secondary.
+    toolbar.append(search, names, button('Focus', () => focusMatch(), 'btn-alt'), searchStatus);
     let collapse = state.collapse_lag ?? true;
-    const lagToggle = button(collapse ? 'Expand LAG member links' : 'Collapse LAG member links', () => {
-      collapse = !collapse;
-      state.collapse_lag = collapse;
-      lagToggle.textContent = collapse ? 'Expand LAG member links' : 'Collapse LAG member links';
-      draw();
-    });
+    const lagToggle = button(
+      collapse ? 'Expand LAG member links' : 'Collapse LAG member links',
+      () => {
+        collapse = !collapse;
+        state.collapse_lag = collapse;
+        lagToggle.textContent = collapse ? 'Expand LAG member links' : 'Collapse LAG member links';
+        draw();
+      },
+      'btn-alt'
+    );
     toolbar.appendChild(lagToggle);
     const mode = el('select'),
       vlanPick = el('select'),
@@ -1763,7 +1852,8 @@
     root.appendChild(toolbar);
     const overlayNote = el('div');
     root.appendChild(overlayNote);
-    const controls = el('div', undefined, 'ne-toolbar ne-view-controls'),
+    const frame = el('div', undefined, 'ne-graph-frame'),
+      controls = el('div', undefined, 'ne-view-controls'),
       graph = el('div', undefined, 'ne-graph'),
       legend = el('ul', undefined, 'ne-topology-legend');
     graph.tabIndex = 0;
@@ -1779,7 +1869,11 @@
       details.setAttribute('aria-label', 'Topology selection details');
       details.setAttribute('aria-live', 'polite');
     }
-    root.append(controls, graph, legend);
+    // The zoom controls float over the canvas corner, so they take no row of their own above the drawing.
+    controls.setAttribute('role', 'toolbar');
+    controls.setAttribute('aria-label', 'Topology view');
+    frame.append(graph, controls);
+    root.append(frame, legend);
     if (!options.details) root.appendChild(details);
     const cidrs = payload.scope?.management_cidr || asRows(payload.scope?.management_cidrs).join(', ');
     if (cidrs)
@@ -2070,13 +2164,17 @@
           `${externalCount} unresolved endpoint observations. External, restricted and ambiguous peers use undisclosed placeholders.`
         );
     }
-    for (const [label, action] of [
-      ['Zoom in', () => viewport?.zoom(1 / 1.25)],
-      ['Zoom out', () => viewport?.zoom(1.25)],
-      ['Fit topology', () => viewport?.fit()],
-      ['Reset view', () => viewport?.reset()]
-    ])
-      controls.appendChild(button(label, action));
+    for (const [label, glyph, action] of [
+      ['Zoom in', '+', () => viewport?.zoom(1 / 1.25)],
+      ['Zoom out', '−', () => viewport?.zoom(1.25)],
+      ['Fit topology', 'Fit', () => viewport?.fit()],
+      ['Reset view', 'Reset', () => viewport?.reset()]
+    ]) {
+      const control = button(glyph, action, 'btn-alt ne-view-control');
+      control.setAttribute('aria-label', label);
+      control.title = label;
+      controls.appendChild(control);
+    }
     graph.addEventListener('keydown', event => {
       if (event.target !== graph || !viewport) return;
       const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];

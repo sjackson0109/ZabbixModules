@@ -69,8 +69,7 @@ $summary = _n('%1$s permitted switch in scope.', '%1$s permitted switches in sco
 if ($request['hostid'] !== '') {
     $summary .= ' '._('Showing the seed device and its direct neighbours.');
 }
-$root->addItem(new CTag('p', true, $summary.' '
-    ._('Interfaces, LLDP, LAG, VLAN and STP reflect permitted current observations. Host dashboards remain the place to investigate one switch.')));
+$root->addItem((new CTag('p', true, $summary))->addClass('ne-page-summary'));
 
 $app = (new CDiv())->addClass('ne-widget')->addClass('ne-explorer-app')->setId('ne-explorer-app');
 $root->addItem($app);

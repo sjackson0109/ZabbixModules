@@ -5,8 +5,8 @@
  * @var array $data
  * @var CDiv $root
  */
-$root->addItem((new CTag('p', true, _('Ready means every check passes from current observations. Unknown means nothing fails but something cannot be shown. Capacity is the declared clients per AP, not a measurement. Credentials are not validated.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('Ready means every check passes from current observations.'),
+    _('Unknown means nothing fails but something cannot be shown. Capacity is the declared clients per AP, not a measurement. Credentials are not validated.')));
 $statusNames = ['ready'=>_('Ready'), 'not_ready'=>_('Not ready'), 'unknown'=>_('Unknown')];
 $timings = ['upcoming'=>_('Upcoming'), 'in_progress'=>_('In progress'), 'ended'=>_('Ended')];
 $table = (new CTableInfo())->setHeader([_('Event'), _('Site'), _('SSID'), _('Starts'), _('Ends'), _('When'), _('Readiness')])

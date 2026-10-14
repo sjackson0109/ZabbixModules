@@ -28,6 +28,17 @@ use Modules\WifiExplorer\Services\WifiService;
         return $model;
     };
 
+    // Before a switch is chosen, the switches on AP paths are ranked by the APs that would lose service.
+    $ranked = (new WifiService(WifiLab::gateway(), WifiLab::now(), WifiLab::config()))
+        ->build(WifiScope::create('lab-west', '', ['view'=>'impact']))['wired']['ranking'];
+    $assert($ranked !== [] && $ranked[0]['hostid'] === '30' && $ranked[0]['lost'] === 4,
+        'The root, on every proven path, ranks first.');
+    $lostOrder = array_column($ranked, 'lost');
+    $sortedLost = $lostOrder;
+    rsort($sortedLost);
+    $assert($lostOrder === $sortedLost, 'Switches are ranked by the APs that would lose service.');
+    $assert(array_column($ranked, 'lost', 'hostid')['31'] === 2, 'Each rank matches the switch\'s own assessment.');
+
     // The access switch: its own APs lose service, the other switch's APs are unaffected.
     $access = $impact('31');
     $assert($access['impact']['counts']['lost'] === 2 && $access['by_ap'][WifiLab::apUid(1)]['reason'] === 'ap_switch',

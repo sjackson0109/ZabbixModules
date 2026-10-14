@@ -6,8 +6,8 @@
  * @var array $data
  * @var CDiv $root
  */
-$root->addItem((new CTag('p', true, _('What depends on a switch or port, from each AP\'s uplink and its spanning-tree path to the root. "Reroute possible" means a switch below the failure has an STP alternate port that is up; spanning tree may reconverge through it, which is not simulated. Client numbers are the clients associated now, an estimate of who is affected: some may roam to a neighbouring AP. PoE is not collected, so whether an AP also loses power is not shown.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('What depends on a switch or port, from each AP\'s uplink and its spanning-tree path to the root.'),
+    _('"Reroute possible" means a switch below the failure has an STP alternate port that is up; spanning tree may reconverge through it, which is not simulated. Client numbers are the clients associated now, an estimate of who is affected: some may roam to a neighbouring AP. PoE is not collected, so whether an AP also loses power is not shown.')));
 
 if (!$data['wired']['available']) {
     $root->addItem((new CDiv(\Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'])))->addClass('msg-warning'));
@@ -42,6 +42,17 @@ if ($request['fail_host'] !== '' && $request['fail_if'] === '' && $interfaces) {
 
 $impact = $data['impact'];
 if ($impact === null) {
+    // Before a switch is chosen: the switches whose failure would cost the most, each one link from its assessment.
+    $ranking = (new CTableInfo())->setHeader([_('Switch'), _('APs that lose service'), _('Degraded'), _('May reroute'),
+        _('Clients on those APs now')])->setNoDataMessage(_('No AP\'s uplink or path to the root is known, so no switch can be ranked.'));
+    foreach ($data['wired']['ranking'] ?? [] as $row) {
+        $ranking->addRow([new CLink($row['name'], $link(['view'=>'impact', 'fail_host'=>$row['hostid']])), $row['lost'],
+            $row['degraded'], $row['reroute_possible'],
+            [$row['clients'], $row['aps_without_count'] ? ' '._s('(and %1$s AP(s) without a current count)', $row['aps_without_count']) : '']]);
+    }
+    $root->addItem([new CTag('h2', true, _('Switches with the most depending on them')),
+        (new CTag('p', true, _('If each switch failed on its own. Choose one to see the APs, SSIDs, VLANs and floors behind it.')))
+            ->addClass('we-muted'), $ranking]);
     return;
 }
 if ($impact['status'] !== 'ok') {

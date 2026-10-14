@@ -25,8 +25,8 @@ $pathReasons = [
 $pathStates = ['complete'=>_('Complete'), 'failed'=>_('Failed'), 'partial'=>_('Partial'), 'unknown'=>_('Unknown')];
 $roles = ['access'=>_('AP port'), 'root_port'=>_('root port'), 'designated'=>_('upstream')];
 
-$root->addItem((new CTag('p', true, _('A path is complete only when every port from the AP\'s switch port to the spanning-tree root bridge is up, carries the SSID\'s declared VLAN and is not blocked, from current observations. It follows the instance-0 (CST/CIST) root ports in Network Explorer\'s model, never cable geometry. The VLAN\'s gateway (Layer 3) is not checked.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('A path is complete only when every port from the AP\'s switch port to the spanning-tree root bridge is up, carries the SSID\'s declared VLAN and is not blocked, from current observations.'),
+    _('It follows the instance-0 (CST/CIST) root ports in Network Explorer\'s model, never cable geometry. The VLAN\'s gateway (Layer 3) is not checked.')));
 
 if (!$data['wired']['available']) {
     $root->addItem((new CDiv(\Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason'])))->addClass('msg-warning'));

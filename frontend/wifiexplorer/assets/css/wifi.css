@@ -64,7 +64,26 @@
 .we-explorer .we-hop { border: 1px solid rgba(128, 128, 128, 0.5); border-radius: 2px; padding: 1px 5px; white-space: nowrap; }
 .we-explorer .we-hop-failed { border-color: #e45959; border-width: 2px; }
 .we-explorer .we-hop-unknown { border-style: dashed; }
-.we-explorer .we-capacity-chart { width: 100%; max-width: 720px; height: 140px; border: 1px solid rgba(128, 128, 128, 0.35); }
-.we-explorer .we-capacity-chart polyline { fill: none; stroke-width: 2; }
-.we-explorer .we-capacity-avg { stroke: #0275b8; }
-.we-explorer .we-capacity-peak { stroke: #e45959; stroke-dasharray: 4 3; }
+.we-explorer .we-capacity-chart { display: block; width: 100%; height: auto; border: 1px solid rgba(128, 128, 128, 0.35); }
+.we-explorer .we-capacity-chart polyline { fill: none; stroke-linejoin: round; }
+.we-explorer .we-capacity-avg { stroke: #0275b8; stroke-width: 2.5; }
+.we-explorer circle.we-capacity-avg { fill: #0275b8; }
+/* The busiest hour is context, not an alarm: a thinner neutral line. */
+.we-explorer .we-capacity-peak { stroke: #8796a3; stroke-width: 1.5; }
+.we-explorer circle.we-capacity-peak { fill: #8796a3; }
+.we-explorer .we-capacity-grid { stroke: rgba(128, 128, 128, 0.25); stroke-width: 1; }
+.we-explorer .we-capacity-axis, .we-explorer .we-capacity-label { font-size: 11px; fill: currentColor; opacity: 0.8; }
+.we-explorer .we-capacity-label { font-weight: bold; opacity: 1; }
+.we-explorer .we-capacity-avg-label { fill: #0275b8; }
+.we-explorer .we-capacity-peak-label { fill: #6b7a86; }
+.we-explorer .we-capacity-hit { fill: transparent; }
+.we-explorer .we-capacity-hit:hover { fill: rgba(128, 128, 128, 0.12); }
+.we-explorer .we-finding-group { margin: 4px 0 0; padding-left: 16px; list-style: disc; }
+.we-explorer .we-row-partial td { background: rgba(255, 200, 89, 0.12); }
+.we-explorer .we-kind-partial { border-color: #d08a1c; }
+.we-explorer .we-callout { margin: 0 0 12px; padding: 8px 12px; border: 1px solid rgba(128, 128, 128, 0.35);
+    border-left-width: 4px; border-radius: 2px; }
+.we-explorer .we-callout-warning { border-left-color: #ffc859; background: rgba(255, 200, 89, 0.15); }
+.we-explorer .we-callout-title { font-weight: bold; }
+.we-explorer .we-about { margin: -4px 0 10px; }
+.we-explorer .we-about summary { cursor: pointer; opacity: 0.85; }

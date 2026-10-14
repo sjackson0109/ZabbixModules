@@ -41,6 +41,17 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
   - The client timeline reads history a few values at a time and stops at its 16 MB bound instead of loading up to 73 snapshots first.
 
 ### Changed
+- Network Explorer page: the topology starts higher. The per-dataset collection notices are one summary line that opens only when a source needs review, the root-bridge note is in the legend, zoom, fit and reset float over the canvas corner, and Focus and Expand LAG member links are secondary buttons.
+- Network Explorer topology: a switch with findings shows a count badge coloured by its worst severity (Zabbix's Warning yellow, Information blue), and a switch with a stale or failed collection source gets a dashed outline and a "stale data" label; both are in the legend and the node's accessible name.
+- Wi-Fi Explorer Overview: findings list AP and radio problems first within each severity, collection problems last, and one host's failed and stale datasets share one row with the datasets behind a disclosure. Findings, their IDs and the tile count are unchanged.
+- Wi-Fi Explorer Capacity: the clients chart spans the page with a value axis, gridlines, time labels, direct line labels and a hover value per period; the busiest hour is a neutral line rather than red dashes, and the 24-hour view draws a single hourly line.
+- Wi-Fi Explorer Capacity: periods with data for fewer than half their hours are marked "partial", and the 95th percentile and AP counts move to a second table behind a disclosure.
+- Wi-Fi Explorer Impact: before a switch is chosen, the tab lists the switches on AP paths ranked by the APs that would lose service if each failed on its own, with degraded and possibly rerouted APs and clients on those APs now; each switch links to its full assessment.
+- Network Explorer interface detail opens with a summary of state, observed against intended speed (amber when reduced), VLAN mode and every LLDP peer with its remote port selectable; identifiers, MTU, MAC address and port-capability (MAU) evidence move into a collapsed Diagnostics section.
+- Wi-Fi Explorer Clients: the "Client IDs are not keyed" warning is a highlighted callout that links each affected cluster to its host configuration.
+- Network Explorer interface detail: a port with no stack member or slot says "Not placed" instead of "Unknown / Unknown / Unknown".
+- Wi-Fi Explorer: each tab opens with one sentence, with the rest of its explanation behind an "About this view" disclosure.
+- Wi-Fi Explorer Floor plans: a floor without a scale links a Super admin to the configuration editor where it is set.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11

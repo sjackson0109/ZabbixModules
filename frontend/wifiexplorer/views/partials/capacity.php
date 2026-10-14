@@ -17,8 +17,8 @@ foreach ($ranges as $key => $name) {
     $switcher->addItem((new CListItem($item))->addClass($key === $capacity['range'] ? 'we-tab-active' : 'we-tab'));
 }
 $root->addItem($switcher);
-$root->addItem((new CTag('p', true, _('From the hourly trends of each cluster\'s capacity items. Only complete observations give a value, so an hour without one is a gap, not a zero. "Busiest hour" is the highest hourly average; utilisation peaks are the highest sample any radio reported. The current hour is not in the trends yet.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('From the hourly trends of each cluster\'s capacity items; an hour without a complete observation is a gap, not a zero.'),
+    _('Only complete observations give a value. "Busiest hour" is the highest hourly average; utilisation peaks are the highest sample any radio reported. The current hour is not in the trends yet.')));
 
 if (!$capacity['available']) {
     $reasons = [
@@ -76,54 +76,143 @@ $tiles->addItem($tile(_('Hours with data'), $capacity['hours_with_data'].' / '.$
     _('Hours in the range for which at least one cluster reported a complete observation.')));
 $root->addItem($tiles);
 
-// A small chart of the average and busiest-hour clients per period; gaps break the line.
-$chartWidth = 720;
-$chartHeight = 140;
+// Clients per period: the average and the busiest hour, with a value axis, time labels and a hover tooltip per
+// period. Gaps break the lines; they are never drawn as zeros.
+$plot = ['left'=>44, 'right'=>96, 'top'=>12, 'bottom'=>28, 'width'=>1000, 'height'=>220];
 $values = array_merge(array_column($periods, 'clients_peak_hour'), array_column($periods, 'clients_avg'));
-$top = max(1.0, (float) ($maxOf($values) ?? 1));
-$count = max(1, count($periods));
-$x = static fn(int $i): string => number_format(($i + 0.5) * $chartWidth / $count, 1, '.', '');
-$y = static fn(float $v): string => number_format($chartHeight - 4 - $v / $top * ($chartHeight - 12), 1, '.', '');
-$svg = (new CTag('svg', true))->addClass('we-capacity-chart')
-    ->setAttribute('viewBox', '0 0 '.$chartWidth.' '.$chartHeight)->setAttribute('role', 'img')
-    ->setAttribute('aria-label', _('Clients per period: average and busiest hour'));
-foreach (['clients_avg'=>'we-capacity-avg', 'clients_peak_hour'=>'we-capacity-peak'] as $field => $class) {
-    $segment = [];
-    foreach ($periods as $i => $period) {
-        if ($period[$field] === null) {
-            if (count($segment) > 1) {
-                $svg->addItem((new CTag('polyline', true))->setAttribute('points', implode(' ', $segment))->addClass($class));
-            }
-            $segment = [];
-            continue;
+$step = static function (float $max): float {
+    // A round tick step giving two to five ticks.
+    $raw = max(1.0, $max / 4);
+    $magnitude = 10 ** floor(log10($raw));
+    foreach ([1, 2, 5, 10] as $factor) {
+        if ($factor * $magnitude >= $raw) {
+            return $factor * $magnitude;
         }
-        $segment[] = $x($i).','.$y((float) $period[$field]);
     }
-    if (count($segment) > 1) {
-        $svg->addItem((new CTag('polyline', true))->setAttribute('points', implode(' ', $segment))->addClass($class));
+    return 10 * $magnitude;
+};
+$tick = $step((float) ($maxOf($values) ?? 1));
+$top = max($tick, ceil((float) ($maxOf($values) ?? 1) / $tick) * $tick);
+$count = max(1, count($periods));
+$innerWidth = $plot['width'] - $plot['left'] - $plot['right'];
+$innerHeight = $plot['height'] - $plot['top'] - $plot['bottom'];
+$fmt = static fn(float $v): string => number_format($v, 1, '.', '');
+$x = static fn(int $i): float => $plot['left'] + ($i + 0.5) * $innerWidth / $count;
+$y = static fn(float $v): float => $plot['top'] + $innerHeight - $v / $top * $innerHeight;
+$svg = (new CTag('svg', true))->addClass('we-capacity-chart')
+    ->setAttribute('viewBox', '0 0 '.$plot['width'].' '.$plot['height'])->setAttribute('role', 'img')
+    ->setAttribute('aria-label', _('Clients per period: average and busiest hour. The table below lists every value.'));
+for ($v = 0.0; $v <= $top + 0.001; $v += $tick) {
+    $svg->addItem((new CTag('line', true))->addClass('we-capacity-grid')->setAttribute('x1', $plot['left'])
+        ->setAttribute('x2', $plot['width'] - $plot['right'])->setAttribute('y1', $fmt($y($v)))->setAttribute('y2', $fmt($y($v))));
+    $svg->addItem((new CTag('text', true, $number($v)))->addClass('we-capacity-axis')->setAttribute('x', $plot['left'] - 6)
+        ->setAttribute('y', $fmt($y($v) + 4))->setAttribute('text-anchor', 'end'));
+}
+$short = static function (array $period) use ($capacity): string {
+    return gmdate($capacity['range'] === 'day' ? 'H:i' : ($capacity['range'] === 'month' ? 'd M' : 'M Y'), $period['start']);
+};
+$every = max(1, (int) ceil($count / 8));
+foreach ($periods as $i => $period) {
+    if ($i % $every === 0 || $i === $count - 1) {
+        $svg->addItem((new CTag('text', true, $short($period)))->addClass('we-capacity-axis')->setAttribute('x', $fmt($x($i)))
+            ->setAttribute('y', $plot['height'] - 8)->setAttribute('text-anchor', 'middle'));
     }
 }
-$root->addItem([new CTag('h2', true, _('Clients')), $svg,
-    (new CTag('p', true, _s('Solid: average; dashed: busiest hour. Scale 0 to %1$s.', $number($top))))->addClass('we-muted')]);
+// In the day view each period is one hour, so its busiest hour is its average: one line, not two on top of each other.
+$lines = $capacity['range'] === 'day'
+    ? ['clients_avg'=>['we-capacity-avg', _('Hourly average')]]
+    : ['clients_peak_hour'=>['we-capacity-peak', _('Busiest hour')], 'clients_avg'=>['we-capacity-avg', _('Average')]];
+$ends = [];
+foreach ($lines as $field => [$class, $name]) {
+    $segment = [];
+    $flush = static function () use (&$segment, $svg, $class): void {
+        if (count($segment) > 1) {
+            $svg->addItem((new CTag('polyline', true))->setAttribute('points', implode(' ', $segment))->addClass($class));
+        }
+        elseif (count($segment) === 1) {
+            [$cx, $cy] = explode(',', $segment[0]);
+            $svg->addItem((new CTag('circle', true))->setAttribute('cx', $cx)->setAttribute('cy', $cy)->setAttribute('r', 3)
+                ->addClass($class));
+        }
+        $segment = [];
+    };
+    foreach ($periods as $i => $period) {
+        if ($period[$field] === null) {
+            $flush();
+            continue;
+        }
+        $segment[] = $fmt($x($i)).','.$fmt($y((float) $period[$field]));
+        $ends[$field] = [$i, (float) $period[$field]];
+    }
+    $flush();
+}
+// Direct labels at the right-hand end of each line, nudged apart when the lines meet.
+$labelY = [];
+foreach ($lines as $field => [$class, $name]) {
+    if (isset($ends[$field])) {
+        $labelY[$field] = $y($ends[$field][1]) + 4;
+    }
+}
+if (count($labelY) === 2 && abs($labelY['clients_avg'] - $labelY['clients_peak_hour']) < 14) {
+    $middle = ($labelY['clients_avg'] + $labelY['clients_peak_hour']) / 2;
+    $labelY['clients_peak_hour'] = $middle - 7;
+    $labelY['clients_avg'] = $middle + 7;
+}
+foreach ($labelY as $field => $ly) {
+    $svg->addItem((new CTag('text', true, $lines[$field][1]))->addClass('we-capacity-label')
+        ->addClass($lines[$field][0].'-label')->setAttribute('x', $plot['width'] - $plot['right'] + 6)
+        ->setAttribute('y', $fmt($ly)));
+}
+// One hover target per period, with its values.
+foreach ($periods as $i => $period) {
+    $hit = (new CTag('rect', true))->addClass('we-capacity-hit')->setAttribute('x', $fmt($x($i) - $innerWidth / $count / 2))
+        ->setAttribute('y', $plot['top'])->setAttribute('width', $fmt($innerWidth / $count))->setAttribute('height', $innerHeight);
+    $hit->addItem(new CTag('title', true, $period['hours_with_data'] === 0
+        ? _s('%1$s: no data', $periodName($period))
+        : ($capacity['range'] === 'day'
+            ? _s('%1$s: %2$s clients on average', $periodName($period), $number($period['clients_avg'], 1))
+            : _s('%1$s: average %2$s, busiest hour %3$s clients', $periodName($period), $number($period['clients_avg'], 1),
+                $number($period['clients_peak_hour'], 1)))));
+    $svg->addItem($hit);
+}
+$root->addItem([new CTag('h2', true, _('Clients')), $svg]);
 
+// By period: the clients and utilisation per period. Periods with data for fewer than half their hours are marked,
+// since their averages rest on few samples. AP counts and the 95th percentile, which the tiles already summarise,
+// are in a second table behind a disclosure.
+$partial = static fn(array $period): bool => $period['hours_with_data'] > 0
+    && $period['hours_with_data'] * 2 < $period['hours'];
 $table = (new CTableInfo())->setHeader([_('Period'), _('Hours with data'), _('Clients, average'), _('Busiest hour'),
-    _('95th percentile hour'), _('Most on one AP'), _('APs up, average'), _('APs down, most'),
     _('2.4 GHz avg / peak'), _('5 GHz avg / peak'), _('6 GHz avg / peak')]);
+$apTable = (new CTableInfo())->setHeader([_('Period'), _('95th percentile hour'), _('Most on one AP'),
+    _('APs up, average'), _('APs down, most')]);
 foreach (array_reverse($periods) as $period) {
     $bands = [];
     foreach (\Modules\WifiExplorer\Services\CapacityService::BANDS as $band) {
         $u = $period['utilisation'][$band];
         $bands[] = $u['avg'] === null && $u['max'] === null ? '—' : $percent($u['avg']).' / '.$percent($u['max']);
     }
-    $row = new CRow(array_merge([$periodName($period), $period['hours_with_data'].' / '.$period['hours'],
-        $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1), $number($period['clients_p95_hour'], 1),
-        $number($period['clients_ap_max']), $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])], $bands));
+    $hours = $period['hours_with_data'].' / '.$period['hours'];
+    $row = new CRow(array_merge([$periodName($period),
+        $partial($period) ? [$hours, ' ', (new CSpan(_('partial')))->addClass('we-kind')->addClass('we-kind-partial')] : $hours,
+        $number($period['clients_avg'], 1), $number($period['clients_peak_hour'], 1)], $bands));
+    $apRow = new CRow([$periodName($period), $number($period['clients_p95_hour'], 1), $number($period['clients_ap_max']),
+        $number($period['aps_up_avg'], 1), $number($period['aps_down_max'])]);
     if ($period['hours_with_data'] === 0) {
         $row->addClass('we-muted');
+        $apRow->addClass('we-muted');
+    }
+    elseif ($partial($period)) {
+        $row->addClass('we-row-partial');
     }
     $table->addRow($row);
+    $apTable->addRow($apRow);
 }
 $root->addItem([new CTag('h2', true, _('By period')), $table]);
+$more = (new CTag('details', true))->addClass('we-quality');
+$more->addItem(new CTag('summary', true, _('Access points and 95th percentile by period')));
+$more->addItem($apTable);
+$root->addItem($more);
 if ($capacity['range'] === 'year') {
     $root->addItem((new CTag('p', true, _('The year view reads peaks only for utilisation, so averages per band are not shown.')))
         ->addClass('we-muted'));

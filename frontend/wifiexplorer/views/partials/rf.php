@@ -10,8 +10,8 @@ $rf = $data['rf'];
 $classNames = ['managed'=>_('Managed'), 'known_external'=>_('Known external'), 'known_neighbour'=>_('Known neighbour'),
     'flagged'=>_('Flagged by an AP'), 'unknown'=>_('Unknown')];
 
-$root->addItem((new CTag('p', true, _('Each row is a network the visible APs hear. "Flagged by an AP" repeats the detecting AP\'s own classification (for example suspected unsecure); it is evidence to investigate, not proof of a threat. An unknown network is not a rogue by itself. "Heard best by" shows which AP hears it most strongly; it is not a location.')))
-    ->addClass('we-note'));
+$root->addItem($about(_('Each row is a network the visible APs hear; a flag or an unknown network is evidence to investigate, not proof of a threat.'),
+    _('"Flagged by an AP" repeats the detecting AP\'s own classification (for example suspected unsecure). An unknown network is not a rogue by itself. "Heard best by" shows which AP hears it most strongly; it is not a location.')));
 
 $observers = (new CTableInfo())->setHeader([_('Polled host'), _('AP'), _('Matched by'), _('Detections'), _('Freshness'),
     _('Observed')])->setNoDataMessage(_('No AP is polled for its own RF view. Link "Wi-Fi Explorer - Aruba Instant AP by SNMP" to a host per AP, at the AP\'s own address.'));

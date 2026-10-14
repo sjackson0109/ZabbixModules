@@ -150,13 +150,35 @@ if ($data['selected_ap'] !== '') {
     $root->addItem($detail);
 }
 
-// Findings: warnings first, each with what it is about, why, and how fresh the evidence is.
+// Findings: warnings first, AP and radio problems before the rest, and one row per host for its collection problems.
+$rows = \Modules\WifiExplorer\Services\WifiFindingList::overview($data['findings']);
+$ownerNames = array_column($data['owners'], 'name', 'hostid');
 $findings = (new CTableInfo())->setHeader([_('Severity'), _('Finding'), _('Reason'), _('Evidence'), _('Next step')])
     ->setNoDataMessage($data['wired']['available']
         ? _('No findings from the current observations.')
         : _('No findings from the current observations; uplink and VLAN path findings need the wired model:').' '
             .\Modules\WifiExplorer\Services\WifiErrors::wired($data['wired']['reason']));
-foreach ($data['findings'] as $finding) {
+foreach ($rows as $finding) {
+    if (isset($finding['group'])) {
+        $failed = count(array_filter($finding['group'], static fn($f) => $f['rule'] === 'wifi_dataset_failed'));
+        $stale = count($finding['group']) - $failed;
+        $parts = array_filter([$failed > 0 ? _n('%1$s dataset failed', '%1$s datasets failed', $failed) : '',
+            $stale > 0 ? _s('%1$s stale', $stale) : '']);
+        $list = (new CList())->addClass('we-finding-group');
+        foreach ($finding['group'] as $member) {
+            $list->addItem($member['title'].' · '.$member['freshness']
+                .($member['last_observed'] !== null ? ' / '.$member['last_observed'] : ''));
+        }
+        $reasons = array_unique(array_column($finding['group'], 'reason'));
+        $findings->addRow([(new CSpan(_('Warning')))->addClass('we-severity-warning'),
+            ($ownerNames[$finding['hostid']] ?? $finding['hostid']).': '.implode(', ', $parts),
+            count($reasons) === 1 ? reset($reasons)
+                : _('Objects from these datasets are reported as unknown, or from their last complete observation.'),
+            (new CTag('details', true, [new CTag('summary', true, _n('%1$s dataset', '%1$s datasets',
+                count($finding['group']))), $list])),
+            $finding['remediation'] ?? '']);
+        continue;
+    }
     $apUid = $finding['object_type'] === 'radio' ? ($radioAps[$finding['object_id']] ?? null) : $finding['object_id'];
     $title = in_array($finding['object_type'], ['ap', 'radio'], true) && isset($byUid[$apUid])
         ? new CLink($finding['title'], $link(['ap'=>$apUid]))
