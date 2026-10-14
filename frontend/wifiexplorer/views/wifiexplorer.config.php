@@ -17,7 +17,7 @@ if ($data['problems']) {
     $root->addItem((new CDiv([new CTag('strong', true, _('Not saved:')), $list]))->addClass('msg-bad'));
 }
 $root->addItem((new CTag('p', true, _('Floors, AP positions, SSID-to-VLAN intent, event definitions and known external BSSIDs. This is declared intent and configuration: Wi-Fi Explorer compares observations against it and never infers it. Never put a password, PSK or RADIUS secret here.')))
-    ->addClass('we-note'));
+    ->addClass('zx-note'));
 
 $form = (new CForm('post'))->setAction((new CUrl('zabbix.php'))->setArgument('action', 'wifiexplorer.config.update')->getUrl())
     ->addVar(CCsrfTokenHelper::CSRF_TOKEN_NAME, CCsrfTokenHelper::get('wifiexplorer.config.update'));

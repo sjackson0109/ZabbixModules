@@ -57,7 +57,7 @@ $tiles->addItem($tile(_('RF neighbours'), $rf['current_total'],
 $notAvailable = ['poe'=>_('PoE'), 'auth_failures'=>_('authentication failures'), 'retry_rates'=>_('retry and error rates')];
 $root->addItem((new CTag('p', true, _('Not exposed by the current sources, so not counted: ')
     .implode(', ', array_map(static fn($key) => $notAvailable[$key] ?? $key, $overview['not_available'])).'.'))
-    ->addClass('we-not-available'));
+    ->addClass('zx-note'));
 
 $radioAps = [];
 foreach ($data['aps'] as $ap) {

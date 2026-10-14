@@ -661,7 +661,7 @@
     return node;
   }
   function notice(root, value, kind = 'info') {
-    root.appendChild(el('p', value, `ne-notice ne-${kind}`));
+    root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
   }
   function table(root, columns, rows, caption) {
     const node = el('table', undefined, 'ne-table');
@@ -744,7 +744,7 @@
       const chip = el(
         'details',
         undefined,
-        `ne-collection-chip ${healthy === datasets.length ? 'ne-info' : 'ne-warning'}`
+        `ne-collection-chip zx-callout ${healthy === datasets.length ? 'zx-callout-info' : 'zx-callout-warning'}`
       );
       chip.open = healthy < datasets.length;
       chip.appendChild(

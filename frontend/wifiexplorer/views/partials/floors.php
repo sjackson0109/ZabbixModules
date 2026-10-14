@@ -154,7 +154,7 @@ if ($selected !== null) {
         }
         $root->addItem((new CDiv([new CLabel(_('Place AP'), 'we-place-ap-button'),
             $choices->setFocusableElementId('we-place-ap-button'),
-            (new CSpan(_('then click its position on the plan.')))->addClass('we-hint'),
+            (new CSpan(_('then click its position on the plan.')))->addClass('zx-note'),
             (new CButton('we-place-remove', _('Remove placement')))->addClass(ZBX_STYLE_BTN_ALT)->setId('we-place-remove'),
             (new CSpan(''))->setId('we-place-status')->setAttribute('role', 'status')]))
             ->addClass('we-placement')

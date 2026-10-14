@@ -30,9 +30,9 @@ if ($unkeyed) {
         $hosts[] = ', ';
     }
     array_pop($hosts);
-    $root->addItem((new CDiv([(new CSpan(_('Client IDs are not keyed.')))->addClass('we-callout-title'), ' ',
+    $root->addItem((new CDiv([(new CSpan(_('Client IDs are not keyed.')))->addClass('zx-callout-title'), ' ',
         _('Pseudonymised client IDs from these clusters could be traced back to MAC addresses until the {$WE.CLIENT.KEY} secret macro is set on the template or host:'),
-        ' ', $hosts]))->addClass('we-callout')->addClass('we-callout-warning')->setAttribute('role', 'note'));
+        ' ', $hosts]))->addClass('zx-callout')->addClass('zx-callout-warning')->setAttribute('role', 'note'));
 }
 $details = (new CTag('details', true))->addClass('we-quality');
 $details->addItem(new CTag('summary', true, _('Client sources')));

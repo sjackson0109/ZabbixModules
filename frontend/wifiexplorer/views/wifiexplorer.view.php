@@ -110,7 +110,7 @@ $apName = static fn(?string $uid): string => $uid !== null && isset($byUid[$uid]
 
 // Each tab opens with one sentence; the rest of its explanation is one click away, for the first visit.
 $about = static function (string $lead, string $more): array {
-    return [(new CTag('p', true, $lead))->addClass('we-note'),
+    return [(new CTag('p', true, $lead))->addClass('zx-note'),
         (new CTag('details', true, [new CTag('summary', true, _('About this view')), new CTag('p', true, $more)]))
             ->addClass('we-about')];
 };
