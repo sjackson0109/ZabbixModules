@@ -724,15 +724,34 @@
       ['interfaces', 'interfaces.inventory', 'interfaces.state', 'lldp', 'lag'].includes(q.dataset)
     );
     if (!hostid && new Set(summaries.map(q => id(q.hostid))).size > 1) {
-      for (const dataset of [...new Set(summaries.map(q => q.dataset))]) {
+      // Many switches: one line for all collection sources, opened only when one needs review, so the drawing
+      // stays near the top of the page.
+      const datasets = [...new Set(summaries.map(q => q.dataset))].map(dataset => {
         const rows = summaries.filter(q => q.dataset === dataset);
-        const current = rows.filter(q => q.freshness === 'current' && q.status === 'ok').length;
+        return { dataset, rows, current: rows.filter(q => q.freshness === 'current' && q.status === 'ok').length };
+      });
+      const healthy = datasets.filter(d => d.current === d.rows.length).length;
+      const chip = el(
+        'details',
+        undefined,
+        `ne-collection-chip ${healthy === datasets.length ? 'ne-info' : 'ne-warning'}`
+      );
+      chip.open = healthy < datasets.length;
+      chip.appendChild(
+        el(
+          'summary',
+          healthy === datasets.length
+            ? `Collection: ${healthy} of ${datasets.length} sources current on every switch`
+            : `Collection: ${datasets.length - healthy} of ${datasets.length} sources need review`
+        )
+      );
+      for (const { dataset, rows, current } of datasets)
         notice(
-          root,
+          chip,
           `${dataset}: ${current} current successful observations of ${rows.length} permitted hosts; ${rows.length - current} need quality review.`,
           current === rows.length ? 'info' : 'warning'
         );
-      }
+      root.appendChild(chip);
       return;
     }
     for (const row of summaries) {
@@ -1201,7 +1220,7 @@
   function stpNotes(root, info, mode) {
     const marked = mode === 'stp' ? info.roots : info.current;
     const parts = [];
-    if (marked.size) parts.push('★ marks the observed spanning-tree root bridge (instance 0).');
+    // The ★ itself is explained in the legend under the drawing.
     if (info.outside.length)
       parts.push(
         `The spanning-tree root (bridge ${info.outside.join(', ')}) is not a visible switch, so it is not drawn.`
@@ -1718,14 +1737,19 @@
     search.setAttribute('list', names.id);
     const searchStatus = el('span', undefined, 'ne-search-status');
     searchStatus.setAttribute('role', 'status');
-    toolbar.append(search, names, button('Focus', () => focusMatch()), searchStatus);
+    // Only the page's Apply is a primary button; drawing actions are secondary.
+    toolbar.append(search, names, button('Focus', () => focusMatch(), 'btn-alt'), searchStatus);
     let collapse = state.collapse_lag ?? true;
-    const lagToggle = button(collapse ? 'Expand LAG member links' : 'Collapse LAG member links', () => {
-      collapse = !collapse;
-      state.collapse_lag = collapse;
-      lagToggle.textContent = collapse ? 'Expand LAG member links' : 'Collapse LAG member links';
-      draw();
-    });
+    const lagToggle = button(
+      collapse ? 'Expand LAG member links' : 'Collapse LAG member links',
+      () => {
+        collapse = !collapse;
+        state.collapse_lag = collapse;
+        lagToggle.textContent = collapse ? 'Expand LAG member links' : 'Collapse LAG member links';
+        draw();
+      },
+      'btn-alt'
+    );
     toolbar.appendChild(lagToggle);
     const mode = el('select'),
       vlanPick = el('select'),
@@ -1763,7 +1787,8 @@
     root.appendChild(toolbar);
     const overlayNote = el('div');
     root.appendChild(overlayNote);
-    const controls = el('div', undefined, 'ne-toolbar ne-view-controls'),
+    const frame = el('div', undefined, 'ne-graph-frame'),
+      controls = el('div', undefined, 'ne-view-controls'),
       graph = el('div', undefined, 'ne-graph'),
       legend = el('ul', undefined, 'ne-topology-legend');
     graph.tabIndex = 0;
@@ -1779,7 +1804,11 @@
       details.setAttribute('aria-label', 'Topology selection details');
       details.setAttribute('aria-live', 'polite');
     }
-    root.append(controls, graph, legend);
+    // The zoom controls float over the canvas corner, so they take no row of their own above the drawing.
+    controls.setAttribute('role', 'toolbar');
+    controls.setAttribute('aria-label', 'Topology view');
+    frame.append(graph, controls);
+    root.append(frame, legend);
     if (!options.details) root.appendChild(details);
     const cidrs = payload.scope?.management_cidr || asRows(payload.scope?.management_cidrs).join(', ');
     if (cidrs)
@@ -2070,13 +2099,17 @@
           `${externalCount} unresolved endpoint observations. External, restricted and ambiguous peers use undisclosed placeholders.`
         );
     }
-    for (const [label, action] of [
-      ['Zoom in', () => viewport?.zoom(1 / 1.25)],
-      ['Zoom out', () => viewport?.zoom(1.25)],
-      ['Fit topology', () => viewport?.fit()],
-      ['Reset view', () => viewport?.reset()]
-    ])
-      controls.appendChild(button(label, action));
+    for (const [label, glyph, action] of [
+      ['Zoom in', '+', () => viewport?.zoom(1 / 1.25)],
+      ['Zoom out', '−', () => viewport?.zoom(1.25)],
+      ['Fit topology', 'Fit', () => viewport?.fit()],
+      ['Reset view', 'Reset', () => viewport?.reset()]
+    ]) {
+      const control = button(glyph, action, 'btn-alt ne-view-control');
+      control.setAttribute('aria-label', label);
+      control.title = label;
+      controls.appendChild(control);
+    }
     graph.addEventListener('keydown', event => {
       if (event.target !== graph || !viewport) return;
       const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];

@@ -234,8 +234,34 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-graph svg.ne-panning {
   cursor: grabbing;
 }
+.ne-widget .ne-graph-frame {
+  position: relative;
+}
+/* Zoom, fit and reset sit over the canvas's top-right corner instead of taking a row above it. */
 .ne-widget .ne-view-controls {
-  margin: 6px 0;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+}
+.ne-widget .ne-view-controls .ne-view-control {
+  min-width: 28px;
+  padding: 0 7px;
+}
+/* The collection summary is one line until a source needs review. */
+.ne-widget .ne-collection-chip {
+  display: inline-block;
+  margin: 5px 0;
+  padding: 3px 9px;
+  border-left: 3px solid #6b849c;
+  background: rgba(100, 125, 150, 0.07);
+}
+.ne-widget .ne-collection-chip.ne-warning {
+  border-left-color: #ae6810;
+}
+.ne-widget .ne-collection-chip[open] {
+  display: block;
 }
 .ne-widget .ne-topology-legend {
   display: flex;
@@ -338,7 +364,8 @@ html[color-scheme='dark'] .ne-widget {
     max-height: none;
     overflow: visible;
   }
-  .ne-widget .ne-toolbar {
+  .ne-widget .ne-toolbar,
+  .ne-widget .ne-view-controls {
     display: none;
   }
   .ne-widget .ne-graph {

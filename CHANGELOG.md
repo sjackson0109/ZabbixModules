@@ -41,6 +41,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
   - The client timeline reads history a few values at a time and stops at its 16 MB bound instead of loading up to 73 snapshots first.
 
 ### Changed
+- Network Explorer page: the topology starts higher. The per-dataset collection notices are one summary line that opens only when a source needs review, the root-bridge note is in the legend, zoom, fit and reset float over the canvas corner, and Focus and Expand LAG member links are secondary buttons.
 - `DatasetQuality::describe()` and `EnvelopeValidator::envelope()` are now public Network Explorer services, shared with Wi-Fi Explorer; Network Explorer's behaviour is unchanged.
 
 ## [1.3.0] - 2026-10-11
