@@ -68,3 +68,4 @@
 .we-explorer .we-capacity-chart polyline { fill: none; stroke-width: 2; }
 .we-explorer .we-capacity-avg { stroke: #0275b8; }
 .we-explorer .we-capacity-peak { stroke: #e45959; stroke-dasharray: 4 3; }
+.we-explorer .we-finding-group { margin: 4px 0 0; padding-left: 16px; list-style: disc; }

@@ -7,6 +7,7 @@ require_once __DIR__.'/services.php';
 
 use Modules\WifiExplorer\Services\WifiDatasetReader;
 use Modules\WifiExplorer\Services\WifiEnvelopeValidator;
+use Modules\WifiExplorer\Services\WifiFindingList;
 use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
 
@@ -171,6 +172,22 @@ use Modules\WifiExplorer\Services\WifiService;
         'Stale state raises no state findings.');
     $assert(count(array_filter($old['findings'], static fn($f) => $f['rule'] === 'wifi_dataset_stale')) === 2,
         'Each stale dataset is reported.');
+    // The Overview shows one row per host for its collection problems, after the device findings.
+    $listed = WifiFindingList::overview($old['findings']);
+    $groups = array_values(array_filter($listed, static fn($row) => isset($row['group'])));
+    $collection = static fn($f) => in_array($f['rule'], ['wifi_dataset_failed', 'wifi_dataset_stale'], true);
+    $assert(array_sum(array_map(static fn($row) => isset($row['group']) ? count($row['group']) : 1, $listed))
+        === count($old['findings']), 'Grouping keeps every finding.');
+    $assert(count($listed) === count($old['findings']) - count(array_filter($old['findings'], $collection))
+        + count(array_unique(array_column(array_filter($old['findings'], $collection), 'hostid'))),
+        'A host\'s failed and stale datasets share one row.');
+    $assert($groups !== [] && !array_filter($groups, static fn($row) => count($row['group']) < 2),
+        'A host with several collection problems gets one row; a single one keeps its own row.');
+    $ranks = array_map(static fn($row) => ($row['severity'] === 'warning' ? 0 : 3)
+        + (in_array($row['object_type'], ['ap', 'radio'], true) ? 0 : ($collection($row) || $row['object_type'] === 'owner' ? 2 : 1)), $listed);
+    $sorted = $ranks;
+    sort($sorted);
+    $assert($ranks === $sorted, 'Warnings first, AP and radio problems before other findings, collection last.');
     $assert($old['overview']['bands']['unknown'] === $old['overview']['radios']['total'],
         'Bands from stale state count as unknown.');
 
