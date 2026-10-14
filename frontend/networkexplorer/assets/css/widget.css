@@ -173,6 +173,12 @@ html[color-scheme='dark'] .ne-widget {
   text-align: left;
   height: auto;
   white-space: normal;
+  text-decoration: none;
+}
+/* Link buttons look like Zabbix links: underlined only on hover and focus. */
+.ne-widget button.ne-link-button:hover,
+.ne-widget button.ne-link-button:focus-visible {
+  background: none;
   text-decoration: underline;
 }
 .ne-widget details {
