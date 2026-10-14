@@ -79,10 +79,10 @@ if ($data['selected_ap'] !== '') {
         _('Firmware'), _('Uptime'), _('CPU'), _('Memory used'), _('Clients'), _('Placement'), _('Data source')]);
     $facts->addRow([$status($ap['status'], $ap['status_reason']), $unknown($ap['model']), $unknown($ap['serial']),
         $unknown($ap['mac_address']), $unknown($ap['ip_address']),
-        $ap['firmware'] ?? ($ap['cluster_firmware'] !== null ? $ap['cluster_firmware'].' '._('(cluster)') : _('Unknown')),
-        $ap['uptime_s'] !== null ? zbx_date2age(time() - $ap['uptime_s']) : _('Unknown'),
+        $ap['firmware'] ?? ($ap['cluster_firmware'] !== null ? $ap['cluster_firmware'].' '._('(cluster)') : $missing()),
+        $ap['uptime_s'] !== null ? zbx_date2age(time() - $ap['uptime_s']) : $missing(),
         $unknown($ap['cpu_percent'], '%'), $unknown($ap['memory_used_percent'], '%'),
-        $ap['clients'] !== null ? $ap['clients'] : _('Unknown'),
+        $ap['clients'] !== null ? $ap['clients'] : $missing(),
         $ap['placement'] !== null
             ? [$kind('configured'), ' ', new CLink(array_column($data['floors']['floors'], 'name', 'floor_id')[$ap['placement']['floor_id']]
                 ?? $ap['placement']['floor_id'], $link(['view'=>'floors', 'floor'=>$ap['placement']['floor_id'], 'ap'=>$ap['ap_uid']]))]
@@ -94,10 +94,10 @@ if ($data['selected_ap'] !== '') {
         ->setNoDataMessage(_('This AP reports no radios.'));
     foreach ($ap['radios'] as $radio) {
         $row = new CRow([$unknown($radio['radio_index']), $status($radio['status'], $radio['status_reason']),
-            $radio['band'] !== null ? $radio['band'].' GHz' : _('Unknown'), $unknown($radio['channel']),
-            $radio['channel_width'] !== null ? $radio['channel_width'].' MHz' : _('Unknown'),
+            $radio['band'] !== null ? $radio['band'].' GHz' : $missing(), $unknown($radio['channel']),
+            $radio['channel_width'] !== null ? $radio['channel_width'].' MHz' : $missing(),
             $radio['utilisation_percent'] !== null
-                ? _s('%1$s%% over %2$s s', $radio['utilisation_percent'], $radio['utilisation_window_s'] ?? '?') : _('Unknown'),
+                ? _s('%1$s%% over %2$s s', $radio['utilisation_percent'], $radio['utilisation_window_s'] ?? '?') : $missing(),
             $unknown($radio['tx_power_dbm'], ' dBm'), $unknown($radio['noise_floor_dbm'], ' dBm'),
             $unknown($radio['bssid']), $radio['state_freshness'].' / '.($radio['state_observed_at'] ?? _('never'))]);
         if ($radio['status'] === 'up' && $radio['utilisation_percent'] !== null
@@ -129,7 +129,7 @@ if ($data['selected_ap'] !== '') {
             $uplink['hostid'] !== null ? $status($uplink['port_freshness'] === 'current'
                 ? (string) ($uplink['oper_status'] ?? 'unknown') : 'unknown') : '—',
             $vlan !== null ? _s('%1$s, native %2$s, carries %3$s', $vlan['mode'], $vlan['pvid'] ?? '?',
-                $vlan['carried'] !== '' ? $vlan['carried'] : _('none')) : _('Unknown'),
+                $vlan['carried'] !== '' ? $vlan['carried'] : _('none')) : $missing(),
             $uplink['basis'] !== null ? $bases[$uplink['basis']] ?? $uplink['basis'] : '—',
             $uplink['freshness']]);
         $detail->addItem($port);
@@ -226,10 +226,10 @@ foreach (array_filter($data['aps'], $matches) as $ap) {
                 && $radio['status'] === 'up' ? $radio['utilisation_percent'].'%' : '');
     }
     $row = new CRow([new CLink($ap['name'] ?? _('Unnamed access point'), $link(['ap'=>$ap['ap_uid'], 'q'=>$request['q']])),
-        $ap['site'] !== '' ? $ap['site'] : _('Unknown'),
+        $ap['site'] !== '' ? $ap['site'] : $missing(),
         [$status($ap['status'], $ap['status_reason']), $ap['degraded'] ? ' '._('degraded') : ''],
         $summary ? implode(', ', array_map('trim', $summary)) : _('None reported'),
-        $ap['clients'] !== null ? $ap['clients'] : _('Unknown'),
+        $ap['clients'] !== null ? $ap['clients'] : $missing(),
         $ap['placement'] !== null
             ? new CLink($floorNames[$ap['placement']['floor_id']] ?? $ap['placement']['floor_id'],
                 $link(['view'=>'floors', 'floor'=>$ap['placement']['floor_id'], 'ap'=>$ap['ap_uid']]))

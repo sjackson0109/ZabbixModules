@@ -170,7 +170,7 @@ $unplaced = (new CTableInfo())->setHeader([_('Access point'), _('Site'), _('Stat
 foreach ($floors['unplaced'] as $apUid) {
     $ap = $byUid[$apUid];
     $unplaced->addRow([new CLink($ap['name'] ?? _('Unnamed access point'), $link(['ap'=>$apUid, 'view'=>'floors',
-        'floor'=>$selected['floor_id'] ?? ''])), $ap['site'] !== '' ? $ap['site'] : _('Unknown'),
+        'floor'=>$selected['floor_id'] ?? ''])), $ap['site'] !== '' ? $ap['site'] : $missing(),
         $status($ap['status'], $ap['status_reason']), $unknown($ap['model'])]);
 }
 $root->addItem([new CTag('h2', true, _s('Unplaced APs (%1$s)', count($floors['unplaced']))), $unplaced]);

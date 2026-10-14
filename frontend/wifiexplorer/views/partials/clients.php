@@ -46,7 +46,7 @@ foreach ($data['aps'] as $ap) {
             .($radio['channel'] ?? '?');
     }
 }
-$duration = static fn(?int $s): string => $s === null ? _('Unknown') : convertUnitsS($s);
+$duration = static fn(?int $s) => $s === null ? $missing() : convertUnitsS($s);
 $label = static fn(array $c): string => $c['name'] ?? $c['mac_address'] ?? substr($c['client_uid'], 7, 8);
 
 if ($clients['selection_missing']) {
@@ -60,12 +60,13 @@ if ($selected !== null) {
     $trace = (new CTableInfo())->setHeader([_('Step'), _('What'), _('Basis')]);
     $trace->addRow([_('Client'), implode(', ', array_filter([$selected['mac_address'], $selected['ip_address'],
         $selected['name']])).' · '._s('SNR %1$s dB', $selected['snr_db'] ?? '?').' · '
-        ._s('connected %1$s', $duration($selected['connected_s'])), $kind('observed')]);
+        .($selected['connected_s'] !== null ? _s('connected %1$s', convertUnitsS($selected['connected_s'])) : _('connection time unknown')),
+        $kind('observed')]);
     $ap = $selected['ap_uid'] !== null ? $byUid[$selected['ap_uid']] : null;
     $trace->addRow([_('Access point'), $ap !== null ? new CLink($apName($ap['ap_uid']), $link(['ap'=>$ap['ap_uid']]))
         : _('Not matched to a visible AP'), $kind($ap !== null ? 'observed' : 'not_collected')]);
     $trace->addRow([_('Radio'), $selected['radio_uid'] !== null
-        ? ($radioNames[$selected['radio_uid']] ?? '?').' · '._s('BSSID %1$s', $selected['bssid'] ?? '?') : _('Unknown'),
+        ? ($radioNames[$selected['radio_uid']] ?? '?').' · '._s('BSSID %1$s', $selected['bssid'] ?? '?') : $missing(),
         $kind($selected['radio_basis'] === 'bssid' ? 'observed' : ($selected['radio_basis'] !== null ? 'inferred' : 'not_collected'))]);
     $uplink = $ap['uplink'] ?? null;
     $trace->addRow([_('Wired uplink'), $uplink !== null && $uplink['hostid'] !== null
@@ -120,9 +121,9 @@ $table = (new CTableInfo())->setHeader([_('Client'), _('MAC address'), _('IP add
 foreach ($clients['clients'] as $client) {
     $row = new CRow([new CLink($label($client), $link(['view'=>'clients', 'client'=>$client['client_uid'], 'q'=>$request['q']])),
         $client['mac_address'] ?? '—', $client['ip_address'] ?? '—',
-        $client['ap_uid'] !== null ? new CLink($apName($client['ap_uid']), $link(['ap'=>$client['ap_uid']])) : _('Unknown'),
-        $client['radio_uid'] !== null ? $radioNames[$client['radio_uid']] ?? '?' : _('Unknown'),
-        $client['snr_db'] !== null ? $client['snr_db'].' dB' : _('Unknown'), $duration($client['connected_s'])]);
+        $client['ap_uid'] !== null ? new CLink($apName($client['ap_uid']), $link(['ap'=>$client['ap_uid']])) : $missing(),
+        $client['radio_uid'] !== null ? $radioNames[$client['radio_uid']] ?? '?' : $missing(),
+        $client['snr_db'] !== null ? $client['snr_db'].' dB' : $missing(), $duration($client['connected_s'])]);
     if ($client['client_uid'] === $request['client']) {
         $row->addClass('we-selected');
     }

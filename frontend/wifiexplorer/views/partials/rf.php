@@ -44,7 +44,7 @@ foreach ($rf['neighbours'] as $row) {
         $row['labels'] ? implode(', ', array_map(static fn($l) => str_replace('_', ' ', $l), array_keys($row['labels']))) : '—',
         ($row['band'] !== null ? $row['band'].' GHz' : '?').' / '.($row['channel'] ?? '?')
             .($row['channel_width'] !== null ? ' ('.$row['channel_width'].' MHz)' : ''),
-        $row['encryption'] ?? '—', $row['best_snr'] !== null ? $row['best_snr'].' dB' : '?',
+        $row['encryption'] ?? $missing(), $row['best_snr'] !== null ? $row['best_snr'].' dB' : $missing(),
         $best === null ? '—' : (strpos($best, 'host:') === 0 ? _('an unmatched host') : new CLink($apName($best), $link(['ap'=>$best]))),
         count($row['observers']),
         [$row['last_seen'] ?? _('never'), $row['current'] ? '' : [' ', (new CSpan(_('stale')))->addClass('zx-muted')]]]);

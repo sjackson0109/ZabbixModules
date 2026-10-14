@@ -670,6 +670,12 @@
   function notice(root, value, kind = 'info') {
     root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
   }
+  /** A table or detail value; a missing one reads "Unknown" in muted text, so it never looks like data. */
+  function valueNode(value) {
+    if (value instanceof Node) return value;
+    const shown = text(value);
+    return shown === 'Unknown' ? el('span', shown, 'zx-muted') : document.createTextNode(shown);
+  }
   function table(root, columns, rows, caption) {
     const node = el('table', undefined, 'ne-table');
     if (caption) node.appendChild(el('caption', caption));
@@ -688,7 +694,7 @@
       for (const column of columns) {
         const td = el('td'),
           value = column.value(row);
-        td.append(value instanceof Node ? value : document.createTextNode(text(value)));
+        td.append(valueNode(value));
         tr.appendChild(td);
       }
       body.appendChild(tr);
@@ -880,7 +886,7 @@
       const list = el('dl', undefined, 'ne-details');
       for (const [label, value] of Object.entries(values)) {
         list.appendChild(el('dt', label));
-        list.appendChild(el('dd', text(value)));
+        list.appendChild(el('dd')).append(valueNode(value));
       }
       return list;
     };
@@ -1401,7 +1407,7 @@
     const list = el('dl', undefined, 'ne-details');
     for (const [label, value] of Object.entries(facts)) {
       list.appendChild(el('dt', label));
-      list.appendChild(el('dd', text(value)));
+      list.appendChild(el('dd')).append(valueNode(value));
     }
     details.appendChild(list);
     if (host.out_of_subnet)

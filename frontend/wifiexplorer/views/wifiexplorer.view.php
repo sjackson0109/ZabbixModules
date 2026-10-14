@@ -18,7 +18,9 @@ $link = static function (array $params) use ($request): string {
     return 'zabbix.php?'.http_build_query(['action'=>'wifiexplorer.view'] + array_filter($params + ['site'=>$request['site']],
         static fn($value) => $value !== '' && $value !== null));
 };
-$unknown = static fn($value, string $suffix = '') => $value === null || $value === '' ? _('Unknown') : $value.$suffix;
+// A missing value reads "Unknown" in muted text; an em dash is kept for "does not apply".
+$missing = static fn(): CSpan => (new CSpan(_('Unknown')))->addClass('zx-muted');
+$unknown = static fn($value, string $suffix = '') => $value === null || $value === '' ? $missing() : $value.$suffix;
 $labels = [
     'state_not_collected'=>_('state not collected'), 'absent_from_state'=>_('not in the latest state'),
     'state_stale'=>_('state is stale'), 'state_unknown'=>_('state age unknown')

@@ -119,6 +119,6 @@ foreach ($impact['aps'] as $row) {
     }
     $apTable->addRow([new CLink($apName($row['ap_uid']), $link(['ap'=>$row['ap_uid']])),
         $toned($impacts[$row['impact']], $row['impact']),
-        $why[$row['reason']] ?? $row['reason'], $row['clients'] ?? _('Unknown'), $alternates ? implode('; ', $alternates) : '—']);
+        $why[$row['reason']] ?? $row['reason'], $row['clients'] ?? $missing(), $alternates ? implode('; ', $alternates) : '—']);
 }
 $root->addItem([new CTag('h2', true, _('Access points')), $apTable]);
