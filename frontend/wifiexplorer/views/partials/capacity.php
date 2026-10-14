@@ -46,9 +46,12 @@ $maxOf = static function (array $values) {
     return $values ? max($values) : null;
 };
 $tiles = (new CDiv())->addClass('we-tiles');
-$tile = static fn(string $title, string $value, string $detail) => (new CDiv([
-    (new CDiv($title))->addClass('we-tile-title'), (new CDiv($value))->addClass('we-tile-value'),
-    (new CDiv($detail))->addClass('we-tile-detail')]))->addClass('we-tile');
+// The same accent rule as Overview: a tile is accented only when it shows something to act on.
+$tile = static function (string $title, string $value, string $detail, string $class = ''): CDiv {
+    $tile = (new CDiv([(new CDiv($title))->addClass('we-tile-title'), (new CDiv($value))->addClass('we-tile-value'),
+        (new CDiv($detail))->addClass('we-tile-detail')]))->addClass('we-tile');
+    return $class !== '' ? $tile->addClass($class) : $tile;
+};
 $growth = $capacity['growth'];
 $tiles->addItem($tile(_('Clients, busiest hour'), $number($maxOf(array_column($withData, 'clients_peak_hour'))),
     $growth !== null && $growth['percent'] !== null
@@ -69,11 +72,13 @@ foreach (\Modules\WifiExplorer\Services\CapacityService::BANDS as $band) {
     $peak = $maxOf(array_map(static fn($p) => $p['utilisation'][$band]['max'], $withData));
     if ($peak !== null) {
         $tiles->addItem($tile(_s('%1$s GHz utilisation peak', $band), $percent($peak),
-            _s('%1$s radios up in the last full hour', $number(array_column($capacity['bands'], 'radios_up', 'band')[$band] ?? null))));
+            _s('%1$s radios up in the last full hour', $number(array_column($capacity['bands'], 'radios_up', 'band')[$band] ?? null)),
+            $peak >= \Modules\WifiExplorer\Services\WifiLimits::HIGH_UTILISATION ? 'we-tile-warning' : ''));
     }
 }
 $tiles->addItem($tile(_('Hours with data'), $capacity['hours_with_data'].' / '.$capacity['hours'],
-    _('Hours in the range for which at least one cluster reported a complete observation.')));
+    _('Hours in the range for which at least one cluster reported a complete observation.'),
+    $capacity['hours_with_data'] * 2 < $capacity['hours'] ? 'we-tile-warning' : ''));
 $root->addItem($tiles);
 
 // Clients per period: the average and the busiest hour, with a value axis, time labels and a hover tooltip per

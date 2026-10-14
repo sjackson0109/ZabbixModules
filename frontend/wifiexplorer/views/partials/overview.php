@@ -29,10 +29,11 @@ $datasets = $overview['datasets'];
 $tiles = (new CDiv())->addClass('we-tiles');
 $tiles->addItem($tile(_('Access points'), $aps['total'],
     _s('%1$s up, %2$s down, %3$s unknown, %4$s degraded', $aps['up'], $aps['down'], $aps['unknown'], $aps['degraded']),
-    $aps['down'] > 0 ? 'we-tile-warning' : ''));
+    $aps['down'] > 0 ? 'we-tile-critical' : ($aps['degraded'] > 0 ? 'we-tile-warning' : '')));
 $tiles->addItem($tile(_('Radios'), $radios['total'],
     _s('%1$s up, %2$s down, %3$s unknown', $radios['up'], $radios['down'], $radios['unknown'])
-        .($bandText ? ' · '.implode(', ', $bandText) : '')));
+        .($bandText ? ' · '.implode(', ', $bandText) : ''),
+    $radios['down'] > 0 ? 'we-tile-critical' : ''));
 $tiles->addItem($tile(_('Channel utilisation'), _s('%1$s high', $overview['high_utilisation_radios']),
     ($utilisation ? implode('; ', $utilisation) : _('No current utilisation'))
         .' · '._s('high is %1$s%% or more', $overview['high_utilisation_threshold']),

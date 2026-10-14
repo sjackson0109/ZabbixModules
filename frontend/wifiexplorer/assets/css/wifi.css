@@ -3,7 +3,9 @@
 .we-explorer .we-scope-field { display: flex; flex-direction: column; gap: 4px; }
 .we-explorer .we-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 0 0 8px; }
 .we-explorer .we-tile { border: 1px solid var(--zx-line); border-radius: 2px; padding: 8px 10px; }
-.we-explorer .we-tile-warning { border-left: 4px solid var(--zx-tone-critical); }
+/* One accent rule for every tile on every tab: none when healthy, Zabbix Warning yellow, red only for down. */
+.we-explorer .we-tile-warning { border-left: 4px solid var(--zx-fill-warning); }
+.we-explorer .we-tile-critical { border-left: 4px solid var(--zx-fill-high); }
 .we-explorer .we-tile-title { font-weight: bold; opacity: 0.8; }
 .we-explorer .we-tile-value { font-size: 20px; margin: 4px 0; }
 .we-explorer .we-tile-detail { opacity: 0.8; }
@@ -11,7 +13,8 @@
 .we-explorer h2 { margin: 16px 0 6px; font-size: 14px; }
 .we-explorer h3 { margin: 10px 0 6px; font-size: 13px; }
 .we-explorer .we-detail { border: 1px solid var(--zx-line); padding: 8px 10px; margin: 0 0 12px; }
-.we-explorer .we-status-down, .we-explorer .we-severity-warning { color: var(--zx-tone-critical); font-weight: bold; }
+.we-explorer .we-status-down { color: var(--zx-tone-critical); font-weight: bold; }
+.we-explorer .we-severity-warning { color: var(--zx-tone-warning); font-weight: bold; }
 .we-explorer .we-status-unknown { opacity: 0.75; font-style: italic; }
 .we-explorer .we-row-warning td, .we-explorer .we-selected td { background: color-mix(in srgb, var(--zx-fill-warning) 15%, transparent); }
 .we-explorer .we-empty { padding: 16px 0; }
