@@ -23,12 +23,22 @@ $labels = [
     'state_not_collected'=>_('state not collected'), 'absent_from_state'=>_('not in the latest state'),
     'state_stale'=>_('state is stale'), 'state_unknown'=>_('state age unknown')
 ];
-$status = static function (string $value, ?string $reason = null) use ($labels): CSpan {
+// Every domain state reads as one of five tones (explorers.css), so a new state is a line here, not new CSS.
+$toned = static function ($text, string $state): CSpan {
+    $tones = ['up'=>'ok', 'complete'=>'ok', 'broadcasting'=>'ok', 'ready'=>'ok', 'pass'=>'ok',
+        'partial'=>'warning', 'warn'=>'warning', 'degraded'=>'warning', 'warning'=>'warning',
+        'down'=>'critical', 'failed'=>'critical', 'not_broadcasting'=>'critical', 'not_ready'=>'critical',
+        'fail'=>'critical', 'lost'=>'critical', 'flagged'=>'critical',
+        'info'=>'info', 'unknown'=>'unknown', 'cannot_assess'=>'unknown', 'not_checked'=>'unknown'];
+    $span = new CSpan($text);
+    return isset($tones[$state]) ? $span->addClass('zx-tone-'.$tones[$state]) : $span;
+};
+$status = static function (string $value, ?string $reason = null) use ($labels, $toned): CSpan {
     $text = $value === 'up' ? _('Up') : ($value === 'down' ? _('Down') : _('Unknown'));
     if ($reason !== null) {
         $text .= ' ('.($labels[$reason] ?? $reason).')';
     }
-    return (new CSpan($text))->addClass('we-status')->addClass('we-status-'.$value);
+    return $toned($text, $value);
 };
 $kind = static function (string $kind): CSpan {
     $names = ['observed'=>_('Observed'), 'interpolated'=>_('Interpolated'), 'configured'=>_('Configured'),

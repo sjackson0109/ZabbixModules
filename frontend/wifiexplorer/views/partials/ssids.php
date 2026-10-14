@@ -82,7 +82,7 @@ if ($selected !== null) {
     foreach ($selected['expected'] as $row) {
         $uplink = $byUid[$row['ap_uid']]['uplink'] ?? null;
         $expected->addRow([new CLink($apName($row['ap_uid']), $link(['ap'=>$row['ap_uid']])),
-            [(new CSpan($states[$row['status']]))->addClass('we-path-'.$row['status']), ' ', $kind($row['kind'])],
+            [$toned($states[$row['status']], $row['status']), ' ', $kind($row['kind'])],
             $row['reason'] !== null ? ($reasons[$row['reason']] ?? $row['reason']) : '',
             $uplink !== null && $uplink['hostid'] !== null
                 ? ($uplink['switch_name'] ?? '?').' '.($uplink['interface_name'] ?? '?') : _('Unresolved'),

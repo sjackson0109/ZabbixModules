@@ -39,7 +39,7 @@ foreach ($rf['neighbours'] as $row) {
     ++$shown;
     $best = $row['heard_best_by'];
     $tr = new CRow([$row['ssid'] ?? (new CSpan(_('Hidden')))->addClass('we-muted'), $row['bssid'],
-        [(new CSpan($classNames[$row['class']]))->addClass('we-class-'.$row['class']), ' ',
+        [$toned($classNames[$row['class']], $row['class']), ' ',
             $kind($row['class_basis']), $row['known_label'] ? ' '.$row['known_label'] : ''],
         $row['labels'] ? implode(', ', array_map(static fn($l) => str_replace('_', ' ', $l), array_keys($row['labels']))) : '—',
         ($row['band'] !== null ? $row['band'].' GHz' : '?').' / '.($row['channel'] ?? '?')

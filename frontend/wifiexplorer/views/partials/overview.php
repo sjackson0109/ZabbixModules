@@ -171,7 +171,7 @@ foreach ($rows as $finding) {
                 .($member['last_observed'] !== null ? ' / '.$member['last_observed'] : ''));
         }
         $reasons = array_unique(array_column($finding['group'], 'reason'));
-        $findings->addRow([(new CSpan(_('Warning')))->addClass('we-severity-warning'),
+        $findings->addRow([$toned(_('Warning'), 'warning'),
             ($ownerNames[$finding['hostid']] ?? $finding['hostid']).': '.implode(', ', $parts),
             count($reasons) === 1 ? reset($reasons)
                 : _('Objects from these datasets are reported as unknown, or from their last complete observation.'),
@@ -188,8 +188,7 @@ foreach ($rows as $finding) {
             ? 'paths' : 'ssids', 'ssid'=>$finding['object_id']]))
         : ($finding['object_type'] === 'event' ? new CLink($finding['title'], $link(['view'=>'events', 'event'=>$finding['object_id']]))
         : $finding['title'])));
-    $findings->addRow([(new CSpan($finding['severity'] === 'warning' ? _('Warning') : _('Info')))
-            ->addClass('we-severity-'.$finding['severity']), $title, $finding['reason'],
+    $findings->addRow([$toned($finding['severity'] === 'warning' ? _('Warning') : _('Info'), $finding['severity']), $title, $finding['reason'],
         $finding['freshness'].($finding['last_observed'] !== null ? ' / '.$finding['last_observed'] : ''),
         $finding['remediation'] ?? '']);
 }

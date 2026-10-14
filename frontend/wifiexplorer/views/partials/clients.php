@@ -80,7 +80,9 @@ if ($selected !== null) {
         $name = array_column($data['ssids'], 'name', 'ssid_uid')[$ssidUid] ?? $ssidUid;
         $trace->addRow([_s('VLAN %1$s path', $path['vlan']),
             [new CLink($name, $link(['view'=>'paths', 'ssid'=>$ssidUid])), ': ',
-                (new CSpan($path['status']))->addClass('we-path-'.$path['status'])], $kind('observed')]);
+                $toned([
+                    'complete'=>_('Complete'), 'failed'=>_('Failed'), 'partial'=>_('Partial')][$path['status']] ?? _('Unknown'),
+                    $path['status'])], $kind('observed')]);
     }
     $detail->addItem([new CTag('h3', true, _('Trace')), $trace]);
     $detail->addItem(new CTag('p', true, _('The client\'s SSID is not reported, so every SSID path of its AP is listed.')));
