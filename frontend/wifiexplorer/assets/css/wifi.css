@@ -30,7 +30,6 @@
 .we-explorer .we-overlays { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 6px; align-items: center; }
 .we-explorer .we-overlay-label { font-weight: bold; }
 .we-explorer .we-overlay-active { font-weight: bold; text-decoration: underline; }
-.we-explorer .we-legend { margin: 0 0 8px; }
 .we-explorer .we-floor-canvas { max-width: 1100px; border: 1px solid var(--zx-line); }
 .we-explorer svg.we-floor { display: block; width: 100%; height: auto; }
 .we-explorer svg.we-floor-placing { cursor: crosshair; }

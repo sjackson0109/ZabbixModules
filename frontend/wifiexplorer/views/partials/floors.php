@@ -59,8 +59,8 @@ if ($selected !== null) {
     $legend = $selected['legend'];
     $root->addItem([new CTag('h2', true, $selected['site'].' · '.($selected['building'] !== '' ? $selected['building'].' · ' : '')
         .$selected['name']), $bar,
-        (new CDiv([$kind('configured'), ' '._('AP positions.').' ', $kind($legend['kind']), ' '.$legend['text']]))
-            ->addClass('we-legend')]);
+        (new CList([[$kind('configured'), ' '._('AP positions.')], [$kind($legend['kind']), ' '.$legend['text']]]))
+            ->addClass('zx-legend')]);
 
     $width = 1000;
     $height = (int) round(1000 * $selected['aspect_used']);

@@ -39,10 +39,6 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-toolbar input {
   max-width: 260px;
 }
-.ne-widget .ne-legend {
-  line-height: 1.8;
-  padding: 5px 0;
-}
 .ne-widget .ne-port-member {
   margin-bottom: 12px;
 }
@@ -93,24 +89,29 @@ html[color-scheme='dark'] .ne-widget {
   font-size: 10px;
   margin-top: 3px;
 }
-.ne-widget button.ne-state-up {
+.ne-widget button.ne-state-up,
+.ne-widget .ne-legend-tile.ne-state-up {
   border-color: var(--ne-colour-normal, var(--zx-tone-ok));
   background: color-mix(in srgb, var(--ne-colour-normal, var(--zx-tone-ok)) 10%, transparent);
 }
-.ne-widget button.ne-state-down {
+.ne-widget button.ne-state-down,
+.ne-widget .ne-legend-tile.ne-state-down {
   border-color: var(--ne-colour-down, var(--zx-tone-critical));
   background: color-mix(in srgb, var(--ne-colour-down, var(--zx-tone-critical)) 10%, transparent);
 }
-.ne-widget button.ne-state-degraded {
+.ne-widget button.ne-state-degraded,
+.ne-widget .ne-legend-tile.ne-state-degraded {
   border-color: var(--ne-colour-degraded, var(--zx-tone-warning));
   background: color-mix(in srgb, var(--ne-colour-degraded, var(--zx-tone-warning)) 13%, transparent);
 }
-.ne-widget button.ne-state-disabled {
+.ne-widget button.ne-state-disabled,
+.ne-widget .ne-legend-tile.ne-state-disabled {
   border-color: var(--ne-colour-disabled, var(--zx-tone-unknown));
   border-style: dashed;
   opacity: 0.75;
 }
-.ne-widget button.ne-state-unknown {
+.ne-widget button.ne-state-unknown,
+.ne-widget .ne-legend-tile.ne-state-unknown {
   border-color: var(--ne-colour-unknown, var(--zx-tone-unknown));
   background: color-mix(in srgb, var(--ne-colour-unknown, var(--zx-tone-unknown)) 8%, transparent);
 }
@@ -247,30 +248,20 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-collection-chip[open] {
   display: block;
 }
-.ne-widget .ne-topology-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 6px 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  color: var(--ne-label);
-}
-.ne-widget .ne-topology-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.ne-widget .ne-legend-key {
-  font-weight: bold;
+.ne-widget .zx-legend-key {
   color: var(--ne-node-text);
 }
-.ne-widget .ne-swatch {
+.ne-widget .zx-swatch {
+  border-top-color: var(--ne-edge);
+}
+/* A port-panel legend key is a small copy of a port tile in that state. */
+.ne-widget .ne-legend-tile {
   display: inline-block;
-  width: 26px;
-  height: 0;
-  border-top: 3px solid var(--ne-edge);
+  width: 16px;
+  height: 12px;
+  border: 2px solid var(--zx-tone-unknown);
+  border-radius: var(--zx-radius);
+  background: var(--zx-surface-tint);
 }
 .ne-widget .ne-swatch-dashed {
   border-top-style: dashed;
@@ -323,11 +314,12 @@ html[color-scheme='dark'] .ne-widget {
 .ne-widget .ne-node-findings.ne-severity-info circle {
   fill: var(--zx-fill-info);
 }
+/* The legend's dot is the badge's own fill. */
 .ne-widget .ne-legend-severity-warning {
-  color: var(--zx-tone-warning);
+  color: var(--zx-fill-warning);
 }
 .ne-widget .ne-legend-severity-info {
-  color: var(--zx-tone-info);
+  color: var(--zx-fill-info);
 }
 .ne-widget .ne-node-stale rect:not(.ne-node-halo) {
   stroke-dasharray: 2 3;
@@ -386,45 +378,60 @@ html[color-scheme='dark'] .ne-widget {
   }
 }
 .ne-widget button.ne-state-speed_observation,
-.ne-widget button.ne-state-duplex_observation {
+.ne-widget .ne-legend-tile.ne-state-speed_observation,
+.ne-widget button.ne-state-duplex_observation,
+.ne-widget .ne-legend-tile.ne-state-duplex_observation {
   border-color: var(--ne-colour-degraded, var(--zx-tone-warning));
   border-style: dashed;
   background: color-mix(in srgb, var(--ne-colour-degraded, var(--zx-tone-warning)) 7%, transparent);
 }
 .ne-widget button.ne-vlan-access,
-.ne-widget button.ne-vlan-native {
+.ne-widget .ne-legend-tile.ne-vlan-access,
+.ne-widget button.ne-vlan-native,
+.ne-widget .ne-legend-tile.ne-vlan-native {
   border-color: var(--zx-tone-ok);
   background: color-mix(in srgb, var(--zx-tone-ok) 14%, transparent);
 }
-.ne-widget button.ne-vlan-tagged {
+.ne-widget button.ne-vlan-tagged,
+.ne-widget .ne-legend-tile.ne-vlan-tagged {
   border-color: var(--zx-tone-info);
   background: color-mix(in srgb, var(--zx-tone-info) 12%, transparent);
 }
-.ne-widget button.ne-vlan-not_permitted {
+.ne-widget button.ne-vlan-not_permitted,
+.ne-widget .ne-legend-tile.ne-vlan-not_permitted {
   border-color: var(--zx-tone-critical);
   border-style: dashed;
   background: color-mix(in srgb, var(--zx-tone-critical) 8%, transparent);
 }
 .ne-widget button.ne-vlan-unrelated,
+.ne-widget .ne-legend-tile.ne-vlan-unrelated,
 .ne-widget button.ne-vlan-unknown,
+.ne-widget .ne-legend-tile.ne-vlan-unknown,
 .ne-widget button.ne-lldp-none,
-.ne-widget button.ne-stp-unknown {
+.ne-widget .ne-legend-tile.ne-lldp-none,
+.ne-widget button.ne-stp-unknown,
+.ne-widget .ne-legend-tile.ne-stp-unknown {
   opacity: 0.55;
 }
 .ne-widget button.ne-stp-forwarding,
-.ne-widget button.ne-lldp-peer {
+.ne-widget .ne-legend-tile.ne-stp-forwarding,
+.ne-widget button.ne-lldp-peer,
+.ne-widget .ne-legend-tile.ne-lldp-peer {
   border-color: var(--zx-tone-ok);
   background: color-mix(in srgb, var(--zx-tone-ok) 10%, transparent);
 }
-.ne-widget button.ne-stp-blocking {
+.ne-widget button.ne-stp-blocking,
+.ne-widget .ne-legend-tile.ne-stp-blocking {
   border-color: var(--zx-tone-critical);
   background: color-mix(in srgb, var(--zx-tone-critical) 12%, transparent);
 }
-.ne-widget button.ne-stp-learning {
+.ne-widget button.ne-stp-learning,
+.ne-widget .ne-legend-tile.ne-stp-learning {
   border-color: var(--zx-tone-warning);
   background: color-mix(in srgb, var(--zx-tone-warning) 10%, transparent);
 }
-.ne-widget button.ne-stp-disabled {
+.ne-widget button.ne-stp-disabled,
+.ne-widget .ne-legend-tile.ne-stp-disabled {
   border-style: dashed;
   opacity: 0.75;
 }

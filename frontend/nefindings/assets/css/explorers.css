@@ -77,6 +77,33 @@ html[color-scheme='dark'] {
   color: var(--zx-tone-unknown);
 }
 
+/* Legend: a list of key + label pairs. A key is text, a line swatch, or a module's own mini tile. */
+.zx-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zx-space-1) var(--zx-space-4);
+  margin: var(--zx-space-1) 0 var(--zx-space-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--zx-text-md);
+  color: var(--zx-tone-unknown);
+}
+.zx-legend > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zx-space-1);
+}
+.zx-legend-key {
+  font-weight: bold;
+  color: CanvasText;
+}
+.zx-swatch {
+  display: inline-block;
+  width: 26px;
+  height: 0;
+  border-top: 3px solid var(--zx-tone-unknown);
+}
+
 /* Tone: the one way a state is coloured as text. Words carry the meaning; the tone and weight back it up. */
 .zx-tone-ok,
 .zx-tone-warning,

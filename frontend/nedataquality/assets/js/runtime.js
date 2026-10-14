@@ -982,15 +982,24 @@
       return;
     }
     observations(root, payload, hostid);
+    // Each layer's key: a mini tile in the state's own style, then the tile's glyph and words.
     const legends = {
-      physical: Object.values(STATE_LABELS).join('  '),
-      vlan: Object.values(VLAN_LABELS).join('  '),
-      stp: `${Object.entries(STP_MARKS)
-        .map(([state, mark]) => `${mark} ${state[0].toUpperCase()}${state.slice(1)}`)
-        .join('  ')}  * derived role`,
-      lldp: '⇄ LLDP neighbour  · No neighbour'
+      physical: Object.entries(STATE_LABELS).map(([state, label]) => [`ne-state-${state}`, label]),
+      vlan: Object.entries(VLAN_LABELS).map(([state, label]) => [`ne-vlan-${state}`, label]),
+      stp: [
+        ...Object.entries(STP_MARKS).map(([state, mark]) => [
+          `ne-stp-${state}`,
+          `${mark} ${state[0].toUpperCase()}${state.slice(1)}`
+        ]),
+        [null, '* derived role']
+      ],
+      lldp: [
+        ['ne-lldp-peer', '⇄ LLDP neighbour'],
+        ['ne-lldp-none', '· No neighbour']
+      ]
     };
-    const legend = el('p', undefined, 'ne-legend');
+    const legend = el('ul', undefined, 'zx-legend');
+    legend.setAttribute('aria-label', 'Port legend');
     root.appendChild(legend);
     const physical = ports.filter(isPhysical),
       other = ports.filter(p => !isPhysical(p));
@@ -1051,7 +1060,7 @@
     if (state.instance) instancePick.value = state.instance;
     toolbar.append(layer, vlanPick, instancePick);
     root.appendChild(toolbar);
-    const layerNote = el('p', undefined, 'ne-legend');
+    const layerNote = el('p', undefined, 'zx-note');
     root.appendChild(layerNote);
     applyColours(root, payload.scope?.colours);
     const tabs = el('div', undefined, 'ne-member-tabs');
@@ -1111,7 +1120,14 @@
       state.instance = instancePick.value;
       vlanPick.hidden = layer.value !== 'vlan';
       instancePick.hidden = layer.value !== 'stp';
-      legend.textContent = legends[layer.value];
+      legend.replaceChildren(
+        ...legends[layer.value].map(([tile, label]) => {
+          const item = el('li');
+          if (tile) item.appendChild(el('span', undefined, `ne-legend-tile ${tile}`));
+          item.appendChild(el('span', label));
+          return item;
+        })
+      );
       layerNote.textContent =
         layer.value === 'vlan' && !vlanIds.size
           ? 'No VLAN membership has been collected for this host.'
@@ -1666,7 +1682,7 @@
         ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
         : '';
       item.appendChild(
-        el('span', swatch ? '' : key, swatch ? `ne-legend-key ne-swatch ne-swatch-${key}` : `ne-legend-key${severity}`)
+        el('span', swatch ? '' : key, swatch ? `zx-swatch ne-swatch-${key}` : `zx-legend-key${severity}`)
       );
       item.appendChild(el('span', label));
       legend.appendChild(item);
@@ -1855,7 +1871,7 @@
     const frame = el('div', undefined, 'ne-graph-frame'),
       controls = el('div', undefined, 'ne-view-controls'),
       graph = el('div', undefined, 'ne-graph'),
-      legend = el('ul', undefined, 'ne-topology-legend');
+      legend = el('ul', undefined, 'zx-legend ne-topology-legend');
     graph.tabIndex = 0;
     graph.setAttribute('role', 'region');
     graph.setAttribute(
