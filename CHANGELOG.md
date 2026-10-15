@@ -4,6 +4,17 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-15
+
+### Changed
+- `Network Explorer - Generic standard MIB` is renamed `Network Explorer - Generic Switch`, and vendor templates will be named `Network Explorer - <Vendor> <Series> Switch`. The template keeps its UUIDs, so importing over 2.0.0 renames it in place with its host links, items and history.
+- Host dashboards are part of the device templates. `Network Explorer - Generic Switch` now carries the switch host dashboard (Ports, Topology, Findings), so the separate `Network Explorer - Host dashboard` template and `network_explorer_dashboard.yaml` are gone. Zabbix imports the dashboard whether or not the widget modules are enabled; until they are, it shows the widgets as inaccessible. Switches still linked to the old template show two dashboards until it is deleted (deployment guide, section 8.4).
+
+### Added
+- `Wi-Fi Explorer - Aruba Instant VC by SNMP` carries a cluster host dashboard built from Zabbix's own Item value and Graph widgets: APs up and down, clients and the most on one AP, average channel utilisation and radios up by band, from the `we.capacity.*` items. It needs no widget module.
+- The Compatibility labs import both device templates with their dashboards on Zabbix 7.0, 7.2 and 7.4.
+- The vendor template specifications ([CONTRACT.md](templates/specifications/CONTRACT.md), [family handoffs](templates/specifications/FAMILY_HANDOFFS.md), [Network Explorer](docs/network-explorer/TEMPLATE_REQUIREMENTS.md) and [Wi-Fi](docs/wifi-explorer/TEMPLATE_REQUIREMENTS.md) template requirements) describe one flat, generated template per device type named `Network Explorer - <Vendor> <Series> Switch`, carrying its host dashboard, instead of linked capability and dashboard templates.
+
 ## [2.0.0] - 2026-10-15
 
 ### Changed

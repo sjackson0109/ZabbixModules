@@ -249,7 +249,7 @@ Host dashboards are inherited from templates, not generated per device. Provide 
 | STP | Instance selector, role/state overlay, root evidence and topology-change trends |
 | Diagnostics | Capability matrix, collection timings/errors, freshness and item references |
 
-*As built:* the native `Network Explorer - Host dashboard` template has three pages: **Ports** (collection quality, Port panel with its VLAN and STP layers, interface detail), **Topology** (host-local topology widget) and **Findings**. The LAB replay templates keep Overview, Connectivity and Diagnostics. VLAN and STP are layers of the Port panel and Topology widgets rather than separate pages.
+*As built:* the host dashboard inherited from `Network Explorer - Generic Switch` has three pages: **Ports** (collection quality, Port panel with its VLAN and STP layers, interface detail), **Topology** (host-local topology widget) and **Findings**. The LAB replay templates keep Overview, Connectivity and Diagnostics. VLAN and STP are layers of the Port panel and Topology widgets rather than separate pages.
 
 Unsupported dataset pages show a precise capability message; do not disappear unexpectedly. Companion templates can provide a reduced Overview before all capabilities are installed.
 

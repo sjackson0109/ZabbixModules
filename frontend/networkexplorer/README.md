@@ -2,7 +2,7 @@
 
 Copy this directory together with all five widget directories into the configured Zabbix frontend `modules` directory. Scan and enable the base module and widgets using Administration → General → Modules. No Zabbix core changes, frontend API token or separate network database are required. Supported runtime validation is recorded in the repository's lab evidence; the manifest alone does not prove compatibility.
 
-The base module adds Monitoring → Network Explorer. Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use. Host dashboards (from the `Network Explorer - Host dashboard` template) remain the place to investigate one switch.
+The base module adds Monitoring → Network Explorer. Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use. Host dashboards (inherited from `Network Explorer - Generic Switch`) remain the place to investigate one switch.
 
 ### The Explorer page
 

@@ -75,15 +75,15 @@ def test_generated_exports_are_current(version):
     assert yaml.safe_load(path.read_text())["zabbix_export"]["version"] == version
 
 
-@pytest.mark.parametrize("version", VERSIONS)
-def test_dashboard_template_is_current_and_holds_only_the_dashboard(version):
-    path = ROOT / "templates/native" / version / "network_explorer_dashboard.yaml"
-    assert path.read_text() == GEN.render_dashboard(version)
-    template = GEN.build_dashboard(version)["zabbix_export"]["templates"][0]
-    assert "items" not in template and "templates" not in template
-    kinds = {w["type"] for page in template["dashboards"][0]["pages"] for w in page["widgets"]}
+def test_generic_template_carries_the_host_dashboard():
+    templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
+    assert "dashboards" not in templates[GEN.PREFIX + "LLDP for access points"]
+    dashboards = templates[GEN.PROFILE]["dashboards"]
+    assert len(dashboards) == 1
+    kinds = {w["type"] for page in dashboards[0]["pages"] for w in page["widgets"]}
     assert kinds == {"neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings"}
-    assert template["dashboards"][0]["auto_start"] == "NO"  # pages are tabs, not a slideshow
+    assert dashboards[0]["auto_start"] == "NO"  # pages are tabs, not a slideshow
+    assert not list((ROOT / "templates/native").glob("*/network_explorer_dashboard.yaml"))
 
 
 def test_uuids_are_unique_v4_and_keys_unique_per_template():
@@ -194,7 +194,7 @@ def test_unsupported_dataset_does_not_raise_stale_trigger():
 @pytest.mark.parametrize("version", VERSIONS)
 def test_scripts_are_literal_blocks_never_folded(version):
     # Zabbix's YAML import inserts a space at each escaped line fold, which broke a regex literal in a script.
-    for name in ("network_explorer_snmp.yaml", "network_explorer_dashboard.yaml"):
+    for name in ("network_explorer_snmp.yaml", "wifi_explorer_snmp.yaml"):
         text = (ROOT / "templates/native" / version / name).read_text()
         assert not any(line.endswith("\\") for line in text.splitlines()), name
         for token in yaml.scan(text):
@@ -209,13 +209,12 @@ def test_versions_follow_the_release():
     assert re.search(r"^NE\.VERSION = '([^']+)';", lib, re.M).group(1) == version  # envelope source.version
     for template in templates().values():
         assert template["vendor"]["version"] == version
-    assert GEN.build_dashboard("7.0")["zabbix_export"]["templates"][0]["vendor"]["version"] == version
 
 
 def test_restart_trigger_ignores_a_sysuptime_wrap():
     item = next(i for i in all_items() if i["key"] == "ne.device.uptime")
     expression = item["triggers"][0]["expression"]
-    uptime = "/Network Explorer - Generic standard MIB/ne.device.uptime"
+    uptime = "/Network Explorer - Generic Switch/ne.device.uptime"
     assert expression == f"last({uptime})<600 and last({uptime},#2)<{2**32 // 100 - 86400}"
     bound = int(expression.rsplit("<", 1)[1])
     # The hourly poll before a wrap is above the bound, so the drop to near zero is not a restart.

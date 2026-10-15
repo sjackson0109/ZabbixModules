@@ -32,7 +32,7 @@ Run `sh scripts/test-compatibility.sh` to reproduce the API/data/frontend tests 
 
 ## Native SNMP templates (7 October 2026)
 
-`templates/native/<version>/network_explorer_snmp.yaml` was imported into fresh 7.0.20, 7.2.7 and 7.4.3 labs (same image digests as the lock, pulled through `mirror.gcr.io` because Docker Hub rate-limited the session). Two hosts linked only `Network Explorer - Profile - Generic standard MIB` (1.4.0 and earlier; now the flat `Network Explorer - Generic standard MIB`) and polled snmpsim serving the synthetic walks in `tests/fixtures/walks/` over SNMPv2c. Drive it with [`native_snmp.py`](native_snmp.py).
+`templates/native/<version>/network_explorer_snmp.yaml` was imported into fresh 7.0.20, 7.2.7 and 7.4.3 labs (same image digests as the lock, pulled through `mirror.gcr.io` because Docker Hub rate-limited the session). Two hosts linked only `Network Explorer - Profile - Generic standard MIB` (1.4.0 and earlier; now the flat `Network Explorer - Generic Switch`) and polled snmpsim serving the synthetic walks in `tests/fixtures/walks/` over SNMPv2c. Drive it with [`native_snmp.py`](native_snmp.py).
 
 On every version:
 
@@ -64,7 +64,7 @@ The live check found two frontend defects, which are fixed in the same change: n
 
 ## Spec acceptance walkthrough (7 October 2026)
 
-The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two 10G ports (Po10, LACP) towards sw-core-01 Po1. sw-dist-01 closes a triangle, so sw-core-01 Gi1/0/24 blocks as an alternate port, and its management address 10.102.5.10 sits outside the 10.101.0.0/16 management subnet. sw-dist-01 is in its own host group, which a lab viewer user cannot read. `lab/acceptance.cjs` drives the spec's acceptance steps in Chromium against each version, from a fresh lab (`native_snmp.py import`, `hosts`, `poll`, `lab.py install-modules`, `native_snmp.py dashboard`, `viewer`):
+The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two 10G ports (Po10, LACP) towards sw-core-01 Po1. sw-dist-01 closes a triangle, so sw-core-01 Gi1/0/24 blocks as an alternate port, and its management address 10.102.5.10 sits outside the 10.101.0.0/16 management subnet. sw-dist-01 is in its own host group, which a lab viewer user cannot read. `lab/acceptance.cjs` drives the spec's acceptance steps in Chromium against each version, from a fresh lab (`native_snmp.py import`, `hosts`, `poll`, `lab.py install-modules`, `viewer`; the host dashboard comes with `Network Explorer - Generic Switch`):
 
 1. sw-core-01 Gi1/0/23 shows amber, below its expected speed.
 2. Following its LLDP peer opens sw-access-17 with Gi1/0/48 highlighted and "Navigated from Gi1/0/23".

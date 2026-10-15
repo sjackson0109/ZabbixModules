@@ -222,6 +222,19 @@ def test_capacity_items_are_cluster_totals_with_trends():
     assert value("we.capacity.clients", dict(clients, status="partial", complete=False)) is None, "partial: no value"
 
 
+def test_cluster_template_carries_a_host_dashboard_of_builtin_widgets():
+    templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
+    assert all("dashboards" not in t for name, t in templates.items() if "VC" not in name)
+    name, template = next((n, t) for n, t in templates.items() if "VC" in n)
+    keys = {i["key"] for i in template["items"]}
+    widgets = [w for page in template["dashboards"][0]["pages"] for w in page["widgets"]]
+    assert {w["type"] for w in widgets} <= {"item", "svggraph"}  # no widget module needed
+    for w in widgets:
+        for field in w["fields"]:
+            if field["type"] == "ITEM":
+                assert field["value"]["host"] == name and field["value"]["key"] in keys
+
+
 def test_template_keys_and_uuids_are_unique():
     export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
     uuids, keys = [], []

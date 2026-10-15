@@ -41,8 +41,9 @@ A vendor family must ship two templates: a cluster template for whatever answers
 - **S3.** All keys must start with `we.` and follow the key table in section 4. A vendor's raw items may add a vendor segment (`we.raw.<vendor>.<dataset>`).
 - **S4.** The site is the host's `site` tag, the same tag Network Explorer scopes by. The template must not create or set it.
 - **S5.** A cluster template linked to a member AP instead of the controller must report its cluster datasets as `unsupported` with a reason, not as empty.
-- **S6.** The per-AP host must be named like the AP, or carry the AP's address, so its observations can be matched to the AP. It may also link Network Explorer's LLDP collection, with the same `ne.domain` tag as the switches.
+- **S6.** The per-AP host must be named like the AP, or carry the AP's address, so its observations can be matched to the AP. It may also link `Network Explorer - LLDP for access points`, with the same `ne.domain` tag as the switches.
 - **S7.** No low-level discovery. AP, radio and client counts change too often and too widely for one item per object (P7).
+- **S8.** The cluster template should carry an inherited host dashboard built only from Zabbix's own widgets (Item value, Graph) over the capacity items of section 6: APs up and down, clients and the most on one AP, channel utilisation and radios up by band. It must not need a widget module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
 
 ## 4. Collection and the envelope contract
 
