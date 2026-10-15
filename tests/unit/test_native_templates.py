@@ -103,18 +103,22 @@ def test_uuids_are_unique_v4_and_keys_unique_per_template():
             seen.add(obj["uuid"])
 
 
-def test_every_dataset_has_one_producer_and_profile_links_them_all():
-    owners = {}
-    for name, template in templates().items():
-        for item in template.get("items", []):
-            assert item["key"] not in owners, f"{item['key']} owned by {owners.get(item['key'])} and {name}"
-            owners[item["key"]] = name
-    profile = templates()[GEN.PROFILE]
-    assert "items" not in profile
-    assert {t["name"] for t in profile["templates"]} == set(templates()) - {GEN.PROFILE}
+def test_one_flat_template_per_device_type_owns_every_dataset():
+    # Linking templates beside each other must never be needed: each exported template is self-contained.
+    exported = templates()
+    assert set(exported) == {p["name"] for p in GEN.PROFILES}
+    for template in exported.values():
+        assert "templates" not in template
+    generic = exported[GEN.PROFILE]
+    keys = {i["key"] for i in generic["items"]}
     for entry in GEN.manifest():
         for key in [entry["raw_key"], entry["attempt_key"], *entry["snapshot_keys"]]:
-            assert key in owners
+            assert key in keys
+    assert [r["key"] for r in generic["discovery_rules"]] == ["ne.interfaces.discovery"]
+    # A narrower template holds exactly its own datasets.
+    lldp = exported["Network Explorer - LLDP for access points"]
+    lldp_keys = {i["key"] for i in generic["items"] if {"tag": "dataset", "value": "lldp"} in i["tags"]}
+    assert {i["key"] for i in lldp["items"]} == lldp_keys
 
 
 def test_raw_walks_are_not_stored_and_turn_errors_into_failed_attempts():
@@ -211,7 +215,7 @@ def test_versions_follow_the_release():
 def test_restart_trigger_ignores_a_sysuptime_wrap():
     item = next(i for i in all_items() if i["key"] == "ne.device.uptime")
     expression = item["triggers"][0]["expression"]
-    uptime = "/Network Explorer - Base/ne.device.uptime"
+    uptime = "/Network Explorer - Generic standard MIB/ne.device.uptime"
     assert expression == f"last({uptime})<600 and last({uptime},#2)<{2**32 // 100 - 86400}"
     bound = int(expression.rsplit("<", 1)[1])
     # The hourly poll before a wrap is above the bound, so the drop to near zero is not a restart.

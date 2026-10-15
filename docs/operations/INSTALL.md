@@ -1,6 +1,6 @@
 # Manual installation and operations
 
-Applies to release 1.4.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
+Applies to release 2.0.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
 
 ## Frontend package
 
@@ -28,8 +28,8 @@ Do not enable unrestricted neighbour-address chasing or host auto-enrolment. Col
 The `templates` package holds the native templates under `templates/native/<7.0|7.2|7.4>/`:
 
 1. Import `network_explorer_snmp.yaml` for your Zabbix version (Data collection > Templates > Import).
-2. Link `Network Explorer - Profile - Generic standard MIB` to each switch that has an SNMP interface. Link only the profile; it links the dataset templates.
-3. Optionally, after enabling the modules, import `network_explorer_dashboard.yaml` and link `Network Explorer - Host dashboard` beside the profile for the inherited host dashboard.
+2. Link `Network Explorer - Generic standard MIB` to each switch that has an SNMP interface. It is one self-contained template; nothing else needs linking for collection.
+3. Optionally, after enabling the modules, import `network_explorer_dashboard.yaml` and link `Network Explorer - Host dashboard` beside it for the inherited host dashboard.
 
 See [the templates README](../../templates/README.md) for what each template reads. `templates/specifications/` remains the contract for future vendor-family templates; no model should be advertised as supported from its vendor name alone.
 
