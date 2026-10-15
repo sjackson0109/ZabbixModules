@@ -15,6 +15,8 @@ It covers Phases A–F of the [roadmap](ROADMAP.md): the site/AP/radio model and
 
 ## Install
 
+Wi-Fi Explorer is installed with Network Explorer, from the same release package, in one pass: follow the [deployment guide](../operations/DEPLOYMENT_GUIDE.md) (section 7 covers enrolling clusters). The steps below are the short version.
+
 1. Install the `networkexplorer` and `wifiexplorer` frontend modules side by side under the Zabbix frontend's `modules/` directory and enable both (Administration → General → Modules). Wi-Fi Explorer reuses Network Explorer's services; without it the page says so.
 2. Import `templates/native/<7.0|7.2|7.4>/wifi_explorer_snmp.yaml`. It adds the template **Wi-Fi Explorer - Aruba Instant VC by SNMP** in the group *Templates/Wi-Fi Explorer*. Nothing is needed on the server or proxies.
 3. Link the template to **one host per Aruba Instant cluster**, whose SNMP interface points at the cluster's floating virtual-controller (AVC) address. Set the SNMP community or v3 credentials on the host or globally; the template carries none.

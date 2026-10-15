@@ -14,7 +14,7 @@ The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB
 - An optional bounded Python SNMP collector with fixture replay, kept as a frozen schema 1.0 fallback for devices native SNMP items can't reach.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
 - LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; optional dashboard recipes for administrators who want custom compositions.
-- **Monitoring → Wi-Fi Explorer** (optional module, Phase A): site overview, AP and radio inventory, findings and data quality for Aruba Instant clusters, from a native AI-AP-MIB template and Network Explorer's permission-aware services. Aruba Instant is not yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
+- **Monitoring → Wi-Fi Explorer** (installed with Network Explorer): site overview, AP and radio inventory, findings and data quality for Aruba Instant clusters, from a native AI-AP-MIB template and Network Explorer's permission-aware services. Aruba Instant is not yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
 - Disposable integration labs, regression tests and deterministic copy-out packages.
 
 Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use.
