@@ -12,11 +12,11 @@ Native SNMPv2c and SNMPv3 interfaces are first-class acquisition paths. Python e
 
 ## 2. Template decomposition
 
-Common templates own identity, interfaces, LLDP, LAG, VLAN, STP and quality contracts. Vendor profiles select model/firmware/context handling. Optional hardware-health and enrichment templates own CPU/memory/environment/PoE/optics. A dashboard template supplies inherited host dashboards. All producers use the `ne.*` keys documented in `DESIGN.md`.
+Each device type gets one flat template, `Network Explorer - <Vendor> <Series> Switch` (default `Network Explorer - Generic Switch`), linked alone to a host and linking no other template. It is generated from shared components that own identity, interfaces, LLDP, LAG, VLAN, STP and quality contracts; the family selects one producer per dataset and its model/firmware/context handling. Optional hardware-health and enrichment components (CPU/memory/environment/PoE/optics) are added to the same template when the family supports them. The template also carries the inherited host dashboard. All producers use the `ne.*` keys documented in `DESIGN.md`.
 
 Do not create a complete independent template for every model unless its acquisition differs. A profile can cover several models only with evidence that OIDs, joins, enum semantics and layouts agree. Profiles identify supported firmware families, capability coverage and tested fixtures; unsupported fields remain null with reasons.
 
-Native and fallback variants must not coexist as producers for identical keys on one host. An import/provisioning preflight checks duplicate item keys, overlapping LLD, unsupported macro references, missing parent links, unavailable custom widgets and conflicts with existing templates. Define migration names/UUID ownership before exporting the first production bundle.
+Native and fallback variants must not coexist as producers for identical keys on one host. An import/provisioning preflight checks duplicate item keys, overlapping LLD, unsupported macro references and conflicts with existing templates. Define migration names/UUID ownership before exporting the first production template; a rename keeps the UUIDs so the import renames in place.
 
 ## 3. Vendor backlog supplied by the user
 
@@ -114,11 +114,11 @@ Use per-interface context macros based on escaped original stable names where co
 
 Initial delivery is manual copy-out archives plus import instructions. Choose actual frontend/proxy paths from installation configuration, and provide container bind-mount examples. Python collector dependencies use a dedicated environment and can include an offline wheelhouse. An apt package is optional later work. Template exports have no real customer branding, credentials or hard-coded instance IDs.
 
-Required inherited host pages: Overview, Connectivity and Diagnostics for the first release. Later VLAN/STP pages require their capability modules. Custom Port Panel/Topology/Interface Detail/Quality widgets use inherited host context; native graphs/problems use template item/graph references rather than instance-specific item IDs.
+The inherited host dashboard lives in the device template, not in a separate dashboard template. As built it has Ports, Topology and Findings pages, with VLAN and STP as layers of the Port panel and Topology widgets (the LAB replay templates keep Overview, Connectivity and Diagnostics). Custom Port Panel/Topology/Interface Detail/Quality widgets use inherited host context; native graphs/problems use template item/graph references rather than instance-specific item IDs.
 
 Dashboard artefacts must import and display on each supported Zabbix version. Use a compatibility exporter or version-specific generated exports if schema differences require it; never label a 7.4-only export as 7.0 compatible without testing. Stable source definitions generate YAML and dashboard API recipes deterministically.
 
-Template import dependencies are explicit: common value maps/templates, vendor profiles, module registration, dashboard assets, then optional fleet provisioning. Unavailable optional widget modules produce a preflight failure rather than a silently broken dashboard. Ship an optional native-only diagnostics dashboard for staged deployments if needed.
+Template import has no ordering dependency on the modules: Zabbix imports a dashboard whose widget modules are missing or disabled and shows those widgets as *Inaccessible widget* until the modules are enabled (checked on 7.4.3). The install still lists module registration first so the dashboard is usable on first open; optional fleet provisioning comes last.
 
 ## 9. Release qualification
 
