@@ -176,7 +176,7 @@ html[color-scheme='dark'] {
 /* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured. */
 .zx-badge {
   display: inline-block;
-  padding: 0 5px;
+  padding: 0 var(--zx-space-1);
   border: 1px solid var(--zx-line-strong);
   border-radius: var(--zx-radius);
   font-size: var(--zx-text-sm);
