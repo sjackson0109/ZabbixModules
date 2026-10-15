@@ -680,6 +680,32 @@
     const shown = text(value);
     return shown === 'Unknown' ? el('span', shown, 'zx-muted') : document.createTextNode(shown);
   }
+  /** Every state word reads in one of five tones (explorers.css), the same mapping as Wi-Fi Explorer's $toned(). */
+  const TONES = {
+    ok: 'ok',
+    current: 'ok',
+    complete: 'ok',
+    up: 'ok',
+    partial: 'warning',
+    stale: 'warning',
+    degraded: 'warning',
+    warning: 'warning',
+    failed: 'critical',
+    down: 'critical',
+    high: 'critical',
+    critical: 'critical',
+    info: 'info',
+    unsupported: 'unknown',
+    unknown: 'unknown'
+  };
+  /** A state value as a capitalised word in its tone; a missing one falls through to "Unknown" in muted text. */
+  function toned(value) {
+    if (value === null || value === undefined || value === '') return value;
+    const raw = String(value),
+      tone = TONES[raw.toLowerCase()];
+    const label = raw === 'ok' ? 'OK' : raw.charAt(0).toUpperCase() + raw.slice(1).replaceAll('_', ' ');
+    return tone ? el('span', label, `zx-tone-${tone}`) : label;
+  }
   function table(root, columns, rows, caption) {
     // Zabbix's own list-table styling, as Wi-Fi Explorer's tables and every Zabbix list use.
     const node = el('table', undefined, 'list-table ne-table');
@@ -910,7 +936,7 @@
           .filter(Boolean)
           .join(' · '),
         Duplex: port.duplex,
-        Freshness: port.freshness ?? port.quality?.freshness
+        Freshness: toned(port.freshness ?? port.quality?.freshness)
       })
     );
     if (port.vlan) {
@@ -1381,7 +1407,7 @@
           value: e => (e.stp ? `${stpEnd(e.stp.source)} / ${stpEnd(e.stp.target)}` : 'Unknown')
         },
         { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
-        { label: 'Freshness', value: e => e.freshness }
+        { label: 'Freshness', value: e => toned(e.freshness) }
       ],
       edge.members,
       'Individual observed members'
@@ -2279,7 +2305,7 @@
         { label: 'Peer port', value: e => (e.target ? interfaceName(payload, e.target, e.target_uid) : null) },
         { label: 'Resolution', value: e => e.status },
         { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
-        { label: 'Freshness', value: e => e.freshness }
+        { label: 'Freshness', value: e => toned(e.freshness) }
       ],
       edges,
       'Observed physical topology'
@@ -2443,8 +2469,8 @@
       [
         { label: 'Host', value: q => hostName(payload, q.hostid) },
         { label: 'Dataset', value: q => q.dataset },
-        { label: 'Outcome', value: q => q.status },
-        { label: 'Freshness', value: q => q.freshness },
+        { label: 'Outcome', value: q => toned(q.status) },
+        { label: 'Freshness', value: q => toned(q.freshness) },
         { label: 'Capability', value: q => q.capability?.state ?? q.capability },
         { label: 'Observed', value: q => q.observed_at },
         { label: 'Attempted', value: q => q.attempted_at },
@@ -2542,7 +2568,7 @@
             label: 'Host',
             value: f => button(text(hostName(payload, f.hostid)), () => broadcast(f.hostid), 'ne-link-button')
           },
-          { label: 'Severity', value: f => f.severity },
+          { label: 'Severity', value: f => toned(f.severity) },
           { label: 'Rule', value: f => f.rule },
           { label: 'Finding', value: f => f.title },
           { label: 'Interface', value: f => interfaceName(payload, f.hostid, f.interface_uid) },

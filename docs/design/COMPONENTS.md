@@ -87,6 +87,10 @@ state is one line in that map, never new CSS.
 $toned($pathStates[$result['status']], $result['status']);   // "Failed" in the critical tone
 ```
 
+In Network Explorer, `toned(value)` in `runtime.js` does the same for severity, collection outcome and freshness
+(`TONES` holds the map): `toned('stale')` is "Stale" in the warning tone. Tables and detail lists use it; CSV
+exports keep the raw value.
+
 ### Callout (`zx-callout`, `-info`, `-warning`, `zx-callout-title`)
 
 A message that must not be read past: a privacy warning, an unreachable SNMP agent, the collection summary. A

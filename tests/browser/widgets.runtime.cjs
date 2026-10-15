@@ -488,9 +488,13 @@ const assert = require('node:assert/strict');
     );
     assert.equal(await page.locator('tbody tr').count(), 3);
     assert.ok((await page.locator('#widget').innerText()).includes('partial'));
+    // Outcome and freshness read as capitalised words in the shared tones, as in Wi-Fi Explorer.
+    assert.equal(await page.locator('tbody .zx-tone-warning', { hasText: /^Stale$/ }).count() > 0, true);
+    assert.equal(await page.locator('tbody .zx-tone-warning', { hasText: /^Partial$/ }).count() > 0, true);
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(document.querySelector('#widget'), window.testPayload, 'findings')
     );
+    assert.deepEqual(await page.locator('tbody .zx-tone-info').allInnerTexts(), ['Info', 'Info']);
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export filtered CSV' }).click();
     const download = await downloadEvent;
@@ -499,6 +503,7 @@ const assert = require('node:assert/strict');
     for await (const chunk of stream) csv += chunk.toString('utf8');
     assert.ok(csv.includes("'=Unsafe spreadsheet formula"));
     assert.ok(csv.includes("' =Unsafe spreadsheet formula after space"));
+    assert.ok(csv.includes(',"info",'), 'The CSV keeps the raw severity value.');
     // A scope too large to draw shows its message and nothing else: no partial drawing, no empty findings.
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(
