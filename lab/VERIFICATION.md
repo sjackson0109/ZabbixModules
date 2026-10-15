@@ -64,7 +64,7 @@ The live check found two frontend defects, which are fixed in the same change: n
 
 ## Spec acceptance walkthrough (7 October 2026)
 
-The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two 10G ports (Po10, LACP) towards sw-core-01 Po1. sw-dist-01 closes a triangle, so sw-core-01 Gi1/0/24 blocks as an alternate port, and its management address 10.102.5.10 sits outside the 10.101.0.0/16 management subnet. sw-dist-01 is in its own host group, which a lab viewer user cannot read. `lab/acceptance.cjs` drives the spec's acceptance steps in Chromium against each version, from a fresh lab (`native_snmp.py import`, `hosts`, `poll`, `lab.py install-modules`, `native_snmp.py dashboard`, `viewer`):
+The lab now simulates four switches. sw-dist-02 is the RSTP root and bundles two 10G ports (Po10, LACP) towards sw-core-01 Po1. sw-dist-01 closes a triangle, so sw-core-01 Gi1/0/24 blocks as an alternate port, and its management address 10.102.5.10 sits outside the 10.101.0.0/16 management subnet. sw-dist-01 is in its own host group, which a lab viewer user cannot read. `lab/acceptance.cjs` drives the spec's acceptance steps in Chromium against each version, from a fresh lab (`native_snmp.py import`, `hosts`, `poll`, `lab.py install-modules`, `viewer`; the host dashboard comes with `Network Explorer - Generic standard MIB`):
 
 1. sw-core-01 Gi1/0/23 shows amber, below its expected speed.
 2. Following its LLDP peer opens sw-access-17 with Gi1/0/48 highlighted and "Navigated from Gi1/0/23".

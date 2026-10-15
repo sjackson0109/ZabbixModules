@@ -2,7 +2,7 @@
  * The network-wide journey runs on Monitoring -> Network Explorer and needs no global dashboard; host dashboards
  * cover one switch. A separate, clearly named widget fixture checks the Topology widget on a user-made dashboard.
  * Prerequisites, per version: lab.py start, an SNMP simulator serving tests/fixtures/walks, then
- * native_snmp.py import, hosts, poll; lab.py install-modules; native_snmp.py dashboard and viewer.
+ * native_snmp.py import, hosts, poll; lab.py install-modules; native_snmp.py viewer. The host dashboard comes with the Generic template.
  * Usage: node lab/acceptance.cjs 7.0 [--outage]   (--outage expects sw-access-17 broken via native_snmp.py break)
  * Reads generated lab credentials only and never prints them.
  */

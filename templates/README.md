@@ -12,7 +12,7 @@ python templates/generate_snmp.py --check  # fail if stale
 node tests/js/run_normaliser.cjs ne.raw.lldp tests/fixtures/walks/sw-core-01.snmprec   # run one normaliser
 ```
 
-`native/<version>/network_explorer_dashboard.yaml` is optional. It holds the template `Network Explorer - Host dashboard`, whose host dashboard has Ports, Topology and Findings pages built from the five widgets. Install and enable the widget modules first, then import it and link it beside `Network Explorer - Generic standard MIB`. It holds no items, so it never competes for keys.
+Host dashboards travel with the device templates. `Network Explorer - Generic standard MIB` carries the switch host dashboard (Ports, Topology and Findings pages built from the five widgets); until the widget modules are enabled, Zabbix shows those widgets as inaccessible. `Wi-Fi Explorer - Aruba Instant VC by SNMP` carries a cluster host dashboard built only from Zabbix's own Item value and Graph widgets over the `we.capacity.*` items. Up to 2.0.0 the switch dashboard was a separate `Network Explorer - Host dashboard` template (`network_explorer_dashboard.yaml`); the deployment guide's section 8.4 removes it.
 
 ## Earlier specification and LAB replay
 
@@ -31,6 +31,6 @@ python templates/generate_lab.py --check
 
 The generator requires PyYAML. Exports target 7.0/7.2/7.4 schemas. Actual lab imports, replay ingestion, safe LLD retention, dependent scalar values, inherited dashboards and discovered native graphs passed on pinned Zabbix **7.0.20, 7.2.7 and 7.4.3**; see [runtime evidence](../lab/VERIFICATION.md). This establishes the replay contract on those patches, not live SNMP or vendor qualification.
 
-Install/enable the five Network Explorer widget modules before importing the custom host dashboard. Its inherited host context is supplied by Zabbix; it contains no numeric host, item or dashboard IDs. For a staged deployment, keep the existing native diagnostics dashboard until modules are enabled. The replay template's collection age triggers are lab diagnostics and its prototype speed policy uses a declared `expected_speed_bps` only; absent intent is scalar `0`, meaning unknown.
+Enable the five Network Explorer widget modules for the host dashboard to render. Its inherited host context is supplied by Zabbix; it contains no numeric host, item or dashboard IDs. For a staged deployment, keep the existing native diagnostics dashboard until modules are enabled. The replay template's collection age triggers are lab diagnostics and its prototype speed policy uses a declared `expected_speed_bps` only; absent intent is scalar `0`, meaning unknown.
 
 Package/update rule: one owner per key and UUID; never link native, proxy-script and lab producers of the same keys together. Export existing templates and dashboard definitions before any administrator-controlled deployment. No live host linking or replacement is performed by these files.

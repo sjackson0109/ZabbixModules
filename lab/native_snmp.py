@@ -9,7 +9,6 @@ for example snmpsim serving tests/fixtures/walks/*.snmprec, where the community 
   python lab/native_snmp.py poll --version 7.0      # poll every raw walk now
   python lab/native_snmp.py report --version 7.0
   python lab/native_snmp.py break|repair --version 7.0  # make sw-access-17 time out, then restore it
-  python lab/native_snmp.py dashboard --version 7.0  # after lab.py install-modules: link the host dashboard
   python lab/native_snmp.py viewer --version 7.0     # a user who can read every switch except sw-dist-01
 
 Never point --address at a production device.
@@ -28,7 +27,6 @@ import lab  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE = "Network Explorer - Generic standard MIB"
-DASHBOARD = "Network Explorer - Host dashboard"
 GROUP = "Network Explorer lab"
 # sw-dist-01 sits in its own group so a restricted viewer can be denied it.
 HIDDEN_GROUP = "Network Explorer lab restricted"
@@ -46,7 +44,7 @@ def import_templates(config: dict, token: str) -> None:
     source = (ROOT / "templates" / "native" / config["version"] / "network_explorer_snmp.yaml").read_text()
     rules = {kind: {"createMissing": True, "updateExisting": True}
              for kind in ("template_groups", "templates", "items", "triggers", "discoveryRules", "valueMaps",
-                          "templateLinkage")}
+                          "templateLinkage", "templateDashboards")}
     rules["templateLinkage"] = {"createMissing": True}
     rules["templates"] = {"createMissing": True, "updateExisting": True}
     lab.api_request(config["url"], "configuration.import", {"format": "yaml", "rules": rules, "source": source}, token)
@@ -87,19 +85,6 @@ def poll(config: dict, token: str) -> None:
                                               "search": {"key_": "ne.raw."}, "startSearch": True}, token)
     lab.api_request(url, "task.create", [{"type": 6, "request": {"itemid": i["itemid"]}} for i in items], token)
     print(f"Requested an immediate poll of {len(items)} raw walks.")
-
-
-def link_dashboard(config: dict, token: str) -> None:
-    """Imports the host dashboard template (needs the frontend modules) and links it to every lab switch."""
-    url = config["url"]
-    source = (ROOT / "templates" / "native" / config["version"] / "network_explorer_dashboard.yaml").read_text()
-    rules = {"template_groups": {"createMissing": True}, "templates": {"createMissing": True, "updateExisting": True},
-             "templateDashboards": {"createMissing": True, "updateExisting": True}}
-    lab.api_request(url, "configuration.import", {"format": "yaml", "rules": rules, "source": source}, token)
-    template = lab.api_request(url, "template.get", {"filter": {"host": [DASHBOARD]}, "output": ["templateid"]}, token)[0]
-    hosts = lab.api_request(url, "host.get", {"filter": {"host": list(SWITCHES)}, "output": ["hostid"]}, token)
-    lab.api_request(url, "host.massadd", {"hosts": hosts, "templates": [template]}, token)
-    print(f"Linked {DASHBOARD} to {len(hosts)} lab switches.")
 
 
 def create_viewer(config: dict, token: str) -> None:
@@ -162,7 +147,7 @@ def report(config: dict, token: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("operation", choices=["import", "hosts", "poll", "break", "repair", "report", "dashboard", "viewer"])
+    parser.add_argument("operation", choices=["import", "hosts", "poll", "break", "repair", "report", "viewer"])
     parser.add_argument("--version", choices=["7.0", "7.2", "7.4"], default="7.0")
     parser.add_argument("--address", default="172.18.0.1")
     parser.add_argument("--port", type=int, default=1161)
@@ -177,8 +162,6 @@ def main() -> None:
         set_community(config, token, "sw-access-17", "ne-lab-unknown")
     elif args.operation == "repair":
         set_community(config, token, "sw-access-17", "sw-access-17")
-    elif args.operation == "dashboard":
-        link_dashboard(config, token)
     elif args.operation == "viewer":
         create_viewer(config, token)
     elif args.operation == "poll":
