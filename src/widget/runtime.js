@@ -1684,17 +1684,21 @@
       [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
       [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
       [has('.ne-node-stale'), 'stale data', 'A collection source is stale or failed; see Collection quality'],
-      [has('.ne-node-findings.ne-severity-warning'), 'n', 'Number of findings; worst is a warning'],
-      [has('.ne-node-findings.ne-severity-info'), 'n', 'Number of findings; information only'],
+      [
+        has('.ne-node-findings.ne-severity-critical, .ne-node-findings.ne-severity-high'),
+        'n',
+        'Number of findings; worst is critical or high',
+        'high'
+      ],
+      [has('.ne-node-findings.ne-severity-warning'), 'n', 'Number of findings; worst is a warning', 'warning'],
+      [has('.ne-node-findings.ne-severity-info'), 'n', 'Number of findings; information only', 'info'],
       [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
     ];
-    for (const [shown, key, label] of entries) {
+    // An entry's optional fourth value is the findings severity its key is drawn in.
+    for (const [shown, key, label, severity] of entries) {
       if (!shown) continue;
       const item = el('li');
       const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
-      const severity = /worst is a warning|information only/.exec(label)
-        ? label.includes('warning') ? 'warning' : 'info'
-        : '';
       // A findings key is a small copy of the badge: Zabbix fill, on-fill text and outline, never a fill as text.
       item.appendChild(
         el(

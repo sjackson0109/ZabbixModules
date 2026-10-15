@@ -293,6 +293,12 @@ const assert = require('node:assert/strict');
     const legendText = await page.getByRole('list', { name: 'Topology legend' }).innerText();
     assert.ok(legendText.includes('Confirmed link'), legendText);
     assert.ok(!legendText.includes('VLAN') && !legendText.includes('root'), legendText);
+    // The findings key is a mini badge in the drawn severity, never a fill-coloured glyph.
+    const legendBadges = await page
+      .locator('[aria-label="Topology legend"] .ne-legend-badge')
+      .evaluateAll(keys => keys.map(k => [k.className, getComputedStyle(k).color]));
+    assert.deepEqual(legendBadges, [['ne-legend-badge ne-severity-info', 'rgb(31, 44, 51)']]);
+    assert.ok(legendText.includes('Number of findings; information only'), legendText);
     // The default Layer 2 view marks a current, agreed root; disagreement marks none.
     await page.evaluate(() => {
       const p = window.testPayload;
