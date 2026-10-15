@@ -37,8 +37,10 @@ behind a module view) and dark ones (`#2b2b2b`, `#0e1012`). Check a new tone aga
 
 ### Fills (badges and areas)
 
-Zabbix's own severity colours, identical in both themes. Text on a fill is always `--zx-on-fill` (`#1f2c33`).
-Never use a fill as text colour on the page background: most fail contrast.
+Zabbix's own severity colours, identical in both themes. Text on a fill is always `--zx-on-fill` (`#1f2c33`),
+which passes on every fill except Disaster (4.0:1). Disaster is for marks and areas without text, such as a down
+access point on the floor plan; a badge that carries a count or word uses High. Never use a fill as text colour on
+the page background: most fail contrast.
 
 | Token | Value | Zabbix meaning |
 |---|---|---|

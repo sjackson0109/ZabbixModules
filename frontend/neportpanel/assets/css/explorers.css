@@ -4,7 +4,8 @@
  *
  * Tones are for text and lines: each passes WCAG AA (4.5:1) on Zabbix's light backgrounds (white and the #ebeef0
  * page behind module views) and its dark ones (#2b2b2b, #0e1012).
- * Fills are Zabbix's own severity colours, for badges and areas, always with --zx-on-fill text on top.
+ * Fills are Zabbix's own severity colours, for badges and areas, always with --zx-on-fill text on top. Disaster is
+ * the exception: on-fill on it is 4.0:1, so it is for marks and areas only; a badge with text uses High.
  * Component reference: docs/design/COMPONENTS.md.
  */
 :root {
