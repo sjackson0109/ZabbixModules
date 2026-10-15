@@ -75,7 +75,8 @@ html[color-scheme='dark'] {
   gap: var(--zx-space-1);
 }
 
-/* Callout: a message that must not be read past. Info for context, warning for something to act on. */
+/* Callout: a message that must not be read past. Info for context, warning for something to act on.
+   zx-callout-info is the base style: the class is set, but needs no rule of its own. */
 .zx-callout {
   margin: var(--zx-space-1) 0 var(--zx-space-3);
   padding: var(--zx-space-2) var(--zx-space-3);
@@ -173,7 +174,8 @@ html[color-scheme='dark'] {
   background: var(--zx-surface-tint);
 }
 
-/* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured. */
+/* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured.
+   zx-badge-observed is the base style: the class is set, but needs no rule of its own. */
 .zx-badge {
   display: inline-block;
   padding: 0 var(--zx-space-1);

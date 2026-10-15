@@ -3,7 +3,7 @@
   --ne-accent: var(--zx-accent);
   --ne-link: var(--zx-accent);
   --ne-rule: #909ba5;
-  --ne-line: #a2adb7;
+  --ne-graph-line: #a2adb7;
   --ne-edge: #536c82;
   --ne-node-fill: #edf3f8;
   --ne-node-stroke: #52718b;
@@ -19,7 +19,7 @@
 }
 html[color-scheme='dark'] .ne-widget {
   --ne-rule: #5d6973;
-  --ne-line: #5d6973;
+  --ne-graph-line: #5d6973;
   --ne-edge: #8aa4ba;
   --ne-node-fill: #2b3640;
   --ne-node-stroke: #8aa4ba;
@@ -192,7 +192,7 @@ html[color-scheme='dark'] .ne-widget {
   overflow: hidden;
   max-width: 100%;
   min-height: 180px;
-  border: 1px solid var(--ne-line);
+  border: 1px solid var(--ne-graph-line);
   border-radius: var(--zx-radius);
 }
 .ne-widget .ne-graph:focus-visible {
@@ -351,7 +351,7 @@ html[color-scheme='dark'] .ne-widget {
   stroke-width: 5;
 }
 .ne-widget .ne-external {
-  fill: var(--ne-line);
+  fill: var(--ne-graph-line);
 }
 .ne-widget .ne-svg-label {
   fill: var(--ne-label);
@@ -453,7 +453,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-edge-vlan-unrelated,
 .ne-widget .ne-edge-vlan-unknown {
-  stroke: var(--ne-line);
+  stroke: var(--ne-graph-line);
 }
 .ne-widget .ne-edge-trace-stop {
   stroke-width: 7;
@@ -565,7 +565,7 @@ html[color-scheme='dark'] .ne-widget {
   gap: var(--zx-space-1) var(--zx-space-4);
   margin: var(--zx-space-1) 0 var(--zx-space-2);
   padding: var(--zx-space-2) var(--zx-space-3);
-  border: 1px solid var(--ne-line);
+  border: 1px solid var(--ne-graph-line);
   border-radius: var(--zx-radius);
 }
 .ne-widget .ne-detail-fact {
