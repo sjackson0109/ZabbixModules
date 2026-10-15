@@ -463,6 +463,11 @@ const assert = require('node:assert/strict');
       });
     });
     assert.ok((await selection.innerText()).includes('The selected switch is not in the current scope.'));
+    // A warning callout opens with its title word, so colour is never the only difference from an info one.
+    assert.equal(
+      await selection.locator('.zx-callout-warning .zx-callout-title').first().innerText(),
+      'Warning:'
+    );
     await page.evaluate(() => {
       window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), window.testPayload, {
         view: 'layer2',

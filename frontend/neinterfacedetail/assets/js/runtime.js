@@ -667,8 +667,12 @@
     if (value === null || value === undefined || value === '') return null;
     return el('span', value, `zx-badge ${CONFIRMED.includes(value) ? 'zx-badge-observed' : 'zx-badge-inferred'}`);
   }
+  /** A callout. A warning opens with the word "Warning", so it never rests on the stripe colour alone. */
   function notice(root, value, kind = 'info') {
-    root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
+    const node = el('p', '', `zx-callout zx-callout-${kind}`);
+    if (kind === 'warning') node.append(el('span', 'Warning:', 'zx-callout-title'), ' ');
+    node.append(value);
+    root.appendChild(node);
   }
   /** A table or detail value; a missing one reads "Unknown" in muted text, so it never looks like data. */
   function valueNode(value) {

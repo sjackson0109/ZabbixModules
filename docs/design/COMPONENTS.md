@@ -96,6 +96,10 @@ A message that must not be read past: a privacy warning, an unreachable SNMP age
 notice(root, 'sw-01: the SNMP agent is unreachable.', 'warning'); // runtime.js -> p.zx-callout.zx-callout-warning
 ```
 
+A warning callout always opens with a `zx-callout-title` word ("Warning:", or a short heading such as "Client IDs
+are not keyed."), so it is never told apart from an info callout by the stripe colour alone; `notice()` adds
+"Warning:" for you. An info callout needs no title.
+
 Do: one callout per message, title first. Don't: a callout for routine help text; that is a note.
 
 ### Note (`zx-note`)
