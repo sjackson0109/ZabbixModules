@@ -3,7 +3,7 @@
   "id": "wifiexplorer",
   "name": "Wi-Fi Explorer",
   "namespace": "WifiExplorer",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "author": "Network Explorer contributors",
   "description": "Monitoring -> Wi-Fi Explorer: the permission-aware wireless view (site overview, floor plans, RF neighbours, SSIDs, wired uplinks, SSID VLAN paths, impact, event readiness and clients) built on Network Explorer's dataset services. Needs the Network Explorer module installed alongside it.",

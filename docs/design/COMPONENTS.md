@@ -23,22 +23,24 @@ and high-contrast dark themes). Never write a colour literal in a module sheet; 
 
 ### Tones (text and lines)
 
-Each tone passes WCAG AA (4.5:1) for normal text on Zabbix's light (white, `#f5f5f5`) and dark (`#2b2b2b`)
-backgrounds.
+Each tone passes WCAG AA (4.5:1) for normal text on Zabbix's light backgrounds (white, and the `#ebeef0` page
+behind a module view) and dark ones (`#2b2b2b`, `#0e1012`). Check a new tone against `#ebeef0`, not only white.
 
 | Token | Light | Dark | Means |
 |---|---|---|---|
-| `--zx-tone-ok` | `#287e3f` | `#59db8f` | Up, complete, ready, pass |
-| `--zx-tone-warning` | `#946200` | `#ffc859` | Review: partial, degraded, a warning finding |
+| `--zx-tone-ok` | `#26793c` | `#59db8f` | Up, complete, ready, pass |
+| `--zx-tone-warning` | `#916000` | `#ffc859` | Review: partial, degraded, a warning finding |
 | `--zx-tone-critical` | `#b04444` | `#ff8f7a` | Down, failed, lost, flagged |
 | `--zx-tone-info` | `#1d6aab` | `#8fb1ff` | Information, tagged VLAN, STP root path |
-| `--zx-tone-unknown` | `#607080` | `#a8b4bf` | No data, secondary text, legend labels |
-| `--zx-accent` | `#2676b9` | `#6fb2ec` | Selection, focus, current tab, links in the drawing |
+| `--zx-tone-unknown` | `#5c6c7b` | `#a8b4bf` | No data, secondary text, legend labels |
+| `--zx-accent` | `#236daa` | `#6fb2ec` | Selection, focus, current tab, links in the drawing |
 
 ### Fills (badges and areas)
 
-Zabbix's own severity colours, identical in both themes. Text on a fill is always `--zx-on-fill` (`#1f2c33`).
-Never use a fill as text colour on the page background: most fail contrast.
+Zabbix's own severity colours, identical in both themes. Text on a fill is always `--zx-on-fill` (`#1f2c33`),
+which passes on every fill except Disaster (4.0:1). Disaster is for marks and areas without text, such as a down
+access point on the floor plan; a badge that carries a count or word uses High. Never use a fill as text colour on
+the page background: most fail contrast.
 
 | Token | Value | Zabbix meaning |
 |---|---|---|
@@ -67,11 +69,12 @@ critical.
 | Scale | Tokens |
 |---|---|
 | Spacing | `--zx-space-1` 4 px, `-2` 8 px, `-3` 12 px, `-4` 16 px, `-5` 24 px |
-| Text | `--zx-text-xs` 10 px (port tile detail only), `-sm` 11 px, `-md` 12 px (Zabbix body), `-lg` 14 px (headings), `-xl` 20 px (KPI values) |
+| Text | `--zx-text-xs` 10 px (port tile detail only), `-sm` 11 px, `-md` 12 px (Zabbix body), `-lg` 14 px (headings), `-xl` 20 px (KPI values), `--zx-text-drawing` 18 px (glyphs and labels on an SVG canvas) |
 | Radius | `--zx-radius` 2 px, as Zabbix 7 |
 | Opacity | `--zx-opacity-dimmed` .3 (filtered out of a drawing), `-faded` .55 (unrelated), `-disabled` .75 (admin disabled) |
 
-Hairlines (1 to 3 px) and SVG glyph sizes stay literal; they are geometry, not rhythm.
+Hairlines (1 to 3 px) and shape sizes inside a drawing stay literal; they are geometry, not rhythm. Font sizes
+always come from the text scale, in a drawing too.
 
 ## Components
 
@@ -87,6 +90,10 @@ state is one line in that map, never new CSS.
 $toned($pathStates[$result['status']], $result['status']);   // "Failed" in the critical tone
 ```
 
+In Network Explorer, `toned(value)` in `runtime.js` does the same for severity, collection outcome and freshness
+(`TONES` holds the map): `toned('stale')` is "Stale" in the warning tone. Tables and detail lists use it; CSV
+exports keep the raw value.
+
 ### Callout (`zx-callout`, `-info`, `-warning`, `zx-callout-title`)
 
 A message that must not be read past: a privacy warning, an unreachable SNMP agent, the collection summary. A
@@ -95,6 +102,10 @@ A message that must not be read past: a privacy warning, an unreachable SNMP age
 ```js
 notice(root, 'sw-01: the SNMP agent is unreachable.', 'warning'); // runtime.js -> p.zx-callout.zx-callout-warning
 ```
+
+A warning callout always opens with a `zx-callout-title` word ("Warning:", or a short heading such as "Client IDs
+are not keyed."), so it is never told apart from an info callout by the stripe colour alone; `notice()` adds
+"Warning:" for you. An info callout needs no title.
 
 Do: one callout per message, title first. Don't: a callout for routine help text; that is a note.
 
@@ -156,7 +167,7 @@ These live in a module sheet because only one module has them. They use the shar
 | Component | Module | Notes |
 |---|---|---|
 | Port tile (`ne-port`, `ne-state-*`, `ne-vlan-*`, `ne-stp-*`, `ne-lldp-*`) | Network Explorer | Every state pairs colour with border style or opacity and a text label. Port colours left at the widget form's defaults follow the theme; a chosen colour overrides. |
-| Topology node and edge (`ne-node-*`, `ne-edge-*`) | Network Explorer | Selection is weight and dash as well as colour. Findings badge uses the Zabbix fills. |
+| Topology node and edge (`ne-node-*`, `ne-edge-*`) | Network Explorer | Selection is weight and dash as well as colour. Findings badge uses the Zabbix fills; its legend key is the same badge in miniature (`ne-legend-badge`), never a fill-coloured glyph. |
 | KPI tile (`we-tile`, `we-tile-warning`, `we-tile-critical`) | Wi-Fi Explorer | One accent rule on every tab: none when healthy, yellow edge for something to review, red edge only for APs or radios down. |
 | Floor-plan marker (`we-marker-*`) | Wi-Fi Explorer | A link: focus shows a dashed accent ring. Fills are Zabbix fills. |
 | Hop chip (`we-hop`, `-failed`, `-unknown`) | Wi-Fi Explorer | The failing hop is outlined in red. |

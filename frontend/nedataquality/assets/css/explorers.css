@@ -2,17 +2,19 @@
  * Shared design tokens for Network Explorer and Wi-Fi Explorer. One copy ships in every module (Zabbix serves a
  * module's assets only from its own directory); edit this file and run scripts/sync_widget_assets.py.
  *
- * Tones are for text and lines: each passes WCAG AA (4.5:1) on Zabbix's light and dark backgrounds.
- * Fills are Zabbix's own severity colours, for badges and areas, always with --zx-on-fill text on top.
+ * Tones are for text and lines: each passes WCAG AA (4.5:1) on Zabbix's light backgrounds (white and the #ebeef0
+ * page behind module views) and its dark ones (#2b2b2b, #0e1012).
+ * Fills are Zabbix's own severity colours, for badges and areas, always with --zx-on-fill text on top. Disaster is
+ * the exception: on-fill on it is 4.0:1, so it is for marks and areas only; a badge with text uses High.
  * Component reference: docs/design/COMPONENTS.md.
  */
 :root {
-  --zx-tone-ok: #287e3f;
-  --zx-tone-warning: #946200;
+  --zx-tone-ok: #26793c;
+  --zx-tone-warning: #916000;
   --zx-tone-critical: #b04444;
   --zx-tone-info: #1d6aab;
-  --zx-tone-unknown: #607080;
-  --zx-accent: #2676b9;
+  --zx-tone-unknown: #5c6c7b;
+  --zx-accent: #236daa;
 
   --zx-fill-ok: #59db8f;
   --zx-fill-info: #7499ff;
@@ -41,6 +43,8 @@
   --zx-text-md: 12px;
   --zx-text-lg: 14px;
   --zx-text-xl: 20px;
+  /* Glyphs and labels drawn on an SVG canvas (an STP blocking mark, a floor-plan marker label). */
+  --zx-text-drawing: 18px;
 
   /* De-emphasis: a filtered-out drawing element, an unrelated control, an administratively disabled one. */
   --zx-opacity-dimmed: 0.3;
@@ -71,7 +75,8 @@ html[color-scheme='dark'] {
   gap: var(--zx-space-1);
 }
 
-/* Callout: a message that must not be read past. Info for context, warning for something to act on. */
+/* Callout: a message that must not be read past. Info for context, warning for something to act on.
+   zx-callout-info is the base style: the class is set, but needs no rule of its own. */
 .zx-callout {
   margin: var(--zx-space-1) 0 var(--zx-space-3);
   padding: var(--zx-space-2) var(--zx-space-3);
@@ -169,10 +174,11 @@ html[color-scheme='dark'] {
   background: var(--zx-surface-tint);
 }
 
-/* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured. */
+/* Badge: what a value rests on. Solid when observed, dashed when inferred or estimated, tinted when configured.
+   zx-badge-observed is the base style: the class is set, but needs no rule of its own. */
 .zx-badge {
   display: inline-block;
-  padding: 0 5px;
+  padding: 0 var(--zx-space-1);
   border: 1px solid var(--zx-line-strong);
   border-radius: var(--zx-radius);
   font-size: var(--zx-text-sm);

@@ -667,14 +667,44 @@
     if (value === null || value === undefined || value === '') return null;
     return el('span', value, `zx-badge ${CONFIRMED.includes(value) ? 'zx-badge-observed' : 'zx-badge-inferred'}`);
   }
+  /** A callout. A warning opens with the word "Warning", so it never rests on the stripe colour alone. */
   function notice(root, value, kind = 'info') {
-    root.appendChild(el('p', value, `zx-callout zx-callout-${kind}`));
+    const node = el('p', '', `zx-callout zx-callout-${kind}`);
+    if (kind === 'warning') node.append(el('span', 'Warning:', 'zx-callout-title'), ' ');
+    node.append(value);
+    root.appendChild(node);
   }
   /** A table or detail value; a missing one reads "Unknown" in muted text, so it never looks like data. */
   function valueNode(value) {
     if (value instanceof Node) return value;
     const shown = text(value);
     return shown === 'Unknown' ? el('span', shown, 'zx-muted') : document.createTextNode(shown);
+  }
+  /** Every state word reads in one of five tones (explorers.css), the same mapping as Wi-Fi Explorer's $toned(). */
+  const TONES = {
+    ok: 'ok',
+    current: 'ok',
+    complete: 'ok',
+    up: 'ok',
+    partial: 'warning',
+    stale: 'warning',
+    degraded: 'warning',
+    warning: 'warning',
+    failed: 'critical',
+    down: 'critical',
+    high: 'critical',
+    critical: 'critical',
+    info: 'info',
+    unsupported: 'unknown',
+    unknown: 'unknown'
+  };
+  /** A state value as a capitalised word in its tone; a missing one falls through to "Unknown" in muted text. */
+  function toned(value) {
+    if (value === null || value === undefined || value === '') return value;
+    const raw = String(value),
+      tone = TONES[raw.toLowerCase()];
+    const label = raw === 'ok' ? 'OK' : raw.charAt(0).toUpperCase() + raw.slice(1).replaceAll('_', ' ');
+    return tone ? el('span', label, `zx-tone-${tone}`) : label;
   }
   function table(root, columns, rows, caption) {
     // Zabbix's own list-table styling, as Wi-Fi Explorer's tables and every Zabbix list use.
@@ -906,7 +936,7 @@
           .filter(Boolean)
           .join(' · '),
         Duplex: port.duplex,
-        Freshness: port.freshness ?? port.quality?.freshness
+        Freshness: toned(port.freshness ?? port.quality?.freshness)
       })
     );
     if (port.vlan) {
@@ -1377,7 +1407,7 @@
           value: e => (e.stp ? `${stpEnd(e.stp.source)} / ${stpEnd(e.stp.target)}` : 'Unknown')
         },
         { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
-        { label: 'Freshness', value: e => e.freshness }
+        { label: 'Freshness', value: e => toned(e.freshness) }
       ],
       edge.members,
       'Individual observed members'
@@ -1684,19 +1714,32 @@
       [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
       [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
       [has('.ne-node-stale'), 'stale data', 'A collection source is stale or failed; see Collection quality'],
-      [has('.ne-node-findings.ne-severity-warning'), '●', 'Number of findings; worst is a warning'],
-      [has('.ne-node-findings.ne-severity-info'), '●', 'Number of findings; information only'],
+      [
+        has('.ne-node-findings.ne-severity-critical, .ne-node-findings.ne-severity-high'),
+        'n',
+        'Number of findings; worst is critical or high',
+        'high'
+      ],
+      [has('.ne-node-findings.ne-severity-warning'), 'n', 'Number of findings; worst is a warning', 'warning'],
+      [has('.ne-node-findings.ne-severity-info'), 'n', 'Number of findings; information only', 'info'],
       [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
     ];
-    for (const [shown, key, label] of entries) {
+    // An entry's optional fourth value is the findings severity its key is drawn in.
+    for (const [shown, key, label, severity] of entries) {
       if (!shown) continue;
       const item = el('li');
       const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
-      const severity = /worst is a warning|information only/.exec(label)
-        ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
-        : '';
+      // A findings key is a small copy of the badge: Zabbix fill, on-fill text and outline, never a fill as text.
       item.appendChild(
-        el('span', swatch ? '' : key, swatch ? `zx-swatch ne-swatch-${key}` : `zx-legend-key${severity}`)
+        el(
+          'span',
+          swatch ? '' : key,
+          swatch
+            ? `zx-swatch ne-swatch-${key}`
+            : severity
+              ? `ne-legend-badge ne-severity-${severity}`
+              : 'zx-legend-key'
+        )
       );
       item.appendChild(el('span', label));
       legend.appendChild(item);
@@ -2262,7 +2305,7 @@
         { label: 'Peer port', value: e => (e.target ? interfaceName(payload, e.target, e.target_uid) : null) },
         { label: 'Resolution', value: e => e.status },
         { label: 'Confidence', value: e => confidenceBadge(e.confidence) },
-        { label: 'Freshness', value: e => e.freshness }
+        { label: 'Freshness', value: e => toned(e.freshness) }
       ],
       edges,
       'Observed physical topology'
@@ -2426,8 +2469,8 @@
       [
         { label: 'Host', value: q => hostName(payload, q.hostid) },
         { label: 'Dataset', value: q => q.dataset },
-        { label: 'Outcome', value: q => q.status },
-        { label: 'Freshness', value: q => q.freshness },
+        { label: 'Outcome', value: q => toned(q.status) },
+        { label: 'Freshness', value: q => toned(q.freshness) },
         { label: 'Capability', value: q => q.capability?.state ?? q.capability },
         { label: 'Observed', value: q => q.observed_at },
         { label: 'Attempted', value: q => q.attempted_at },
@@ -2525,7 +2568,7 @@
             label: 'Host',
             value: f => button(text(hostName(payload, f.hostid)), () => broadcast(f.hostid), 'ne-link-button')
           },
-          { label: 'Severity', value: f => f.severity },
+          { label: 'Severity', value: f => toned(f.severity) },
           { label: 'Rule', value: f => f.rule },
           { label: 'Finding', value: f => f.title },
           { label: 'Interface', value: f => interfaceName(payload, f.hostid, f.interface_uid) },

@@ -293,6 +293,12 @@ const assert = require('node:assert/strict');
     const legendText = await page.getByRole('list', { name: 'Topology legend' }).innerText();
     assert.ok(legendText.includes('Confirmed link'), legendText);
     assert.ok(!legendText.includes('VLAN') && !legendText.includes('root'), legendText);
+    // The findings key is a mini badge in the drawn severity, never a fill-coloured glyph.
+    const legendBadges = await page
+      .locator('[aria-label="Topology legend"] .ne-legend-badge')
+      .evaluateAll(keys => keys.map(k => [k.className, getComputedStyle(k).color]));
+    assert.deepEqual(legendBadges, [['ne-legend-badge ne-severity-info', 'rgb(31, 44, 51)']]);
+    assert.ok(legendText.includes('Number of findings; information only'), legendText);
     // The default Layer 2 view marks a current, agreed root; disagreement marks none.
     await page.evaluate(() => {
       const p = window.testPayload;
@@ -457,6 +463,11 @@ const assert = require('node:assert/strict');
       });
     });
     assert.ok((await selection.innerText()).includes('The selected switch is not in the current scope.'));
+    // A warning callout opens with its title word, so colour is never the only difference from an info one.
+    assert.equal(
+      await selection.locator('.zx-callout-warning .zx-callout-title').first().innerText(),
+      'Warning:'
+    );
     await page.evaluate(() => {
       window.testExplorer = window.NEWidgetRuntime.mountExplorer(document.querySelector('#widget'), window.testPayload, {
         view: 'layer2',
@@ -477,9 +488,13 @@ const assert = require('node:assert/strict');
     );
     assert.equal(await page.locator('tbody tr').count(), 3);
     assert.ok((await page.locator('#widget').innerText()).includes('partial'));
+    // Outcome and freshness read as capitalised words in the shared tones, as in Wi-Fi Explorer.
+    assert.equal(await page.locator('tbody .zx-tone-warning', { hasText: /^Stale$/ }).count() > 0, true);
+    assert.equal(await page.locator('tbody .zx-tone-warning', { hasText: /^Partial$/ }).count() > 0, true);
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(document.querySelector('#widget'), window.testPayload, 'findings')
     );
+    assert.deepEqual(await page.locator('tbody .zx-tone-info').allInnerTexts(), ['Info', 'Info']);
     const downloadEvent = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export filtered CSV' }).click();
     const download = await downloadEvent;
@@ -488,6 +503,7 @@ const assert = require('node:assert/strict');
     for await (const chunk of stream) csv += chunk.toString('utf8');
     assert.ok(csv.includes("'=Unsafe spreadsheet formula"));
     assert.ok(csv.includes("' =Unsafe spreadsheet formula after space"));
+    assert.ok(csv.includes(',"info",'), 'The CSV keeps the raw severity value.');
     // A scope too large to draw shows its message and nothing else: no partial drawing, no empty findings.
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(

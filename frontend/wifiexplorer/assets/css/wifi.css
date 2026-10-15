@@ -34,7 +34,7 @@
 /* Markers are links: keyboard focus gets the same ring as selection, plus a dashed outline so it never rests on colour. */
 .we-explorer .we-marker:focus { outline: none; }
 .we-explorer .we-marker:focus-visible circle { stroke-width: 5; stroke: var(--zx-accent); stroke-dasharray: 4 2; }
-.we-explorer .we-marker text { font-size: 18px; text-anchor: middle; fill: currentColor; paint-order: stroke;
+.we-explorer .we-marker text { font-size: var(--zx-text-drawing); text-anchor: middle; fill: currentColor; paint-order: stroke;
     stroke: var(--zx-halo); stroke-width: 4px; }
 .we-explorer .we-marker .we-marker-value { font-weight: bold; }
 .we-explorer .we-placement { display: flex; flex-wrap: wrap; gap: var(--zx-space-2); align-items: center; margin: var(--zx-space-2) 0; }

@@ -132,6 +132,9 @@ final class Manager {
         'colour_disabled'=>'123456'], true, true);
     $assert($payload['scope']['colours'] === ['disabled'=>'123456'],
         'Default state colours are not sent, so the theme decides; a chosen colour still overrides.');
+    $payload = WidgetPayload::build(['colour_normal'=>'26793c', 'colour_degraded'=>'916000', 'colour_down'=>'B04444',
+        'colour_disabled'=>'5C6C7B', 'colour_unknown'=>'5c6c7b'], true, true);
+    $assert($payload['scope']['colours'] === [], 'The current form defaults are not sent either.');
 
     $assert(Errors::code(new RuntimeException('SQL error near "secret"')) === Errors::READ_FAILED
         && Errors::code(new RuntimeException('host_budget_exceeded')) === 'host_budget_exceeded',
