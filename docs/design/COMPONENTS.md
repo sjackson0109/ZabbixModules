@@ -23,17 +23,17 @@ and high-contrast dark themes). Never write a colour literal in a module sheet; 
 
 ### Tones (text and lines)
 
-Each tone passes WCAG AA (4.5:1) for normal text on Zabbix's light (white, `#f5f5f5`) and dark (`#2b2b2b`)
-backgrounds.
+Each tone passes WCAG AA (4.5:1) for normal text on Zabbix's light backgrounds (white, and the `#ebeef0` page
+behind a module view) and dark ones (`#2b2b2b`, `#0e1012`). Check a new tone against `#ebeef0`, not only white.
 
 | Token | Light | Dark | Means |
 |---|---|---|---|
-| `--zx-tone-ok` | `#287e3f` | `#59db8f` | Up, complete, ready, pass |
-| `--zx-tone-warning` | `#946200` | `#ffc859` | Review: partial, degraded, a warning finding |
+| `--zx-tone-ok` | `#26793c` | `#59db8f` | Up, complete, ready, pass |
+| `--zx-tone-warning` | `#916000` | `#ffc859` | Review: partial, degraded, a warning finding |
 | `--zx-tone-critical` | `#b04444` | `#ff8f7a` | Down, failed, lost, flagged |
 | `--zx-tone-info` | `#1d6aab` | `#8fb1ff` | Information, tagged VLAN, STP root path |
-| `--zx-tone-unknown` | `#607080` | `#a8b4bf` | No data, secondary text, legend labels |
-| `--zx-accent` | `#2676b9` | `#6fb2ec` | Selection, focus, current tab, links in the drawing |
+| `--zx-tone-unknown` | `#5c6c7b` | `#a8b4bf` | No data, secondary text, legend labels |
+| `--zx-accent` | `#236daa` | `#6fb2ec` | Selection, focus, current tab, links in the drawing |
 
 ### Fills (badges and areas)
 

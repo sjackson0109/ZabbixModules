@@ -15,8 +15,8 @@ final class WidgetPayload {
      * The port panel form's defaults, current and earlier. A default is not sent, so the theme's own colour (light,
      * dark or high contrast) applies; only a colour someone chose overrides it.
      */
-    private const DEFAULT_COLOURS = ['normal'=>['287E3F'], 'degraded'=>['946200', 'B37312'], 'down'=>['B04444'],
-        'disabled'=>['607080'], 'unknown'=>['607080', '3A4752']];
+    private const DEFAULT_COLOURS = ['normal'=>['26793C', '287E3F'], 'degraded'=>['916000', '946200', 'B37312'],
+        'down'=>['B04444'], 'disabled'=>['5C6C7B', '607080'], 'unknown'=>['5C6C7B', '607080', '3A4752']];
     private const ID = '/^[1-9][0-9]*$/D';
     /** The interface operational item that identifies a port; its key parameter is the interface UID. */
     private const INTERFACE_ITEM = '/^ne\.if\.oper\[([^\]\r\n]{1,128})\]$/D';
