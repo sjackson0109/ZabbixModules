@@ -69,11 +69,12 @@ critical.
 | Scale | Tokens |
 |---|---|
 | Spacing | `--zx-space-1` 4 px, `-2` 8 px, `-3` 12 px, `-4` 16 px, `-5` 24 px |
-| Text | `--zx-text-xs` 10 px (port tile detail only), `-sm` 11 px, `-md` 12 px (Zabbix body), `-lg` 14 px (headings), `-xl` 20 px (KPI values) |
+| Text | `--zx-text-xs` 10 px (port tile detail only), `-sm` 11 px, `-md` 12 px (Zabbix body), `-lg` 14 px (headings), `-xl` 20 px (KPI values), `--zx-text-drawing` 18 px (glyphs and labels on an SVG canvas) |
 | Radius | `--zx-radius` 2 px, as Zabbix 7 |
 | Opacity | `--zx-opacity-dimmed` .3 (filtered out of a drawing), `-faded` .55 (unrelated), `-disabled` .75 (admin disabled) |
 
-Hairlines (1 to 3 px) and SVG glyph sizes stay literal; they are geometry, not rhythm.
+Hairlines (1 to 3 px) and shape sizes inside a drawing stay literal; they are geometry, not rhythm. Font sizes
+always come from the text scale, in a drawing too.
 
 ## Components
 

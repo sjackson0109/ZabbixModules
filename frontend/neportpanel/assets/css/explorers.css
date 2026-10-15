@@ -43,6 +43,8 @@
   --zx-text-md: 12px;
   --zx-text-lg: 14px;
   --zx-text-xl: 20px;
+  /* Glyphs and labels drawn on an SVG canvas (an STP blocking mark, a floor-plan marker label). */
+  --zx-text-drawing: 18px;
 
   /* De-emphasis: a filtered-out drawing element, an unrelated control, an administratively disabled one. */
   --zx-opacity-dimmed: 0.3;

@@ -468,7 +468,7 @@ html[color-scheme='dark'] .ne-widget {
 }
 .ne-widget .ne-stp-block-mark {
   fill: var(--zx-tone-critical);
-  font-size: 16px;
+  font-size: var(--zx-text-drawing);
 }
 .ne-widget .ne-node-vlan rect {
   fill: var(--ne-node-vlan-fill);
