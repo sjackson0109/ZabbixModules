@@ -1684,8 +1684,8 @@
       [has('.ne-node-warning'), 'off subnet', 'Outside the management subnet'],
       [has('.ne-node-unreachable'), 'unreachable', 'SNMP unreachable'],
       [has('.ne-node-stale'), 'stale data', 'A collection source is stale or failed; see Collection quality'],
-      [has('.ne-node-findings.ne-severity-warning'), '●', 'Number of findings; worst is a warning'],
-      [has('.ne-node-findings.ne-severity-info'), '●', 'Number of findings; information only'],
+      [has('.ne-node-findings.ne-severity-warning'), 'n', 'Number of findings; worst is a warning'],
+      [has('.ne-node-findings.ne-severity-info'), 'n', 'Number of findings; information only'],
       [has('.ne-node-unresolved'), 'unresolved', 'Placed outside the tree: no observed root-port path to the root']
     ];
     for (const [shown, key, label] of entries) {
@@ -1693,10 +1693,19 @@
       const item = el('li');
       const swatch = ['solid', 'dashed', 'rootpath', 'path', 'carried', 'stopped'].includes(key);
       const severity = /worst is a warning|information only/.exec(label)
-        ? ` ne-legend-severity-${label.includes('warning') ? 'warning' : 'info'}`
+        ? label.includes('warning') ? 'warning' : 'info'
         : '';
+      // A findings key is a small copy of the badge: Zabbix fill, on-fill text and outline, never a fill as text.
       item.appendChild(
-        el('span', swatch ? '' : key, swatch ? `zx-swatch ne-swatch-${key}` : `zx-legend-key${severity}`)
+        el(
+          'span',
+          swatch ? '' : key,
+          swatch
+            ? `zx-swatch ne-swatch-${key}`
+            : severity
+              ? `ne-legend-badge ne-severity-${severity}`
+              : 'zx-legend-key'
+        )
       );
       item.appendChild(el('span', label));
       legend.appendChild(item);

@@ -156,7 +156,7 @@ These live in a module sheet because only one module has them. They use the shar
 | Component | Module | Notes |
 |---|---|---|
 | Port tile (`ne-port`, `ne-state-*`, `ne-vlan-*`, `ne-stp-*`, `ne-lldp-*`) | Network Explorer | Every state pairs colour with border style or opacity and a text label. Port colours left at the widget form's defaults follow the theme; a chosen colour overrides. |
-| Topology node and edge (`ne-node-*`, `ne-edge-*`) | Network Explorer | Selection is weight and dash as well as colour. Findings badge uses the Zabbix fills. |
+| Topology node and edge (`ne-node-*`, `ne-edge-*`) | Network Explorer | Selection is weight and dash as well as colour. Findings badge uses the Zabbix fills; its legend key is the same badge in miniature (`ne-legend-badge`), never a fill-coloured glyph. |
 | KPI tile (`we-tile`, `we-tile-warning`, `we-tile-critical`) | Wi-Fi Explorer | One accent rule on every tab: none when healthy, yellow edge for something to review, red edge only for APs or radios down. |
 | Floor-plan marker (`we-marker-*`) | Wi-Fi Explorer | A link: focus shows a dashed accent ring. Fills are Zabbix fills. |
 | Hop chip (`we-hop`, `-failed`, `-unknown`) | Wi-Fi Explorer | The failing hop is outlined in red. |
