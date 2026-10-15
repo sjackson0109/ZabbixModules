@@ -135,7 +135,7 @@ WIFI_LAB_CONFIG = {
 }
 
 
-NATIVE_DASHBOARDS = {"network_explorer_snmp.yaml": ("Network Explorer - Generic standard MIB", "Network Explorer"),
+NATIVE_DASHBOARDS = {"network_explorer_snmp.yaml": ("Network Explorer - Generic Switch", "Network Explorer"),
                      "wifi_explorer_snmp.yaml": ("Wi-Fi Explorer - Aruba Instant VC by SNMP", "Wi-Fi Explorer")}
 
 

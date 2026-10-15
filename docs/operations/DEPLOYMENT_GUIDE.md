@@ -193,7 +193,7 @@ If you run more than one frontend against the same database, every frontend must
 Unpack `network-explorer-templates-2.1.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import both files with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
 
 1. `network_explorer_snmp.yaml`: the switch templates. This creates the template group `Templates/Network Explorer` and two self-contained templates:
-   - `Network Explorer - Generic standard MIB`: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
+   - `Network Explorer - Generic Switch`: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
    - `Network Explorer - LLDP for access points`: LLDP only, for Wi-Fi access-point hosts (7.2). Never link it to a switch, or beside the Generic template.
 2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` and two templates:
    - `Wi-Fi Explorer - Aruba Instant VC by SNMP`: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address, and a cluster host dashboard (APs up and down, clients, channel utilisation and radios by band) built from Zabbix's own widgets. One host per cluster.
@@ -253,7 +253,7 @@ Pick one switch per data centre, ideally one with LLDP neighbours that are also 
 
 1. Make sure the host has an **SNMP interface** (v2c or v3) with working credentials, and is **Monitored by** the right proxy (or proxy group).
 2. Add the host tags **`ne.domain`** (2.4) and **`site`** (2.5).
-3. Link **`Network Explorer - Generic standard MIB`**. It is one self-contained template holding every switch item and the host dashboard.
+3. Link **`Network Explorer - Generic Switch`**. It is one self-contained template holding every switch item and the host dashboard.
 
 The Network Explorer keys all start with `ne.`, so the templates coexist with existing SNMP templates such as the stock network templates. The switch is then walked by both, so expect more SNMP load on the device.
 
@@ -282,7 +282,7 @@ A quick machine check of the same data, as a logged-in user: `zabbix.php?action=
 
 ### 6.4 Roll out
 
-When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links `Network Explorer - Generic standard MIB`). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
+When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links `Network Explorer - Generic Switch`). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
 
 Ports to alert on, and expected speeds, are set with per-interface macros:
 
@@ -381,20 +381,20 @@ Proxies need nothing for a frontend or template upgrade; they receive the new it
 
 Up to 1.4.0, switches were linked to `Network Explorer - Profile - Generic standard MIB`, which linked seven per-dataset templates (`Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG`). From 2.0.0 each device type has one self-contained template instead. Item keys are unchanged, so hosts keep their items and history if you swap the templates as below. Verified on a Zabbix 7.4.3 lab: every host kept the same item IDs and kept collecting, and history from before the swap was still there.
 
-1. Import the new `network_explorer_snmp.yaml` (8.1 step 4). It adds `Network Explorer - Generic standard MIB` and `Network Explorer - LLDP for access points` beside the old templates; nothing changes on hosts yet.
+1. Import the new `network_explorer_snmp.yaml` (8.1 step 4). It adds `Network Explorer - Generic Switch` and `Network Explorer - LLDP for access points` beside the old templates; nothing changes on hosts yet.
 2. Swap each switch's template. Either:
-   - **One host:** open it, remove `Network Explorer - Profile - Generic standard MIB` from **Templates** with its ×, add `Network Explorer - Generic standard MIB`, and click **Update**, all in the one save; or
-   - **Many hosts:** select them in Data collection → Hosts → **Mass update** → Templates: first **Unlink** `Network Explorer - Profile - Generic standard MIB` with **Clear when unlinking unticked**, then a second mass update to **Link** `Network Explorer - Generic standard MIB`. Do not use **Replace**: it also unlinks every other template on those hosts.
+   - **One host:** open it, remove `Network Explorer - Profile - Generic standard MIB` from **Templates** with its ×, add `Network Explorer - Generic Switch`, and click **Update**, all in the one save; or
+   - **Many hosts:** select them in Data collection → Hosts → **Mass update** → Templates: first **Unlink** `Network Explorer - Profile - Generic standard MIB` with **Clear when unlinking unticked**, then a second mass update to **Link** `Network Explorer - Generic Switch`. Do not use **Replace**: it also unlinks every other template on those hosts.
 
    Never tick *Clear when unlinking* and never use *Unlink and clear*: that deletes the items and their history. Unlinked items stay on the host until the new template adopts them by key.
 3. Do the same on Wi-Fi access-point hosts linked to `Network Explorer - LLDP`, swapping it for `Network Explorer - LLDP for access points`.
 4. When no host is linked to them any more (each template's **Linked hosts** is empty), delete the eight old templates in Data collection → Templates with **Delete**, not *Delete and clear*.
 
-### 8.4 From 2.0.0 or earlier: remove the separate dashboard template
+### 8.4 From 2.0.0 or earlier: renamed switch template, no separate dashboard template
 
-Up to 2.0.0, the switch host dashboard was a separate template, `Network Explorer - Host dashboard` (`network_explorer_dashboard.yaml`). From 2.1.0 `Network Explorer - Generic standard MIB` carries it, so a switch still linked to the old template shows two *Network Explorer* dashboards.
+In 2.0.0 the switch template was called `Network Explorer - Generic standard MIB`, and the switch host dashboard was a separate template, `Network Explorer - Host dashboard` (`network_explorer_dashboard.yaml`). From 2.1.0 the switch template is `Network Explorer - Generic Switch` and carries the dashboard itself, so a switch still linked to the old dashboard template shows two *Network Explorer* dashboards.
 
-1. Import the new `network_explorer_snmp.yaml` with **Dashboards** ticked (8.1 step 4).
+1. Import the new `network_explorer_snmp.yaml` with **Dashboards** ticked (8.1 step 4). It renames `Network Explorer - Generic standard MIB` to `Network Explorer - Generic Switch` in place: same template, same host links, items and history, so there is nothing to relink.
 2. In Data collection → Templates, select `Network Explorer - Host dashboard` and click **Delete**. It holds no items, so nothing is lost; deleting it unlinks it from every host and removes its dashboard, leaving the one from the Generic template.
 
 ## 9. Optional: the Python collector on a proxy

@@ -28,7 +28,7 @@ Do not enable unrestricted neighbour-address chasing or host auto-enrolment. Col
 The `templates` package holds the native templates under `templates/native/<7.0|7.2|7.4>/`:
 
 1. Import `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml` for your Zabbix version (Data collection > Templates > Import), with *Dashboards* ticked.
-2. Link `Network Explorer - Generic standard MIB` to each switch that has an SNMP interface. It is one self-contained template holding every item and the switch host dashboard (Ports, Topology, Findings); nothing else needs linking. Until the widget modules are enabled, that dashboard shows its widgets as inaccessible.
+2. Link `Network Explorer - Generic Switch` to each switch that has an SNMP interface. It is one self-contained template holding every item and the switch host dashboard (Ports, Topology, Findings); nothing else needs linking. Until the widget modules are enabled, that dashboard shows its widgets as inaccessible.
 3. Link `Wi-Fi Explorer - Aruba Instant VC by SNMP` to each Aruba Instant cluster; it carries a cluster host dashboard built from Zabbix's own widgets.
 
 See [the templates README](../../templates/README.md) for what each template reads. `templates/specifications/` remains the contract for future vendor-family templates; no model should be advertised as supported from its vendor name alone.

@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lab  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILE = "Network Explorer - Generic standard MIB"
+PROFILE = "Network Explorer - Generic Switch"
 GROUP = "Network Explorer lab"
 # sw-dist-01 sits in its own group so a restricted viewer can be denied it.
 HIDDEN_GROUP = "Network Explorer lab restricted"

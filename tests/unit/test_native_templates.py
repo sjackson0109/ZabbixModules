@@ -214,7 +214,7 @@ def test_versions_follow_the_release():
 def test_restart_trigger_ignores_a_sysuptime_wrap():
     item = next(i for i in all_items() if i["key"] == "ne.device.uptime")
     expression = item["triggers"][0]["expression"]
-    uptime = "/Network Explorer - Generic standard MIB/ne.device.uptime"
+    uptime = "/Network Explorer - Generic Switch/ne.device.uptime"
     assert expression == f"last({uptime})<600 and last({uptime},#2)<{2**32 // 100 - 86400}"
     bound = int(expression.rsplit("<", 1)[1])
     # The hourly poll before a wrap is above the bound, so the drop to near zero is not a restart.
