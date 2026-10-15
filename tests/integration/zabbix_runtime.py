@@ -166,8 +166,12 @@ def wifi_checks(config: dict, api, groups: tuple[str, str], user_browser, result
     assert_that("action=wifiexplorer.view" in menu, "Monitoring menu has no Wi-Fi Explorer entry for a permitted user.")
 
     def visible():
+        # Wait for every delivered dataset, not only the APs: history is written asynchronously, and reading
+        # before radio_state lands shows every radio as unknown.
         data = json.loads(frontend(user_browser, config, "wifiexplorer.data", {}))
-        return data if len(data.get("aps", [])) == 6 else None
+        datasets = data.get("overview", {}).get("datasets", {})
+        complete = datasets.get("total") and datasets.get("unknown") == 0
+        return data if len(data.get("aps", [])) == 6 and complete else None
 
     data = poll(visible)
     encoded = json.dumps(data)
