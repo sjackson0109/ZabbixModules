@@ -1,6 +1,6 @@
 # Deployment guide: Docker test server and multi-proxy production
 
-This guide installs release 1.4.0, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (Aruba Instant clusters, APs, radios, SSIDs, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
+This guide installs release 2.0.0, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (Aruba Instant clusters, APs, radios, SSIDs, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
 
 - **Test:** one Docker host running the Zabbix server, frontend and one or more proxies as containers.
 - **Production:** one frontend server and several proxies spread across data centres, each proxy built from a customised Dockerfile.
@@ -46,7 +46,7 @@ What each page needs from the other:
    sha256sum -c SHA256SUMS
    ```
 
-   You get `network-explorer-frontend-1.4.0.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-1.4.0.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
+   You get `network-explorer-frontend-2.0.0.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-2.0.0.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
 4. **Decide the `ne.domain` value(s).** Every switch host needs exactly one host tag `ne.domain` (for example `ne.domain=corp`). Peer matching only happens between hosts with the same value. Use one value across all five data centres if they are one routed/LLDP-connected network; use different values only for networks that must never be matched to each other (for example separate customers with overlapping IPs). The tag never grants visibility. Wi-Fi hosts get the same value as the switches they connect to.
 5. **Decide the `site` values.** The host tag `site=<name>` (for example `site=dc-north`) is what both pages narrow by, and it is how Wi-Fi Explorer finds the switches an Aruba cluster's APs plug into: AP uplinks, VLAN paths and impact are worked out only against switches with the same `site` value as the cluster's host. Pick one value per physical site and use it on that site's switches and Wi-Fi hosts alike.
 6. **Check host names.** Technical and visible host names must be unique across the whole installation; LLDP peer matching relies on that.
@@ -70,17 +70,58 @@ modules/wifiexplorer         Monitoring → Wi-Fi Explorer
 
 In the official `zabbix/zabbix-web-*` images the frontend root is `/usr/share/zabbix`, so the target is `/usr/share/zabbix/modules/` (verified on 7.0.20, 7.2.7 and 7.4.3). On a package-installed frontend, find the directory that contains `zabbix.php` and use its `modules/` subdirectory; do not assume the path.
 
-Choose one of the two methods below. Bind mounts suit the test server; a derived image suits production because the version is baked into an image tag you can roll back.
+Choose one of the methods below. Bind mounts suit the test server; a derived image suits production because the version is baked into an image tag you can roll back.
 
-### 3.1 Option A: bind-mount the module directories (test server)
+First check whether your web container already bind-mounts the whole `modules/` directory. The official [zabbix-docker](https://github.com/zabbix/zabbix-docker) compose files do, read-only, on every `web-*` service:
 
-Unpack the package into a versioned directory on the Docker host:
+```yaml
+      - ${DATA_DIRECTORY}/usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+```
 
 ```sh
-sudo mkdir -p /opt/zabbix/network-explorer/1.4.0
-sudo tar -xf network-explorer-frontend-1.4.0.tar -C /opt/zabbix/network-explorer/1.4.0
-sudo ln -sfn /opt/zabbix/network-explorer/1.4.0 /opt/zabbix/network-explorer/current
-sudo chmod -R a+rX /opt/zabbix/network-explorer/1.4.0
+docker compose config | grep 'usr/share/zabbix/modules'
+```
+
+If that line is there, use **3.1**. If it is not, use **3.2** or **3.3**. Never combine the two: a per-module mount inside a read-only `modules/` mount fails when the container starts (section 10).
+
+### 3.1 Option A: copy into the mounted modules directory (zabbix-docker compose)
+
+Here Zabbix already reads `${DATA_DIRECTORY}/usr/share/zabbix/modules/` on the Docker host, so the seven directories go straight into it and the compose file needs no change. Zabbix finds a module only at `modules/<name>/manifest.json`, one level down, so the seven directories must sit directly in that directory, not under a sub-folder such as `modules/network-explorer/`.
+
+Keep each release unpacked outside the modules directory, so you can roll back, then copy it in. Use the same `DATA_DIRECTORY` value your compose file uses (it is in the `.env` file next to it; check the path, for example `/media/data` versus `/root/media/data`):
+
+```sh
+DATA_DIRECTORY=/media/data            # as in your compose .env
+RELEASE=2.0.0
+MODULES=$DATA_DIRECTORY/usr/share/zabbix/modules
+
+# 1. Unpack the release outside the modules directory.
+mkdir -p "$DATA_DIRECTORY/network-explorer/$RELEASE"
+tar -xf network-explorer-frontend-$RELEASE.tar -C "$DATA_DIRECTORY/network-explorer/$RELEASE"
+
+# 2. Replace the seven module directories with this release's.
+mkdir -p "${MODULES:?}"
+for m in networkexplorer neportpanel netopology neinterfacedetail nedataquality nefindings wifiexplorer; do
+  rm -rf "${MODULES:?}/$m"
+done
+cp -R "$DATA_DIRECTORY/network-explorer/$RELEASE/frontend/." "$MODULES/"
+chmod -R a+rX "$MODULES"
+
+# 3. Check: seven manifests, one level down.
+ls "$MODULES"/*/manifest.json
+```
+
+The `rm -rf` names only the seven package directories (and `${MODULES:?}` stops it if the variable is empty), so other modules in the directory are left alone, and removing them first means files dropped in a new release do not linger. Then recreate the web container so it sees the files (`docker compose up -d --force-recreate <web service>`; no `--build` is needed), and continue at 3.4. A rollback is the same commands with the previous `RELEASE`.
+
+### 3.2 Option B: bind-mount each module directory (compose without a modules mount)
+
+Use this only if your web service does **not** mount the whole `modules/` directory (see above). Unpack the package into a versioned directory on the Docker host:
+
+```sh
+sudo mkdir -p /opt/zabbix/network-explorer/2.0.0
+sudo tar -xf network-explorer-frontend-2.0.0.tar -C /opt/zabbix/network-explorer/2.0.0
+sudo ln -sfn /opt/zabbix/network-explorer/2.0.0 /opt/zabbix/network-explorer/current
+sudo chmod -R a+rX /opt/zabbix/network-explorer/2.0.0
 ```
 
 The web container runs as an unprivileged user, so files must be world-readable and directories traversable; nothing needs to be writable. Then mount each directory read-only. In your compose file (service name and image are examples):
@@ -109,13 +150,13 @@ Check that all seven are visible inside the container:
 docker exec <web container> ls /usr/share/zabbix/modules/
 ```
 
-### 3.2 Option B: build a frontend image with the modules inside (production)
+### 3.3 Option C: build a frontend image with the modules inside (production)
 
 ```dockerfile
 # Dockerfile.web
 FROM zabbix/zabbix-web-nginx-pgsql:alpine-7.4.3
 USER root
-# Unpacked from network-explorer-frontend-1.4.0.tar next to this Dockerfile: all seven module directories.
+# Unpacked from network-explorer-frontend-2.0.0.tar next to this Dockerfile: all seven module directories.
 COPY frontend/ /usr/share/zabbix/modules/
 RUN chmod -R a+rX /usr/share/zabbix/modules
 # Return to the base image's user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
@@ -123,25 +164,25 @@ USER 1997
 ```
 
 ```sh
-mkdir build && tar -xf network-explorer-frontend-1.4.0.tar -C build
+mkdir build && tar -xf network-explorer-frontend-2.0.0.tar -C build
 cp Dockerfile.web build/
-docker build -t registry.example/zabbix-web-ne:7.4.3-ne1.4.0 -f build/Dockerfile.web build
+docker build -t registry.example/zabbix-web-ne:7.4.3-ne2.0.0 -f build/Dockerfile.web build
 ```
 
 Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the image with both the Zabbix and the release version so a rollback is a tag change. If you already maintain a customised web image, add the `COPY` and `chmod` lines to it instead. `COPY frontend/` copies every directory in the package, so Wi-Fi Explorer is in the image with nothing extra to add.
 
-### 3.3 Register and enable the modules
+### 3.4 Register and enable the modules
 
 Module state is stored in the Zabbix database, so this is done once per installation, not per container.
 
 1. Log in as a Super admin and open **Administration → General → Modules**.
-2. Click **Scan directory**. Seven entries appear: *Network Explorer*, five *Network Explorer: …* widgets and *Wi-Fi Explorer*. If one is missing, see section 10.
-3. Enable **Network Explorer** first, then the five widgets, then **Wi-Fi Explorer**. The widgets and Wi-Fi Explorer show a message saying Network Explorer is needed while it is disabled; that is expected. Keep all seven enabled; disabling Network Explorer later takes Wi-Fi Explorer down with it.
-4. Check that **Monitoring → Network Explorer** and **Monitoring → Wi-Fi Explorer** now appear in the menu. They are the network-wide and wireless views; no global dashboard has to be created or imported. Dashboard recipes in `dashboards/` are optional examples. Until Wi-Fi hosts are enrolled (section 7), the Wi-Fi page says no Wi-Fi data source is visible.
+2. Click **Scan directory**. The message lists the modules added: *Network Explorer*, five *Network Explorer: …* widgets (Port panel, Topology, Interface detail, Data quality, Findings) and *Wi-Fi Explorer*, seven in all. If one is missing, it may already have been registered by an earlier scan (look for it in the list), or see section 10.
+3. **Scanning only registers the modules; it does not enable them.** They are listed with the status *Disabled*, nothing appears in the menu yet, and this step is required. Enable them, either by clicking the red *Disabled* in each module's **Status** column, or by ticking the modules and clicking **Enable** below the list. Enable **Network Explorer** first, then the five widgets, then **Wi-Fi Explorer**; each module's status then reads *Enabled*. The widgets and Wi-Fi Explorer show a message saying Network Explorer is needed while it is disabled; that is expected. Keep all seven enabled; disabling Network Explorer later takes Wi-Fi Explorer down with it.
+4. Reload the page, then check that **Monitoring → Network Explorer** and **Monitoring → Wi-Fi Explorer** now appear in the menu. They are the network-wide and wireless views; no global dashboard has to be created or imported. Dashboard recipes in `dashboards/` are optional examples. Until Wi-Fi hosts are enrolled (section 7), the Wi-Fi page says no Wi-Fi data source is visible.
 
 If you run more than one frontend against the same database, every frontend must have identical module files; the database tells all of them the modules are enabled.
 
-### 3.4 User roles
+### 3.5 User roles
 
 - The **Network Explorer** and **Wi-Fi Explorer** menu entries are shown only to roles with access to *Monitoring → Hosts*.
 - In **Users → User roles**, each role that should use them must allow all seven modules under *Access to modules*. Roles with *Default access to new modules* enabled get them automatically; check restricted roles explicitly.
@@ -150,13 +191,15 @@ If you run more than one frontend against the same database, every frontend must
 
 ## 4. Import the templates
 
-Unpack `network-explorer-templates-1.4.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import all three files, in this order, with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
+Unpack `network-explorer-templates-2.0.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import all three files, in this order, with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
 
-1. `network_explorer_snmp.yaml`: the switch templates. This creates the template group `Templates/Network Explorer` and eight templates: `Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG` and the profile `Network Explorer - Profile - Generic standard MIB`.
+1. `network_explorer_snmp.yaml`: the switch templates. This creates the template group `Templates/Network Explorer` and two self-contained templates:
+   - `Network Explorer - Generic standard MIB`: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG). One per switch; nothing else needs linking beside it.
+   - `Network Explorer - LLDP for access points`: LLDP only, for Wi-Fi access-point hosts (7.2). Never link it to a switch, or beside the Generic template.
 2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` and two templates:
    - `Wi-Fi Explorer - Aruba Instant VC by SNMP`: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address. One host per cluster.
    - `Wi-Fi Explorer - Aruba Instant AP by SNMP`: one AP's own RF view (the neighbouring access points it hears), read at that AP's own address. Optional, one host per AP.
-3. Only after the modules are enabled (3.3): `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a switch host dashboard (Ports, Topology, Findings) and no items. Wi-Fi Explorer has no host dashboard; its page is the view.
+3. Only after the modules are enabled (3.4): `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a switch host dashboard (Ports, Topology, Findings) and no items. Wi-Fi Explorer has no host dashboard; its page is the view.
 
 None of the templates carries SNMP credentials; they use the host's SNMP interface. All Wi-Fi item keys start with `we.` and all switch keys with `ne.`, so they coexist with each other and with stock templates.
 
@@ -188,7 +231,7 @@ Each dataset, switch or Wi-Fi, is one bulk `walk[]` over several tables, which o
 
 ### 5.3 Load and buffer sizing
 
-**Switches.** Per switch, the profile polls seven datasets at the template defaults: interface state every 1m, STP 2m, LLDP and LAG 5m, VLAN 10m, port capability 15m, interface inventory and device identity 1h. Snapshots are stored as text values of about 350–400 bytes per port each (measured on the lab's simulated 27- and 48-port switches), and per-port discovered items add roughly 3–5 items per port (151 and 235 items on those two lab hosts).
+**Switches.** Per switch, the template polls seven datasets at the template defaults: interface state every 1m, STP 2m, LLDP and LAG 5m, VLAN 10m, port capability 15m, interface inventory and device identity 1h. Snapshots are stored as text values of about 350–400 bytes per port each (measured on the lab's simulated 27- and 48-port switches), and per-port discovered items add roughly 3–5 items per port (151 and 235 items on those two lab hosts).
 
 For a proxy with many switches, check that `ProxyOfflineBuffer` and the proxy database have room for the extra text values during a link outage to the server. Intervals are macros (`{$NE.IF.STATE.INTERVAL}`, `{$NE.LLDP.INTERVAL}` and so on) and can be lengthened per host or per template.
 
@@ -210,7 +253,7 @@ Pick one switch per data centre, ideally one with LLDP neighbours that are also 
 
 1. Make sure the host has an **SNMP interface** (v2c or v3) with working credentials, and is **Monitored by** the right proxy (or proxy group).
 2. Add the host tags **`ne.domain`** (2.4) and **`site`** (2.5).
-3. Link **`Network Explorer - Profile - Generic standard MIB`** only. It links the seven dataset templates itself; linking them individually as well is unnecessary.
+3. Link **`Network Explorer - Generic standard MIB`**. It is one self-contained template holding every switch item.
 4. Optionally link **`Network Explorer - Host dashboard`** beside it.
 
 The Network Explorer keys all start with `ne.`, so the templates coexist with existing SNMP templates such as the stock network templates. The switch is then walked by both, so expect more SNMP load on the device.
@@ -240,7 +283,7 @@ A quick machine check of the same data, as a logged-in user: `zabbix.php?action=
 
 ### 6.4 Roll out
 
-When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links the profile). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
+When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links `Network Explorer - Generic standard MIB`). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
 
 Ports to alert on, and expected speeds, are set with per-interface macros:
 
@@ -267,7 +310,7 @@ Do this per Aruba Instant cluster, starting with one pilot cluster whose access 
 Two Wi-Fi features need a host per AP, at the AP's own address. Skip this unless you want them.
 
 - **RF neighbours tab** (which other access points each AP hears): link **`Wi-Fi Explorer - Aruba Instant AP by SNMP`** to the AP's host, with the same SNMP credentials as the cluster. Name the host like the AP, or give its SNMP interface the AP's address, so Wi-Fi Explorer can tell which AP it observes.
-- **Confirmed uplinks** (the AP's own LLDP agreeing with the switch's): also link **`Network Explorer - LLDP`** to the AP's host, with the same `ne.domain` and `site` tags as the switches. Without it, uplinks are still found from the switches' LLDP (shown as *switch only*), which covers most APs.
+- **Confirmed uplinks** (the AP's own LLDP agreeing with the switch's): also link **`Network Explorer - LLDP for access points`** to the AP's host, with the same `ne.domain` and `site` tags as the switches. Without it, uplinks are still found from the switches' LLDP (shown as *switch only*), which covers most APs.
 
 Give each AP host the same host group as its cluster host, so the same users can read both.
 
@@ -314,26 +357,42 @@ Upgrade the frontend package and both template files together: a new frontend ex
 
 1. Back up as in section 2, and export the `Network Explorer -` and `Wi-Fi Explorer -` templates (Data collection → Templates, select them, Export). Copy the Wi-Fi configuration document from **Configure** into a file too; it holds your floors, AP positions, SSID intent and events.
 2. **Frontend.**
-   - Bind mounts: unpack the new version into `/opt/zabbix/network-explorer/<new>/`, `chmod -R a+rX` it, repoint the `current` symlink and run `docker compose up -d --force-recreate zabbix-web`.
+   - Copy into the mounted modules directory (3.1): rerun the 3.1 commands with the new `RELEASE`, then `docker compose up -d --force-recreate <web service>`.
+   - Per-module bind mounts (3.2): unpack the new version into `/opt/zabbix/network-explorer/<new>/`, `chmod -R a+rX` it, repoint the `current` symlink and run `docker compose up -d --force-recreate zabbix-web`.
    - Derived image: build the new tag and redeploy the web container with it.
    - Package install: replace the seven directories in place.
-3. **Re-scan modules** (Administration → General → Modules → Scan directory) if the release notes add or rename a module. Module IDs are stable within 1.x, so a plain upgrade normally needs no re-scan and the modules stay enabled. Make sure all seven directories are in place before any scan: a scan removes modules whose directory is missing, and removing Wi-Fi Explorer's entry discards its configuration document.
+3. **Re-scan modules** (Administration → General → Modules → Scan directory) if the release notes add or rename a module. Module IDs do not change between releases, so a plain upgrade normally needs no re-scan and the modules stay enabled. Make sure all seven directories are in place before any scan: a scan removes modules whose directory is missing, and removing Wi-Fi Explorer's entry discards its configuration document.
 4. **Templates.** Import the new `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml` with *Update existing* ticked. Leave *Delete missing* unticked unless the release notes tell you to remove retired items; deleting items deletes their history.
 5. Ask users to reload the page (Ctrl+F5) so browsers fetch the new widget JavaScript and CSS.
 6. Repeat the checks in 6.2 and 6.3 on the pilot switches, and 7.3 and 7.4 on the pilot cluster.
+
+Upgrading from 1.4.0 or earlier also needs 8.3.
 
 Proxies need nothing for a frontend or template upgrade; they receive the new item configuration automatically. When you upgrade Zabbix itself (for example 7.4 to a later release), upgrade server, proxies and frontend as Zabbix documents, then import the templates from the matching `templates/native/<version>/` directory if one is provided.
 
 ### 8.2 Rollback
 
-- **Frontend:** repoint `current` to the previous version and recreate the container, or redeploy the previous image tag. The module stays enabled because its ID does not change.
+- **Frontend:** rerun the 3.1 commands with the previous `RELEASE`, or repoint `current` to the previous version (3.2), and recreate the container; or redeploy the previous image tag (3.3). The module stays enabled because its ID does not change.
 - **Templates:** re-import the previous release's YAML files with *Update existing*. Do not unlink with *Unlink and clear* as a rollback step: that deletes the items and their history.
 - **Wi-Fi configuration:** it stays in the database across a rollback. If the older release refuses it, the page says the stored configuration does not validate; paste the copy you saved in 8.1 into Configure.
-- **Removing everything:** unlink the switch profile, dashboard and Wi-Fi templates from hosts (*Unlink and clear* if you want the data gone), disable the seven modules in Administration → General → Modules (Wi-Fi Explorer first, Network Explorer last), then remove the module files or mounts. Removing the files does not delete users' dashboards; widgets on them show as unavailable until removed.
+- **Removing everything:** unlink the switch, access-point LLDP, dashboard and Wi-Fi templates from hosts (*Unlink and clear* if you want the data gone), disable the seven modules in Administration → General → Modules (Wi-Fi Explorer first, Network Explorer last), then remove the module files or mounts. Removing the files does not delete users' dashboards; widgets on them show as unavailable until removed.
+
+### 8.3 From 1.4.0 or earlier: switch hosts to the flat templates
+
+Up to 1.4.0, switches were linked to `Network Explorer - Profile - Generic standard MIB`, which linked seven per-dataset templates (`Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG`). From 2.0.0 each device type has one self-contained template instead. Item keys are unchanged, so hosts keep their items and history if you swap the templates as below. Verified on a Zabbix 7.4.3 lab: every host kept the same item IDs and kept collecting, and history from before the swap was still there.
+
+1. Import the new `network_explorer_snmp.yaml` (8.1 step 4). It adds `Network Explorer - Generic standard MIB` and `Network Explorer - LLDP for access points` beside the old templates; nothing changes on hosts yet.
+2. Swap each switch's template. Either:
+   - **One host:** open it, remove `Network Explorer - Profile - Generic standard MIB` from **Templates** with its ×, add `Network Explorer - Generic standard MIB`, and click **Update**, all in the one save; or
+   - **Many hosts:** select them in Data collection → Hosts → **Mass update** → Templates: first **Unlink** `Network Explorer - Profile - Generic standard MIB` with **Clear when unlinking unticked**, then a second mass update to **Link** `Network Explorer - Generic standard MIB`. Do not use **Replace**: it also unlinks every other template on those hosts.
+
+   Never tick *Clear when unlinking* and never use *Unlink and clear*: that deletes the items and their history. Unlinked items stay on the host until the new template adopts them by key.
+3. Do the same on Wi-Fi access-point hosts linked to `Network Explorer - LLDP`, swapping it for `Network Explorer - LLDP for access points`.
+4. When no host is linked to them any more (each template's **Linked hosts** is empty), delete the eight old templates in Data collection → Templates with **Delete**, not *Delete and clear*.
 
 ## 9. Optional: the Python collector on a proxy
 
-The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 1.4.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native profile to the same host.
+The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 2.0.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native switch template to the same host.
 
 If you do need it, add it to that proxy's Dockerfile. The example below targets the official Alpine proxy image; adjust the package manager for an Ubuntu or RHEL base. Python 3.10 or newer is required.
 
@@ -341,16 +400,16 @@ If you do need it, add it to that proxy's Dockerfile. The example below targets 
 FROM zabbix/zabbix-proxy-mysql:alpine-7.4.3
 USER root
 RUN apk add --no-cache python3
-COPY network-explorer-collector-1.4.0.tar /tmp/
+COPY network-explorer-collector-2.0.0.tar /tmp/
 RUN mkdir -p /opt/network-explorer/src \
- && tar -xf /tmp/network-explorer-collector-1.4.0.tar -C /opt/network-explorer/src \
+ && tar -xf /tmp/network-explorer-collector-2.0.0.tar -C /opt/network-explorer/src \
  && python3 -m venv /opt/network-explorer/venv \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --require-hashes \
       -r /opt/network-explorer/src/collector/requirements.lock \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --no-deps /opt/network-explorer/src/collector \
  && install -m 0755 /opt/network-explorer/src/collector/packaging/network-explorer-collect \
       /opt/network-explorer/network-explorer-collect \
- && rm /tmp/network-explorer-collector-1.4.0.tar
+ && rm /tmp/network-explorer-collector-2.0.0.tar
 # Return to the image's original user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
 USER 1997
 ```
@@ -384,8 +443,11 @@ Notes for a customised proxy image:
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| Modules not listed after *Scan directory* | Files not at `<frontend root>/modules/<name>/manifest.json`, or not readable by the web user | `docker exec <web> ls -l /usr/share/zabbix/modules/*/manifest.json`; fix paths or `chmod -R a+rX`. With bind mounts, check the compose file mounts all seven directories. |
+| Web container fails to start: `error mounting … to rootfs at "/usr/share/zabbix/modules/<name>" … make mountpoint … read-only file system` | Per-module mounts (3.2) added to a compose file that already mounts the whole `modules/` directory read-only (zabbix-docker does) | Remove the seven per-module mounts and copy the directories into `${DATA_DIRECTORY}/usr/share/zabbix/modules/` instead (3.1). |
+| *Scan directory* says "No new modules discovered" although `ls ${DATA_DIRECTORY}/usr/share/zabbix/modules/*/manifest.json` on the host lists seven files | Leftover per-module mounts (3.2) in the compose file, or in an override file, cover the copied directories with other host paths, often empty directories Docker created for a source that does not exist | Remove the per-module mounts (check with `docker compose config \| grep usr/share/zabbix/modules`: only the whole-directory line should remain), recreate the container, and check inside it: `docker exec <web container> ls /usr/share/zabbix/modules/networkexplorer/manifest.json`. |
+| Modules not listed after *Scan directory* | Files not at `<frontend root>/modules/<name>/manifest.json` (for example unpacked under a sub-folder such as `modules/network-explorer/`), or not readable by the web user | `docker exec <web> ls -l /usr/share/zabbix/modules/*/manifest.json` must list seven files; fix paths or `chmod -R a+rX`. With per-module mounts, check the compose file mounts all seven directories and the host paths exist (a missing host path is mounted as an empty directory). |
 | Widgets or the Wi-Fi page say Network Explorer is needed | `Network Explorer` module disabled or its directory missing | Enable it in Administration → General → Modules; mount or copy `networkexplorer`. |
+| Scan said the modules were added, but there is no menu entry for anyone | Modules registered but still *Disabled* | Enable them (3.4 step 3); a scan never enables a module. |
 | No *Network Explorer* or *Wi-Fi Explorer* menu entry for a user | Role lacks *Monitoring → Hosts*, or the modules under *Access to modules* | Edit the role in Users → User roles. |
 | No *Configure* link on the Wi-Fi page | User is not a Super admin | Expected; ask a Super admin. |
 | Module works on one frontend but errors on another | Frontends have different module files | Deploy the same image tag or mounts on every frontend. |
@@ -397,6 +459,7 @@ Notes for a customised proxy image:
 | Neighbours listed but not clickable | Neighbour not monitored, different or missing `ne.domain`, or the user cannot see it | Monitor the neighbour with the same `ne.domain` tag; check the user's host groups. |
 | Remote neighbour descriptions missing | `{$NE.LLDP.REDACT_REMOTE}=1` on that host | Intended if set deliberately; set it to `0` only where every reader may see neighbour identities. |
 | Data quality reports an invalid dataset on a large stack | Text value truncated by the database (5.3) | Check the item's latest value length; report it with the port count and database type. |
+| `Cannot link template … because its parent template "Network Explorer - Interfaces" would be linked twice` | 1.4.0 or earlier templates: the profile and the templates it already links were all selected on one host | Upgrade to the flat templates (8.3), or with 1.4.0 link only `Network Explorer - Profile - Generic standard MIB`. |
 | Proxy queue grows after enrolment | SNMP pollers or preprocessing saturated | Raise `StartSNMPPollers` / preprocessing workers, or lengthen the `{$NE.*.INTERVAL}` / `{$WE.*.INTERVAL}` macros. |
 | Wi-Fi page: no Wi-Fi data source visible | No cluster host linked, or the user cannot read it | Link the VC template (7.1); check the user's host groups. |
 | Wi-Fi datasets `unsupported` with `not_virtual_controller` | SNMP interface points at a member AP | Change it to the cluster's AVC address. |

@@ -32,7 +32,7 @@ Run `sh scripts/test-compatibility.sh` to reproduce the API/data/frontend tests 
 
 ## Native SNMP templates (7 October 2026)
 
-`templates/native/<version>/network_explorer_snmp.yaml` was imported into fresh 7.0.20, 7.2.7 and 7.4.3 labs (same image digests as the lock, pulled through `mirror.gcr.io` because Docker Hub rate-limited the session). Two hosts linked only `Network Explorer - Profile - Generic standard MIB` and polled snmpsim serving the synthetic walks in `tests/fixtures/walks/` over SNMPv2c. Drive it with [`native_snmp.py`](native_snmp.py).
+`templates/native/<version>/network_explorer_snmp.yaml` was imported into fresh 7.0.20, 7.2.7 and 7.4.3 labs (same image digests as the lock, pulled through `mirror.gcr.io` because Docker Hub rate-limited the session). Two hosts linked only `Network Explorer - Profile - Generic standard MIB` (1.4.0 and earlier; now the flat `Network Explorer - Generic standard MIB`) and polled snmpsim serving the synthetic walks in `tests/fixtures/walks/` over SNMPv2c. Drive it with [`native_snmp.py`](native_snmp.py).
 
 On every version:
 

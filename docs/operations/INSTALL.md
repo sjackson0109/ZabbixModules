@@ -1,13 +1,13 @@
 # Manual installation and operations
 
-Applies to release 1.4.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
+Applies to release 2.0.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
 
 ## Frontend package
 
 1. Back up current module files and export dashboards that will be changed.
 2. Locate the actual Zabbix frontend root. Copy all seven directories under `frontend/` into its `modules/` directory, preserving each directory name. The base `networkexplorer` module, its five widgets and `wifiexplorer` are one compatible package; the widgets and Wi-Fi Explorer use the base module's services and show an install message while it is disabled.
 3. Make files readable by the frontend account and directories traversable. The package needs no writable web directory. Match local ownership/security policy; do not make the web root world-writable.
-4. In the administrator frontend, scan modules and enable Network Explorer, its widget modules and Wi-Fi Explorer. No Zabbix core files are changed. Container deployments bind-mount or copy the same directories into the image's actual frontend modules path.
+4. In the administrator frontend (Administration → General → Modules), click *Scan directory*, then enable Network Explorer, its widget modules and Wi-Fi Explorer: a scan only registers modules as *Disabled*, it does not enable them. No Zabbix core files are changed. Container deployments bind-mount or copy the same directories into the image's actual frontend modules path.
 5. Configure authorised hosts and their controlled `ne.domain` tags, and link a dataset producer (see Templates below); without data, widgets show missing/unknown observations rather than invented ports.
 6. Open **Monitoring → Network Explorer** for the network-wide view; it needs no dashboard. For one switch, use the inherited host dashboard (see Templates below). The widgets can also be added to any dashboard you build, selecting a host or using native Host navigator communication. Validate with an ordinary scoped user as well as an administrator.
 
@@ -28,8 +28,8 @@ Do not enable unrestricted neighbour-address chasing or host auto-enrolment. Col
 The `templates` package holds the native templates under `templates/native/<7.0|7.2|7.4>/`:
 
 1. Import `network_explorer_snmp.yaml` for your Zabbix version (Data collection > Templates > Import).
-2. Link `Network Explorer - Profile - Generic standard MIB` to each switch that has an SNMP interface. Link only the profile; it links the dataset templates.
-3. Optionally, after enabling the modules, import `network_explorer_dashboard.yaml` and link `Network Explorer - Host dashboard` beside the profile for the inherited host dashboard.
+2. Link `Network Explorer - Generic standard MIB` to each switch that has an SNMP interface. It is one self-contained template; nothing else needs linking for collection.
+3. Optionally, after enabling the modules, import `network_explorer_dashboard.yaml` and link `Network Explorer - Host dashboard` beside it for the inherited host dashboard.
 
 See [the templates README](../../templates/README.md) for what each template reads. `templates/specifications/` remains the contract for future vendor-family templates; no model should be advertised as supported from its vendor name alone.
 
