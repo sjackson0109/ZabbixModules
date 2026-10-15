@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-15
+
 ### Added
 - Wi-Fi Explorer, Phase A ([roadmap](docs/wifi-explorer/ROADMAP.md)). A new optional frontend module, `wifiexplorer`, adds **Monitoring → Wi-Fi Explorer**: a site selector, overview (APs up, down, unknown and degraded; radios by band; channel utilisation per band; findings; data-source freshness), findings with evidence and next steps, AP inventory, AP and radio detail, and data quality. It reads through Network Explorer's permission-aware gateway, envelope validator and freshness rules, so a user sees only APs whose owner host they can read, and stale state is shown as unknown, never as up.
 - `wifi-1.0` canonical schema (`schemas/wifi-envelope-1.0.schema.json`) with `device`, `ap_inventory`, `ap_state`, `radio_inventory` and `radio_state` datasets, and opaque AP and radio IDs derived from the AP MAC address.

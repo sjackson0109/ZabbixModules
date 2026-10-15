@@ -1,6 +1,6 @@
 # Manual installation and operations
 
-Applies to release 1.3.0 on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
+Applies to release 1.4.0 on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
 
 ## Frontend package
 
@@ -51,7 +51,7 @@ cd dist
 sha256sum -c SHA256SUMS
 ```
 
-For a downloaded release from 1.3.0 on, `gh attestation verify <archive> --repo sjackson0109/ZabbixModules` also confirms it was built by this repository's release workflow ([releasing](RELEASING.md)).
+For a downloaded release from 1.4.0 on, `gh attestation verify <archive> --repo sjackson0109/ZabbixModules` also confirms it was built by this repository's release workflow ([releasing](RELEASING.md)).
 
 The frontend, collector, templates and template-specification archives have deterministic metadata and a manifest. They exclude local lab state and dependencies. Supply an independently verified offline wheelhouse where proxy Internet access is unavailable; Python dependency wheels depend on the target platform/runtime.
 
