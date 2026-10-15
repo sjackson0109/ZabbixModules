@@ -70,11 +70,52 @@ modules/wifiexplorer         Monitoring → Wi-Fi Explorer
 
 In the official `zabbix/zabbix-web-*` images the frontend root is `/usr/share/zabbix`, so the target is `/usr/share/zabbix/modules/` (verified on 7.0.20, 7.2.7 and 7.4.3). On a package-installed frontend, find the directory that contains `zabbix.php` and use its `modules/` subdirectory; do not assume the path.
 
-Choose one of the two methods below. Bind mounts suit the test server; a derived image suits production because the version is baked into an image tag you can roll back.
+Choose one of the methods below. Bind mounts suit the test server; a derived image suits production because the version is baked into an image tag you can roll back.
 
-### 3.1 Option A: bind-mount the module directories (test server)
+First check whether your web container already bind-mounts the whole `modules/` directory. The official [zabbix-docker](https://github.com/zabbix/zabbix-docker) compose files do, read-only, on every `web-*` service:
 
-Unpack the package into a versioned directory on the Docker host:
+```yaml
+      - ${DATA_DIRECTORY}/usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+```
+
+```sh
+docker compose config | grep 'usr/share/zabbix/modules'
+```
+
+If that line is there, use **3.1**. If it is not, use **3.2** or **3.3**. Never combine the two: a per-module mount inside a read-only `modules/` mount fails when the container starts (section 10).
+
+### 3.1 Option A: copy into the mounted modules directory (zabbix-docker compose)
+
+Here Zabbix already reads `${DATA_DIRECTORY}/usr/share/zabbix/modules/` on the Docker host, so the seven directories go straight into it and the compose file needs no change. Zabbix finds a module only at `modules/<name>/manifest.json`, one level down, so the seven directories must sit directly in that directory, not under a sub-folder such as `modules/network-explorer/`.
+
+Keep each release unpacked outside the modules directory, so you can roll back, then copy it in. Use the same `DATA_DIRECTORY` value your compose file uses (it is in the `.env` file next to it; check the path, for example `/media/data` versus `/root/media/data`):
+
+```sh
+DATA_DIRECTORY=/media/data            # as in your compose .env
+RELEASE=1.4.0
+MODULES=$DATA_DIRECTORY/usr/share/zabbix/modules
+
+# 1. Unpack the release outside the modules directory.
+mkdir -p "$DATA_DIRECTORY/network-explorer/$RELEASE"
+tar -xf network-explorer-frontend-$RELEASE.tar -C "$DATA_DIRECTORY/network-explorer/$RELEASE"
+
+# 2. Replace the seven module directories with this release's.
+mkdir -p "${MODULES:?}"
+for m in networkexplorer neportpanel netopology neinterfacedetail nedataquality nefindings wifiexplorer; do
+  rm -rf "${MODULES:?}/$m"
+done
+cp -R "$DATA_DIRECTORY/network-explorer/$RELEASE/frontend/." "$MODULES/"
+chmod -R a+rX "$MODULES"
+
+# 3. Check: seven manifests, one level down.
+ls "$MODULES"/*/manifest.json
+```
+
+The `rm -rf` names only the seven package directories (and `${MODULES:?}` stops it if the variable is empty), so other modules in the directory are left alone, and removing them first means files dropped in a new release do not linger. Then recreate the web container so it sees the files (`docker compose up -d --force-recreate <web service>`; no `--build` is needed), and continue at 3.4. A rollback is the same commands with the previous `RELEASE`.
+
+### 3.2 Option B: bind-mount each module directory (compose without a modules mount)
+
+Use this only if your web service does **not** mount the whole `modules/` directory (see above). Unpack the package into a versioned directory on the Docker host:
 
 ```sh
 sudo mkdir -p /opt/zabbix/network-explorer/1.4.0
@@ -109,7 +150,7 @@ Check that all seven are visible inside the container:
 docker exec <web container> ls /usr/share/zabbix/modules/
 ```
 
-### 3.2 Option B: build a frontend image with the modules inside (production)
+### 3.3 Option C: build a frontend image with the modules inside (production)
 
 ```dockerfile
 # Dockerfile.web
@@ -130,7 +171,7 @@ docker build -t registry.example/zabbix-web-ne:7.4.3-ne1.4.0 -f build/Dockerfile
 
 Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the image with both the Zabbix and the release version so a rollback is a tag change. If you already maintain a customised web image, add the `COPY` and `chmod` lines to it instead. `COPY frontend/` copies every directory in the package, so Wi-Fi Explorer is in the image with nothing extra to add.
 
-### 3.3 Register and enable the modules
+### 3.4 Register and enable the modules
 
 Module state is stored in the Zabbix database, so this is done once per installation, not per container.
 
@@ -141,7 +182,7 @@ Module state is stored in the Zabbix database, so this is done once per installa
 
 If you run more than one frontend against the same database, every frontend must have identical module files; the database tells all of them the modules are enabled.
 
-### 3.4 User roles
+### 3.5 User roles
 
 - The **Network Explorer** and **Wi-Fi Explorer** menu entries are shown only to roles with access to *Monitoring → Hosts*.
 - In **Users → User roles**, each role that should use them must allow all seven modules under *Access to modules*. Roles with *Default access to new modules* enabled get them automatically; check restricted roles explicitly.
@@ -156,7 +197,7 @@ Unpack `network-explorer-templates-1.4.0.tar` on your workstation and use the fi
 2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` and two templates:
    - `Wi-Fi Explorer - Aruba Instant VC by SNMP`: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address. One host per cluster.
    - `Wi-Fi Explorer - Aruba Instant AP by SNMP`: one AP's own RF view (the neighbouring access points it hears), read at that AP's own address. Optional, one host per AP.
-3. Only after the modules are enabled (3.3): `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a switch host dashboard (Ports, Topology, Findings) and no items. Wi-Fi Explorer has no host dashboard; its page is the view.
+3. Only after the modules are enabled (3.4): `network_explorer_dashboard.yaml`. It creates `Network Explorer - Host dashboard`, which holds a switch host dashboard (Ports, Topology, Findings) and no items. Wi-Fi Explorer has no host dashboard; its page is the view.
 
 None of the templates carries SNMP credentials; they use the host's SNMP interface. All Wi-Fi item keys start with `we.` and all switch keys with `ne.`, so they coexist with each other and with stock templates.
 
@@ -314,7 +355,8 @@ Upgrade the frontend package and both template files together: a new frontend ex
 
 1. Back up as in section 2, and export the `Network Explorer -` and `Wi-Fi Explorer -` templates (Data collection → Templates, select them, Export). Copy the Wi-Fi configuration document from **Configure** into a file too; it holds your floors, AP positions, SSID intent and events.
 2. **Frontend.**
-   - Bind mounts: unpack the new version into `/opt/zabbix/network-explorer/<new>/`, `chmod -R a+rX` it, repoint the `current` symlink and run `docker compose up -d --force-recreate zabbix-web`.
+   - Copy into the mounted modules directory (3.1): rerun the 3.1 commands with the new `RELEASE`, then `docker compose up -d --force-recreate <web service>`.
+   - Per-module bind mounts (3.2): unpack the new version into `/opt/zabbix/network-explorer/<new>/`, `chmod -R a+rX` it, repoint the `current` symlink and run `docker compose up -d --force-recreate zabbix-web`.
    - Derived image: build the new tag and redeploy the web container with it.
    - Package install: replace the seven directories in place.
 3. **Re-scan modules** (Administration → General → Modules → Scan directory) if the release notes add or rename a module. Module IDs are stable within 1.x, so a plain upgrade normally needs no re-scan and the modules stay enabled. Make sure all seven directories are in place before any scan: a scan removes modules whose directory is missing, and removing Wi-Fi Explorer's entry discards its configuration document.
@@ -326,7 +368,7 @@ Proxies need nothing for a frontend or template upgrade; they receive the new it
 
 ### 8.2 Rollback
 
-- **Frontend:** repoint `current` to the previous version and recreate the container, or redeploy the previous image tag. The module stays enabled because its ID does not change.
+- **Frontend:** rerun the 3.1 commands with the previous `RELEASE`, or repoint `current` to the previous version (3.2), and recreate the container; or redeploy the previous image tag (3.3). The module stays enabled because its ID does not change.
 - **Templates:** re-import the previous release's YAML files with *Update existing*. Do not unlink with *Unlink and clear* as a rollback step: that deletes the items and their history.
 - **Wi-Fi configuration:** it stays in the database across a rollback. If the older release refuses it, the page says the stored configuration does not validate; paste the copy you saved in 8.1 into Configure.
 - **Removing everything:** unlink the switch profile, dashboard and Wi-Fi templates from hosts (*Unlink and clear* if you want the data gone), disable the seven modules in Administration → General → Modules (Wi-Fi Explorer first, Network Explorer last), then remove the module files or mounts. Removing the files does not delete users' dashboards; widgets on them show as unavailable until removed.
@@ -384,7 +426,8 @@ Notes for a customised proxy image:
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| Modules not listed after *Scan directory* | Files not at `<frontend root>/modules/<name>/manifest.json`, or not readable by the web user | `docker exec <web> ls -l /usr/share/zabbix/modules/*/manifest.json`; fix paths or `chmod -R a+rX`. With bind mounts, check the compose file mounts all seven directories. |
+| Web container fails to start: `error mounting … to rootfs at "/usr/share/zabbix/modules/<name>" … make mountpoint … read-only file system` | Per-module mounts (3.2) added to a compose file that already mounts the whole `modules/` directory read-only (zabbix-docker does) | Remove the seven per-module mounts and copy the directories into `${DATA_DIRECTORY}/usr/share/zabbix/modules/` instead (3.1). |
+| Modules not listed after *Scan directory* | Files not at `<frontend root>/modules/<name>/manifest.json` (for example unpacked under a sub-folder such as `modules/network-explorer/`), or not readable by the web user | `docker exec <web> ls -l /usr/share/zabbix/modules/*/manifest.json` must list seven files; fix paths or `chmod -R a+rX`. With per-module mounts, check the compose file mounts all seven directories and the host paths exist (a missing host path is mounted as an empty directory). |
 | Widgets or the Wi-Fi page say Network Explorer is needed | `Network Explorer` module disabled or its directory missing | Enable it in Administration → General → Modules; mount or copy `networkexplorer`. |
 | No *Network Explorer* or *Wi-Fi Explorer* menu entry for a user | Role lacks *Monitoring → Hosts*, or the modules under *Access to modules* | Edit the role in Users → User roles. |
 | No *Configure* link on the Wi-Fi page | User is not a Super admin | Expected; ask a Super admin. |

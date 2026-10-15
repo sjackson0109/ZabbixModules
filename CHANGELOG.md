@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Changed
+- Deployment guide: new first Docker option for zabbix-docker compose files, which already mount `${DATA_DIRECTORY}/usr/share/zabbix/modules/` read-only. The seven module directories are copied into that directory instead of being bind-mounted one by one, which there fails at container start with a read-only mount-point error; that error is now in troubleshooting.
 - The deployment guide now installs Network Explorer and Wi-Fi Explorer as one package in one pass: seven module directories, both template files, `site` tags shared by switches and Wi-Fi hosts, Wi-Fi proxy reachability and timeouts, a new section on enrolling Aruba Instant clusters (cluster and AP hosts, client privacy macros, collection and page checks, floors, SSID intent and events), Wi-Fi steps in upgrade and rollback, and Wi-Fi troubleshooting.
 
 ## [1.4.0] - 2026-10-15
