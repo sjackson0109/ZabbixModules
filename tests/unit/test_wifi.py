@@ -1,5 +1,5 @@
-"""Wi-Fi Explorer producers: the Aruba Instant normalisers run in Node exactly as composed for Zabbix, the canonical
-wifi-1.0 schema, and the generated native templates."""
+"""Wi-Fi Explorer producers: the generic AP and Aruba Instant normalisers run in Node exactly as composed for Zabbix,
+the canonical wifi-1.0 schema, and the generated native templates."""
 from __future__ import annotations
 
 import hashlib
@@ -23,7 +23,12 @@ MEMBER = WALKS / "aruba-instant-member.snmprec"
 SPEC = importlib.util.spec_from_file_location("wifi_templates", ROOT / "templates/generate_wifi.py")
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
-RAW_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"]]
+RAW_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"] if entry["template"].startswith("Aruba")]
+GENERIC_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"] if entry["template"] == "Generic AP"]
+GENERIC = WALKS / "generic-ap.snmprec"
+GENERIC_TRI = WALKS / "generic-ap-tri.snmprec"
+GENERIC_NAME = "Wi-Fi Explorer - Generic AP"
+ARUBA_VC = "Wi-Fi Explorer - Aruba Instant VC by SNMP"
 # Cluster datasets need the virtual controller; the per-AP RF dataset answers on any Instant AP.
 VC_ONLY = [e["raw_key"] for e in GEN.manifest()["datasets"]
            if e["template"] == "Aruba Instant VC" and e["dataset"] != "device"]
@@ -196,7 +201,7 @@ def test_complete_attempts_are_stored_as_receipts(validator):
 def test_capacity_items_are_cluster_totals_with_trends():
     """Numeric capacity values come only from complete observations and are never a zero standing in for unknown."""
     export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
-    items = {i["key"]: i for t in export["templates"] for i in t["items"]}
+    items = {i["key"]: i for t in export["templates"] if t["template"] == ARUBA_VC for i in t["items"]}
     capacity = {k: i for k, i in items.items() if k.startswith("we.capacity.")}
     assert all(i["trends"] == "{$WE.CAPACITY.TRENDS}" and i["value_type"] in ("UNSIGNED", "FLOAT") for i in capacity.values())
 
@@ -224,29 +229,42 @@ def test_capacity_items_are_cluster_totals_with_trends():
 
 def test_cluster_template_carries_a_host_dashboard_of_builtin_widgets():
     templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
-    assert all("dashboards" not in t for name, t in templates.items() if "VC" not in name)
-    name, template = next((n, t) for n, t in templates.items() if "VC" in n)
-    keys = {i["key"] for i in template["items"]}
-    widgets = [w for page in template["dashboards"][0]["pages"] for w in page["widgets"]]
-    assert {w["type"] for w in widgets} <= {"item", "svggraph"}  # no widget module needed
-    for w in widgets:
-        for field in w["fields"]:
-            if field["type"] == "ITEM":
-                assert field["value"]["host"] == name and field["value"]["key"] in keys
+    owners = {GENERIC_NAME, ARUBA_VC}
+    assert all("dashboards" not in t for name, t in templates.items() if name not in owners)
+    for name in owners:
+        template = templates[name]
+        keys = {i["key"] for i in template["items"]}
+        widgets = [w for page in template["dashboards"][0]["pages"] for w in page["widgets"]]
+        assert {w["type"] for w in widgets} <= {"item", "svggraph"}  # no widget module needed
+        for w in widgets:
+            for field in w["fields"]:
+                if field["type"] == "ITEM":
+                    assert field["value"]["host"] == name and field["value"]["key"] in keys
 
 
 def test_template_keys_and_uuids_are_unique():
+    """UUIDs are unique across the export; keys within each template, since every vendor template feeds the same
+    canonical keys (they are never linked to the same host)."""
     export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
-    uuids, keys = [], []
+    uuids = []
     for template in export["templates"]:
         uuids.append(template["uuid"])
+        keys = []
         for item in template["items"]:
             uuids.append(item["uuid"])
             keys.append(item["key"])
             uuids += [t["uuid"] for t in item.get("triggers", [])]
+        uuids += [d["uuid"] for d in template.get("dashboards", [])]
+        assert len(keys) == len(set(keys)), template["template"]
+        assert all(k.startswith("we.") for k in keys), "Wi-Fi keys never collide with Network Explorer's ne.* keys"
     assert len(uuids) == len(set(uuids))
-    assert len(keys) == len(set(keys))
-    assert all(k.startswith("we.") for k in keys), "Wi-Fi keys never collide with Network Explorer's ne.* keys"
+
+
+def test_aruba_instant_uuids_are_unchanged_by_the_generic_template():
+    """Importing over an earlier release must update the Aruba items in place, never recreate them."""
+    templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
+    for item in templates[ARUBA_VC]["items"]:
+        assert item["uuid"] == GEN.uid("item:" + item["key"]), item["key"]
 
 
 def test_snapshot_keys_match_the_frontend_reader():
@@ -385,3 +403,110 @@ def test_client_identifier_policy(validator, tmp_path, policy, key, expect):
     codes = [w["code"] for w in envelope["warnings"]]
     assert ("client_key_missing" in codes) == (expect != "full" and not key), "unkeyed masked IDs are reported"
     assert key == "" or key not in json.dumps(envelope), "the key never reaches the stored value"
+
+
+# ---------------------------------------------------------------- the generic AP template (standard MIBs only)
+
+def test_generic_template_is_named_like_the_generic_switch_and_reads_standard_mibs_only():
+    templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
+    template = templates[GENERIC_NAME]
+    assert list(templates)[0] == GENERIC_NAME, "the generic template comes first, vendor templates complement it"
+    walks = [i["snmp_oid"] for i in template["items"] if i["type"] == "SNMP_AGENT"]
+    oids = [oid for walk in walks for oid in walk[len("walk["):-1].split(",")]
+    assert oids and all(oid.startswith(("1.3.6.1.2.1.", "1.2.840.10036.")) for oid in oids), "no enterprise MIB"
+    datasets = {e["dataset"] for e in GEN.manifest()["datasets"] if e["template"] == "Generic AP"}
+    assert datasets == {"device", "ap_inventory", "ap_state", "radio_inventory", "radio_state", "ssid"}
+    keys = {i["key"] for i in template["items"]}
+    assert not [k for k in keys if "client" in k or "utilisation" in k or "rf." in k], \
+        "no standard MIB carries clients, utilisation or neighbours: the template has no items for them"
+
+
+@needs_node
+@pytest.mark.parametrize("raw_key", GENERIC_KEYS)
+def test_generic_ap_datasets_are_complete_and_schema_valid(validator, raw_key):
+    envelope = run(raw_key, GENERIC)
+    validator.validate(envelope)
+    assert envelope["status"] == "ok" and envelope["complete"], envelope["errors"]
+    assert envelope["warnings"] == []
+
+
+@needs_node
+def test_generic_ap_is_one_ap_identified_by_its_ethernet_mac():
+    inventory = run("we.raw.generic.ap.inventory", GENERIC)["data"]
+    assert inventory == [{"ap_uid": ap_uid("00:00:5e:00:53:31"), "mac_address": "00:00:5e:00:53:31",
+                          "name": "lab-gap-01", "ip_address": "192.0.2.30", "serial": "LABGAP0001",
+                          "model": "LAB-AP-STD", "firmware": "1.0.4"}]
+    device = run("we.raw.generic.system", GENERIC)["data"][0]
+    assert (device["role"], device["platform"], device["vendor"], device["controller_address"]) == \
+        ("standalone", "generic_ap", None, None)
+    state = run("we.raw.generic.ap.state", GENERIC)["data"]
+    assert state == [{"ap_uid": ap_uid("00:00:5e:00:53:31"), "status": "up", "uptime_s": 172800,
+                      "cpu_percent": 15, "memory_used_percent": 25}]
+
+
+@needs_node
+def test_generic_radios_are_dot11_interfaces_and_never_guess_what_the_mib_lacks():
+    radios = run("we.raw.generic.radio.inventory", GENERIC)["data"]
+    assert [(r["radio_index"], r["bssid"]) for r in radios] == [(2, "00:00:5e:00:53:50"), (3, "00:00:5e:00:53:60")]
+    expected = "radio-" + hashlib.sha256(b"radio:00:00:5e:00:53:31:2").hexdigest()[:24]
+    assert radios[0]["radio_uid"] == expected
+    state = {r["radio_uid"]: r for r in run("we.raw.generic.radio.state", GENERIC)["data"]}
+    first, second = state[radios[0]["radio_uid"]], state[radios[1]["radio_uid"]]
+    assert (first["band"], first["channel"], first["tx_power_dbm"]) == ("2.4", 6, 17), "level 2 of 50 mW"
+    assert (second["band"], second["channel"], second["tx_power_dbm"]) == ("5", 36, 23), "level 1 of 200 mW"
+    for row in state.values():
+        assert row["channel_width"] is row["noise_floor_dbm"] is row["utilisation_percent"] is None
+
+
+@needs_node
+def test_generic_band_is_never_guessed_on_a_tri_radio_ap():
+    envelope = run("we.raw.generic.radio.state", GENERIC_TRI)
+    assert sorted((r["channel"], r["band"]) for r in envelope["data"]) == [(6, "2.4"), (36, None), (37, None)], \
+        "a 2.4 GHz-only PHY proves its band; channel 36 or 37 on a tri-radio AP may be 6 GHz"
+    assert "radio_band_ambiguous" in [w["code"] for w in envelope["warnings"]]
+
+
+@needs_node
+def test_generic_ssids_merge_interfaces_and_keep_unknowns_unknown():
+    ssids = {r["name"]: r for r in run("we.raw.generic.ssid", GENERIC)["data"]}
+    assert set(ssids) == {"Lab-Corp", "Lab-Guest"}, "radio interfaces with an empty SSID broadcast none"
+    assert (ssids["Lab-Corp"]["enabled"], ssids["Lab-Corp"]["profiles"]) == (True, 2)
+    assert ssids["Lab-Guest"]["enabled"] is False
+    for row in ssids.values():
+        assert row["hidden"] is row["client_count"] is row["vlan_id"] is row["security"] is None
+
+
+@needs_node
+@pytest.mark.parametrize("raw_key", GENERIC_KEYS)
+@pytest.mark.parametrize("walk", ["aruba-instant-vc.snmprec", "sw-wifi-access-01.snmprec"])
+def test_an_agent_without_the_802_11_mib_is_not_an_ap(validator, raw_key, walk):
+    envelope = run(raw_key, WALKS / walk)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["data"]) == ("unsupported", [])
+    assert envelope["errors"][0]["code"] == "not_wifi_ap"
+
+
+@needs_node
+def test_generic_ap_without_an_ethernet_mac_is_incomplete_not_empty(validator, tmp_path):
+    path = tmp_path / "no-eth.snmprec"
+    path.write_text("".join(line + "\n" for line in GENERIC.read_text().splitlines()
+                            if not line.startswith("1.3.6.1.2.1.2.2.1.3.1|")))
+    envelope = run("we.raw.generic.ap.inventory", path)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["data"]) == ("partial", [])
+    assert envelope["errors"][0]["code"] == "ap_identity_missing"
+
+
+@needs_node
+def test_generic_capacity_items_count_aps_and_radios_only():
+    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    template = next(t for t in export["templates"] if t["template"] == GENERIC_NAME)
+    capacity = {i["key"]: i for i in template["items"] if i["key"].startswith("we.capacity.")}
+    assert sorted(capacity) == sorted(["we.capacity.aps.up", "we.capacity.aps.down"]
+                                      + [f"we.capacity.radios.up[{b}]" for b in GEN.BANDS])
+    step = capacity["we.capacity.radios.up[5]"]["preprocessing"][0]["parameters"][0]
+    out = subprocess.run(["node", "-e", "const value=require('fs').readFileSync(0,'utf8');"
+                          "process.stdout.write(String((function(value){" + step + "})(value)));"],
+                         input=json.dumps(run("we.raw.generic.radio.state", GENERIC)), check=True,
+                         capture_output=True, text=True).stdout
+    assert out == "1"

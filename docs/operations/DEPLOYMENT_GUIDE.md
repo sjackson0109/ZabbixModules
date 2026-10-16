@@ -1,6 +1,6 @@
 # Deployment guide: Docker test server and multi-proxy production
 
-This guide installs release 2.1.0, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (Aruba Instant clusters, APs, radios, SSIDs, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
+This guide installs release 2.2.0, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (access points, radios, SSIDs and, with a vendor template such as Aruba Instant's, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
 
 - **Test:** one Docker host running the Zabbix server, frontend and one or more proxies as containers.
 - **Production:** one frontend server and several proxies spread across data centres, each proxy built from a customised Dockerfile.
@@ -14,12 +14,12 @@ The most important fact first: **with the native SNMP templates, nothing has to 
 | Component | Installed on | What it is |
 |---|---|---|
 | Frontend package (7 module directories) | Every Zabbix frontend (web) container or server | The Network Explorer module, its five dashboard widgets and the Wi-Fi Explorer module. Wi-Fi Explorer is built on Network Explorer's services (permission-aware reads, validation, freshness, and the switch model it uses for AP uplinks and VLAN paths), so the seven directories are one package and are always installed together. Everything is read through the logged-in user's permissions. |
-| Native SNMP templates (2 files) | Imported once, through the frontend, into the Zabbix database | `network_explorer_snmp.yaml` for switches and `wifi_explorer_snmp.yaml` for Aruba Instant clusters and APs. Both are `walk[]` SNMP items with JavaScript preprocessing. They run on whichever proxy monitors the host, using the proxy's built-in SNMP poller and JavaScript engine. The switch and cluster templates also carry each host's inherited host dashboard. |
+| Native SNMP templates (2 files) | Imported once, through the frontend, into the Zabbix database | `network_explorer_snmp.yaml` for switches and `wifi_explorer_snmp.yaml` for access points (the generic AP template) and Aruba Instant clusters. Both are `walk[]` SNMP items with JavaScript preprocessing. They run on whichever proxy monitors the host, using the proxy's built-in SNMP poller and JavaScript engine. The switch, AP and cluster templates also carry each host's inherited host dashboard. |
 | Python collector (optional fallback) | Only proxies that must reach switches native SNMP items can't | Frozen schema 1.0 fallback for switches only. **Not needed for normal operation.** See section 9. |
 
 So the custom Python libraries and OpenSSL builds in your proxy Dockerfiles are not required. The proxies need only:
 
-- SNMP (UDP 161) reachability to the switches they monitor, and to each Aruba Instant cluster's virtual-controller (AVC) address (plus each AP's own address if you enrol APs individually, section 7.2);
+- SNMP (UDP 161) reachability to the switches they monitor, and to each Aruba Instant cluster's virtual-controller (AVC) address, plus each AP's own address for APs on the generic template or enrolled individually (sections 7.1a and 7.2);
 - the device's SNMP credentials on the host's SNMP interface in Zabbix, as for any SNMP host;
 - an SNMP timeout long enough for a bulk walk (section 5.2).
 
@@ -45,11 +45,11 @@ What each page needs from the other:
    sha256sum -c SHA256SUMS
    ```
 
-   You get `network-explorer-frontend-2.1.0.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-2.1.0.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
+   You get `network-explorer-frontend-2.2.0.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-2.2.0.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
 4. **Decide the `ne.domain` value(s).** Every switch host needs exactly one host tag `ne.domain` (for example `ne.domain=corp`). Peer matching only happens between hosts with the same value. Use one value across all five data centres if they are one routed/LLDP-connected network; use different values only for networks that must never be matched to each other (for example separate customers with overlapping IPs). The tag never grants visibility. Wi-Fi hosts get the same value as the switches they connect to.
 5. **Decide the `site` values.** The host tag `site=<name>` (for example `site=dc-north`) is what both pages narrow by, and it is how Wi-Fi Explorer finds the switches an Aruba cluster's APs plug into: AP uplinks, VLAN paths and impact are worked out only against switches with the same `site` value as the cluster's host. Pick one value per physical site and use it on that site's switches and Wi-Fi hosts alike.
 6. **Check host names.** Technical and visible host names must be unique across the whole installation; LLDP peer matching relies on that.
-7. **List your Aruba Instant clusters.** For each cluster note its virtual-controller (AVC) address, which proxy can reach it, and its SNMP credentials. Instant answers for the whole cluster only on the elected virtual controller, so the floating AVC address is the one to monitor, not a member AP's address.
+7. **List your Wi-Fi sources.** For each access point on the generic template note its address, proxy and SNMP credentials. For each Aruba Instant cluster note its virtual-controller (AVC) address, which proxy can reach it, and its SNMP credentials. Instant answers for the whole cluster only on the elected virtual controller, so the floating AVC address is the one to monitor, not a member AP's address.
 8. **Decide the client identifier policy.** Wi-Fi Explorer stores client identifiers (MAC, IP address, client name) only as far as `{$WE.CLIENT.IDENTIFIERS}` allows: `partial` (the default) keeps part of each identifier, `pseudonymised` replaces it with a keyed hash, `full` stores it as reported. Agree the setting with whoever owns your privacy policy before enrolling clusters; values already collected keep the form they were stored in.
 9. **Gather floor plans** (optional, can come later). Floor plans are images of each floor, at a known width in metres, uploaded later as Zabbix background images (7.5).
 
@@ -91,7 +91,7 @@ Keep each release unpacked outside the modules directory, so you can roll back, 
 
 ```sh
 DATA_DIRECTORY=/media/data            # as in your compose .env
-RELEASE=2.1.0
+RELEASE=2.2.0
 MODULES=$DATA_DIRECTORY/usr/share/zabbix/modules
 
 # 1. Unpack the release outside the modules directory.
@@ -117,10 +117,10 @@ The `rm -rf` names only the seven package directories (and `${MODULES:?}` stops 
 Use this only if your web service does **not** mount the whole `modules/` directory (see above). Unpack the package into a versioned directory on the Docker host:
 
 ```sh
-sudo mkdir -p /opt/zabbix/network-explorer/2.1.0
-sudo tar -xf network-explorer-frontend-2.1.0.tar -C /opt/zabbix/network-explorer/2.1.0
-sudo ln -sfn /opt/zabbix/network-explorer/2.1.0 /opt/zabbix/network-explorer/current
-sudo chmod -R a+rX /opt/zabbix/network-explorer/2.1.0
+sudo mkdir -p /opt/zabbix/network-explorer/2.2.0
+sudo tar -xf network-explorer-frontend-2.2.0.tar -C /opt/zabbix/network-explorer/2.2.0
+sudo ln -sfn /opt/zabbix/network-explorer/2.2.0 /opt/zabbix/network-explorer/current
+sudo chmod -R a+rX /opt/zabbix/network-explorer/2.2.0
 ```
 
 The web container runs as an unprivileged user, so files must be world-readable and directories traversable; nothing needs to be writable. Then mount each directory read-only. In your compose file (service name and image are examples):
@@ -155,7 +155,7 @@ docker exec <web container> ls /usr/share/zabbix/modules/
 # Dockerfile.web
 FROM zabbix/zabbix-web-nginx-pgsql:alpine-7.4.3
 USER root
-# Unpacked from network-explorer-frontend-2.1.0.tar next to this Dockerfile: all seven module directories.
+# Unpacked from network-explorer-frontend-2.2.0.tar next to this Dockerfile: all seven module directories.
 COPY frontend/ /usr/share/zabbix/modules/
 RUN chmod -R a+rX /usr/share/zabbix/modules
 # Return to the base image's user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
@@ -163,9 +163,9 @@ USER 1997
 ```
 
 ```sh
-mkdir build && tar -xf network-explorer-frontend-2.1.0.tar -C build
+mkdir build && tar -xf network-explorer-frontend-2.2.0.tar -C build
 cp Dockerfile.web build/
-docker build -t registry.example/zabbix-web-ne:7.4.3-ne2.1.0 -f build/Dockerfile.web build
+docker build -t registry.example/zabbix-web-ne:7.4.3-ne2.2.0 -f build/Dockerfile.web build
 ```
 
 Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the image with both the Zabbix and the release version so a rollback is a tag change. If you already maintain a customised web image, add the `COPY` and `chmod` lines to it instead. `COPY frontend/` copies every directory in the package, so Wi-Fi Explorer is in the image with nothing extra to add.
@@ -190,16 +190,17 @@ If you run more than one frontend against the same database, every frontend must
 
 ## 4. Import the templates
 
-Unpack `network-explorer-templates-2.1.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import both files with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
+Unpack `network-explorer-templates-2.2.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import both files with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
 
 1. `network_explorer_snmp.yaml`: the switch templates. This creates the template group `Templates/Network Explorer` and two self-contained templates:
    - `Network Explorer - Generic Switch`: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
    - `Network Explorer - LLDP for access points`: LLDP only, for Wi-Fi access-point hosts (7.2). Never link it to a switch, or beside the Generic template.
-2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` and two templates:
+2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` with the generic template and the Aruba Instant vendor templates:
+   - `Wi-Fi Explorer - Generic AP`: any access point that implements the standard MIBs (the IEEE 802.11 MIB above all), read at the AP's own address: the AP, its radios (band, channel, transmit power) and SSIDs, and a host dashboard of radios up by band. No standard MIB lists clients, channel utilisation or RF neighbours, so it collects none. One host per AP.
    - `Wi-Fi Explorer - Aruba Instant VC by SNMP`: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address, and a cluster host dashboard (APs up and down, clients, channel utilisation and radios by band) built from Zabbix's own widgets. One host per cluster.
    - `Wi-Fi Explorer - Aruba Instant AP by SNMP`: one AP's own RF view (the neighbouring access points it hears), read at that AP's own address. Optional, one host per AP.
 
-Keep **Dashboards** ticked in the import rules (it is by default). The templates import whether or not the modules are enabled yet; until they are, the switch host dashboard shows its widgets as *Inaccessible widget*. The cluster dashboard needs no module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
+Keep **Dashboards** ticked in the import rules (it is by default). The templates import whether or not the modules are enabled yet; until they are, the switch host dashboard shows its widgets as *Inaccessible widget*. The Wi-Fi dashboards need no module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
 
 None of the templates carries SNMP credentials; they use the host's SNMP interface. All Wi-Fi item keys start with `we.` and all switch keys with `ne.`, so they coexist with each other and with stock templates.
 
@@ -234,6 +235,8 @@ Each dataset, switch or Wi-Fi, is one bulk `walk[]` over several tables, which o
 **Switches.** Per switch, the template polls seven datasets at the template defaults: interface state every 1m, STP 2m, LLDP and LAG 5m, VLAN 10m, port capability 15m, interface inventory and device identity 1h. Snapshots are stored as text values of about 350–400 bytes per port each (measured on the lab's simulated 27- and 48-port switches), and per-port discovered items add roughly 3–5 items per port (151 and 235 items on those two lab hosts).
 
 For a proxy with many switches, check that `ProxyOfflineBuffer` and the proxy database have room for the extra text values during a link outage to the server. Intervals are macros (`{$NE.IF.STATE.INTERVAL}`, `{$NE.LLDP.INTERVAL}` and so on) and can be lengthened per host or per template.
+
+**Generic APs.** Per AP host, the generic template polls six small walks: AP state, radio state and SSIDs every 5m; device, AP inventory and radio inventory every 1h.
 
 **Aruba clusters.** Per cluster host, the VC template polls seven datasets at the template defaults: AP state, radio state, SSIDs and clients every 5m; device, AP inventory and radio inventory every 1h. The capacity values are added hourly. Each is one text snapshot of the whole cluster, so the client snapshot is the largest and grows with the number of associated clients. Each optional AP host adds one RF neighbour walk every 15m. Intervals and history are macros on the template (`{$WE.<DATASET>.INTERVAL}`, `{$WE.<DATASET>.HISTORY}`, for example `{$WE.CLIENT.INTERVAL}`); the Capacity tab reads trends of the `we.capacity.*` items, kept for `{$WE.CAPACITY.TRENDS}` (365d).
 
@@ -291,7 +294,13 @@ Ports to alert on, and expected speeds, are set with per-interface macros:
 
 ## 7. Enrol Wi-Fi clusters and verify
 
-Do this per Aruba Instant cluster, starting with one pilot cluster whose access switches are already enrolled (section 6).
+Pick one Wi-Fi template per access point or cluster, never two for the same APs:
+
+- An Aruba Instant cluster: a cluster host with `Wi-Fi Explorer - Aruba Instant VC by SNMP` (7.1 and 7.2 below). It gives the most: clients and channel utilisation as well as APs, radios and SSIDs.
+- Any other access point that implements the IEEE 802.11 MIB: one host per AP with `Wi-Fi Explorer - Generic AP` (7.1a). Without a vendor template there are no clients, utilisation or RF neighbours for those APs.
+- Another vendor's controller or cluster: a vendor template built to the [Wi-Fi template requirements](../wifi-explorer/TEMPLATE_REQUIREMENTS.md), enrolled the way its template says.
+
+Start with one pilot cluster or AP whose access switches are already enrolled (section 6).
 
 ### 7.1 Create the cluster host
 
@@ -303,6 +312,15 @@ Do this per Aruba Instant cluster, starting with one pilot cluster whose access 
 6. Set the client macros on the host (or globally, under Administration → General → Macros, if one policy covers every cluster):
    - `{$WE.CLIENT.IDENTIFIERS}`: `partial` (default), `pseudonymised` or `full` (2.8).
    - With `pseudonymised`, also `{$WE.CLIENT.KEY}` as a **Secret text** macro holding a long random value (for example the output of `openssl rand -hex 32`). Keep the same key across clusters and over time so the same client keeps the same pseudonym. Without a key, `pseudonymised` falls back to `partial` rather than storing full identifiers.
+
+### 7.1a Standalone APs with the generic template
+
+1. **Data collection → Hosts → Create host** per AP, named like the AP (Wi-Fi Explorer matches APs to switch ports and floor placements by identity, but people find them by name). Use the same host group rule as 7.1.
+2. Add an **SNMP interface** at the AP's own address, with its SNMP v2c community or v3 credentials, and set **Monitored by** to a proxy that can reach it.
+3. Add the same **`site`** and **`ne.domain`** tags as the switches it plugs into.
+4. Link **`Wi-Fi Explorer - Generic AP`**. For confirmed uplinks also link **`Network Explorer - LLDP for access points`** (7.2).
+
+In Latest data, `we.device.attempt` should hold `"status":"ok"`. If it holds `"status":"unsupported"` with `not_wifi_ap`, the AP does not expose the IEEE 802.11 MIB: unlink the generic template and use a vendor template for it.
 
 ### 7.2 Optional: AP hosts
 
@@ -399,7 +417,7 @@ In 2.0.0 the switch template was called `Network Explorer - Generic standard MIB
 
 ## 9. Optional: the Python collector on a proxy
 
-The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 2.1.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native switch template to the same host.
+The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 2.2.0 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native switch template to the same host.
 
 If you do need it, add it to that proxy's Dockerfile. The example below targets the official Alpine proxy image; adjust the package manager for an Ubuntu or RHEL base. Python 3.10 or newer is required.
 
@@ -407,16 +425,16 @@ If you do need it, add it to that proxy's Dockerfile. The example below targets 
 FROM zabbix/zabbix-proxy-mysql:alpine-7.4.3
 USER root
 RUN apk add --no-cache python3
-COPY network-explorer-collector-2.1.0.tar /tmp/
+COPY network-explorer-collector-2.2.0.tar /tmp/
 RUN mkdir -p /opt/network-explorer/src \
- && tar -xf /tmp/network-explorer-collector-2.1.0.tar -C /opt/network-explorer/src \
+ && tar -xf /tmp/network-explorer-collector-2.2.0.tar -C /opt/network-explorer/src \
  && python3 -m venv /opt/network-explorer/venv \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --require-hashes \
       -r /opt/network-explorer/src/collector/requirements.lock \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --no-deps /opt/network-explorer/src/collector \
  && install -m 0755 /opt/network-explorer/src/collector/packaging/network-explorer-collect \
       /opt/network-explorer/network-explorer-collect \
- && rm /tmp/network-explorer-collector-2.1.0.tar
+ && rm /tmp/network-explorer-collector-2.2.0.tar
 # Return to the image's original user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
 USER 1997
 ```
@@ -476,4 +494,4 @@ Notes for a customised proxy image:
 | "The stored Wi-Fi configuration does not validate" | Configuration document refused by this release | A Super admin corrects it in Configure, or pastes the saved copy (8.1). |
 | Client identifiers still partial after choosing `pseudonymised` | `{$WE.CLIENT.KEY}` empty or not visible on the host | Set it as a secret macro on the host or globally (7.1). |
 
-If something here does not match what you see on your installation, note the Zabbix version, image tag and the item's latest value and raise it; the lab evidence covers simulated switches and simulated Aruba Instant walks only, not real hardware. Aruba Instant is not yet qualified on real captures ([Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md)).
+If something here does not match what you see on your installation, note the Zabbix version, image tag and the item's latest value and raise it; the lab evidence covers simulated switches and simulated generic-AP and Aruba Instant walks only, not real hardware. Neither the generic AP template nor Aruba Instant is yet qualified on real captures ([Wi-Fi qualification matrix](../qualification/WIFI_MATRIX.md)).

@@ -11,8 +11,8 @@ $reasons = ['ssid_state_unknown'=>_('cluster SSID state unknown'), 'not_on_clust
     'radio_state_unknown'=>_('radio state or band unknown'), 'no_radio_in_band'=>_('no radio up in an expected band')];
 $states = ['broadcasting'=>_('Broadcasting'), 'not_broadcasting'=>_('Not broadcasting'), 'unknown'=>_('Unknown')];
 
-$root->addItem($about(_('Observed comes from each cluster\'s SSID table; Declared comes from the Wi-Fi configuration.'),
-    _('Declared is the VLAN and where the SSID is expected; Aruba Instant does not expose an SSID\'s VLAN over SNMP. "Broadcasting" is inferred from the cluster, AP and radio state; zone restrictions are not visible to Wi-Fi Explorer.')));
+$root->addItem($about(_('Observed comes from each Wi-Fi source\'s SSID table; Declared comes from the Wi-Fi configuration.'),
+    _('Declared is the VLAN and where the SSID is expected; neither the standard MIBs nor Aruba Instant expose an SSID\'s VLAN over SNMP. "Broadcasting" is inferred from the cluster, AP and radio state; zone restrictions are not visible to Wi-Fi Explorer.')));
 
 $needle = mb_strtolower($request['q']);
 $table = (new CTableInfo())->setHeader([_('SSID'), _('State'), _('Hidden'), _('Clients'), _('VLAN'), _('Expected APs'),

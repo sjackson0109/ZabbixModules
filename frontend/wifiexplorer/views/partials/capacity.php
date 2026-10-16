@@ -25,7 +25,7 @@ if (!$capacity['available']) {
     $reasons = [
         'trends_unavailable'=>_('Trends cannot be read here.'),
         'no_clusters'=>_('No visible cluster in this scope.'),
-        'no_trends'=>_('No capacity trends yet. They need the current "Wi-Fi Explorer - Aruba Instant VC by SNMP" template and build up hour by hour.'),
+        'no_trends'=>_('No capacity trends yet. They need a current Wi-Fi Explorer template (the generic AP template or a vendor template) and build up hour by hour.'),
         'too_many_rows'=>_('Too much trend data for one view. Choose a site or a shorter range.')
     ];
     $root->addItem((new CDiv($reasons[$capacity['reason']] ?? _('Capacity trends are not available.')))->addClass('msg-warning'));

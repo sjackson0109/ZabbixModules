@@ -199,7 +199,7 @@ final class SsidService {
                 $findings[] = WifiFinding::create('wifi_ssid_vlan_undeclared', 'info', $observation['hostid'], 'ssid',
                     $entry['ssid_uid'],
                     _s('%1$s on %2$s has no declared VLAN', $name, $observation['owner_name']),
-                    _('Aruba Instant does not expose an SSID\'s VLAN over SNMP, so its wired service path cannot be checked until the VLAN is declared.'),
+                    _('This SSID\'s source does not report its VLAN over SNMP, so its wired service path cannot be checked until the VLAN is declared.'),
                     [['dataset'=>'ssid', 'hostid'=>$observation['hostid'], 'observed_at'=>$observation['observed_at'],
                         'fact'=>'enabled, no intent']], 'current',
                     _('Declare the SSID and its VLAN under Configure.'), 'declared');

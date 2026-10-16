@@ -1,10 +1,12 @@
 # Wi-Fi AP Zabbix template: requirements specification
 
-Status: requirements for every Wi-Fi Explorer access-point template, written 13 October 2026. The Aruba Instant templates in `templates/native/` are the reference implementation.
+Status: requirements for every Wi-Fi Explorer access-point template, written 13 October 2026 and revised 16 October 2026 for the generic template. `Wi-Fi Explorer - Generic AP` in `templates/native/` is the vendor-neutral baseline; the Aruba Instant templates are the reference vendor implementation.
 
 ## 1. Purpose and scope
 
-A Wi-Fi access-point template is acceptable when it gives Wi-Fi Explorer complete, honest `wifi-1.0` observations for every AP, radio, SSID, client and RF neighbour it can see, and nothing it cannot prove. This specification states what any such template must do, for any vendor. The shipped *Wi-Fi Explorer - Aruba Instant VC by SNMP* and *Aruba Instant AP by SNMP* templates are the reference implementation. Requirement words follow RFC 2119: **must**, **should**, **may**.
+A Wi-Fi access-point template is acceptable when it gives Wi-Fi Explorer complete, honest `wifi-1.0` observations for every AP, radio, SSID, client and RF neighbour it can see, and nothing it cannot prove. This specification states what any such template must do, for any vendor.
+
+Wi-Fi Explorer works like Network Explorer: a generic template built from standard MIBs ships with the module, and vendor templates complement it. *Wi-Fi Explorer - Generic AP* reads any AP that implements the IEEE 802.11 MIB, one host per AP, and covers what the standards carry: the AP, its radios and its SSIDs. Clients, measured channel utilisation, noise floor, RF neighbours and cluster rosters exist only in vendor MIBs, so a vendor template is what adds them. The shipped *Wi-Fi Explorer - Aruba Instant VC by SNMP* and *Aruba Instant AP by SNMP* templates are the reference vendor implementation; an operator may replace them with their own template built to this specification. Requirement words follow RFC 2119: **must**, **should**, **may**.
 
 - **In scope:** template structure, items and keys, the envelope contract, the eight datasets, capacity items, macros, triggers, privacy, error handling, tests and qualification, for Zabbix 7.0, 7.2 and 7.4.
 - **Out of scope:** the Wi-Fi Explorer frontend, switch-side collection (Network Explorer's templates own LLDP, VLAN and STP), and controller APIs that need a stored token.
@@ -29,21 +31,26 @@ These come from section 37 of the requirements and decide every rule below.
 
 ## 3. Template structure and host model
 
-A vendor family must ship two templates: a cluster template for whatever answers for the whole Wi-Fi system, and an optional per-AP template for what only an AP can see.
+The generic template ships with Wi-Fi Explorer. A vendor family ships a cluster template for whatever answers for the whole Wi-Fi system, and an optional per-AP template for what only an AP can see.
 
 | Template | Linked to | Datasets | Required |
 | --- | --- | --- | --- |
-| *Wi-Fi Explorer - \<Vendor> \<family> VC by SNMP* (cluster) | One host per cluster or controller, at its management or virtual-controller address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid`, `client` | Must |
-| *Wi-Fi Explorer - \<Vendor> \<family> AP by SNMP* (per AP) | One host per AP whose RF view is wanted, at the AP's own address | `rf_neighbour` | Should, where the vendor exposes neighbour scans per AP |
+| *Wi-Fi Explorer - Generic AP* (generic) | One host per AP, at the AP's own address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid` | Shipped; standard MIBs only (section 12.1) |
+| *Wi-Fi Explorer - \<Vendor> \<family> VC by SNMP* (vendor cluster) | One host per cluster or controller, at its management or virtual-controller address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid`, `client` | Must, for a vendor family |
+| *Wi-Fi Explorer - \<Vendor> \<family> AP by SNMP* (vendor per AP) | One host per AP whose RF view is wanted, at the AP's own address | `rf_neighbour` | Should, where the vendor exposes neighbour scans per AP |
+
+A vendor template complements the generic template: an AP is read either by the generic template on its own host or by its vendor's templates, never both, because every Wi-Fi template feeds the same canonical keys.
 
 - **S1.** Templates must be generated from one source (`templates/generate_wifi.py` and `templates/source/wifi/datasets.json`), never edited by hand, for 7.0, 7.2 and 7.4 (`templates/native/<version>/wifi_explorer_snmp.yaml`). `--check` must fail when a committed file differs from the generator.
-- **S2.** Both templates must sit in the template group *Templates/Wi-Fi Explorer* and carry the tag `component: wifi-explorer`.
+- **S2.** Every template must sit in the template group *Templates/Wi-Fi Explorer* and carry the tag `component: wifi-explorer`.
 - **S3.** All keys must start with `we.` and follow the key table in section 4. A vendor's raw items may add a vendor segment (`we.raw.<vendor>.<dataset>`).
 - **S4.** The site is the host's `site` tag, the same tag Network Explorer scopes by. The template must not create or set it.
 - **S5.** A cluster template linked to a member AP instead of the controller must report its cluster datasets as `unsupported` with a reason, not as empty.
 - **S6.** The per-AP host must be named like the AP, or carry the AP's address, so its observations can be matched to the AP. It may also link `Network Explorer - LLDP for access points`, with the same `ne.domain` tag as the switches.
 - **S7.** No low-level discovery. AP, radio and client counts change too often and too widely for one item per object (P7).
-- **S8.** The cluster template should carry an inherited host dashboard built only from Zabbix's own widgets (Item value, Graph) over the capacity items of section 6: APs up and down, clients and the most on one AP, channel utilisation and radios up by band. It must not need a widget module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
+- **S8.** The cluster template (and the generic template, for its one AP) should carry an inherited host dashboard built only from Zabbix's own widgets (Item value, Graph) over the capacity items of section 6: APs up and down, clients and the most on one AP, channel utilisation and radios up by band. It must not need a widget module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
+- **S9.** The generic template must read standard MIBs only (`1.3.6.1.2.1` and the IEEE 802.11 MIB, `1.2.840.10036`). Linked to an agent without the IEEE 802.11 MIB it must report every dataset as `unsupported` with the code `not_wifi_ap`, never as an empty AP. It has no `client` or `rf_neighbour` dataset and no item for a value no standard MIB carries.
+- **S10.** A vendor template for an AP family the generic template can also read must provide at least what the generic template does for those APs, so linking it instead loses nothing.
 
 ## 4. Collection and the envelope contract
 
@@ -150,7 +157,8 @@ The cluster template must carry 13 numeric capacity items so Zabbix builds hourl
 - **K1.** History is `{$WE.CAPACITY.HISTORY}` (default 7d) and trends `{$WE.CAPACITY.TRENDS}` (default 365d).
 - **K2.** A utilisation item for a band where no up radio reports utilisation, and `clients.ap_max` when no client is matched to an AP, must store nothing for that poll, never 0. Counts (APs, radios, clients) of a complete poll may be a real 0.
 - **K3.** Radios of unknown band are not counted in any band.
-- **K4.** The keys and their meaning are part of the contract: a vendor template must produce all 13 with the same units, so a mixed estate trends on one scale.
+- **K4.** The keys and their meaning are part of the contract: a vendor template must produce all 13 with the same units, so a mixed estate trends on one scale. The generic template produces the five it can prove from standard MIBs (`aps.up`, `aps.down` and `radios.up` per band, each AP host counting itself) and no utilisation or client item.
+- **K5.** A generic AP host reports itself `up` when it answers a complete poll. An AP cannot report itself down: a silent AP is a failed attempt, so it shows as unknown once its state is stale, and is never counted in `aps.down`.
 
 ## 7. Macros, intervals, retention and storage
 
@@ -242,9 +250,27 @@ Acceptance criteria for a new vendor family:
 6. Measured storage on a canary is within section 7's budget, or the difference is explained.
 7. A sanitised walk of at least one controller and one AP per supported model and firmware is in the qualification evidence.
 
-## 12. Reference mapping: Aruba Instant, and adding a vendor
+## 12. Reference mappings, and adding a vendor
 
-The reference templates read AI-AP-MIB (`1.3.6.1.4.1.14823.2.3.3.1`) on the cluster's virtual controller (VC) and on each AP. WLSX tables are absent on Instant. Aruba Instant remains *Unqualified* until sanitised walks from real hardware are committed.
+### 12.1 The generic AP template (standard MIBs)
+
+*Wi-Fi Explorer - Generic AP* reads one AP at its own address. A radio is an interface with a `dot11PHYType` row; the AP's identity (D1) is the MAC of its lowest-numbered Ethernet interface (`ifType` 6), which is the base MAC and LLDP chassis ID on most APs, never a radio MAC. The OIDs come from the published MIBs and are *Unqualified* until real AP walks are committed.
+
+| Dataset | Source | `null`, because no standard MIB carries it |
+| --- | --- | --- |
+| `device` | SNMPv2-MIB `system`; firmware from the first ENTITY-MIB chassis entity (`entPhysicalSoftwareRev`); `role` is `standalone`, `platform` `generic_ap` | `vendor` (the enterprise number is in `sys_object_id`), `controller_address` |
+| `ap_inventory` | One row: `sysName`; MAC from IF-MIB `ifPhysAddress`; serial, model and firmware from ENTITY-MIB (`.11`, `.13`, `.10`); the address from IP-MIB `ipAdEntAddr` when it holds exactly one non-loopback IPv4 address | - |
+| `ap_state` | `status` `up` when the walk is complete (K5); uptime from `hrSystemUptime`, else `sysUpTime`; CPU as the mean `hrProcessorLoad`; memory from the `hrStorageRam` entries of `hrStorageTable` | - |
+| `radio_inventory` | IEEE 802.11 MIB `dot11PHYType` (`1.2.840.10036.4.1.1.1`), indexed by `ifIndex`, which is the radio index; BSSID from `dot11MACAddress` (`.2.1.1.1`) | - |
+| `radio_state` | `ifOperStatus`; channel from `dot11CurrentChannel` (`.4.5.1.1`) or the OFDM `dot11CurrentFrequency` (`.4.11.1.1`); band from the PHY type (dsss, hrdsss and erp prove 2.4 GHz), else the channel (D5); transmit power from `dot11CurrentTxPowerLevel` and its level in mW (`.4.3.1`), as dBm | `channel_width`, `noise_floor_dbm`, `utilisation_percent`, `utilisation_window_s` |
+| `ssid` | `dot11DesiredSSID` (`.1.1.1.9`) per interface, one SSID per name; `enabled` when any of its interfaces is administratively up | `hidden`, `client_count`, `vlan_id`, `security` |
+| `client`, `rf_neighbour` | Not collected: no standard MIB lists associated clients or neighbouring networks | - |
+
+The `ifIndex` is the radio index, so a radio's identity follows it; an agent that renumbers interfaces on reboot gives its radios new identities.
+
+### 12.2 Aruba Instant
+
+The reference vendor templates read AI-AP-MIB (`1.3.6.1.4.1.14823.2.3.3.1`) on the cluster's virtual controller (VC) and on each AP. WLSX tables are absent on Instant. Aruba Instant remains *Unqualified* until sanitised walks from real hardware are committed.
 
 | Dataset | Source table | Not exposed on Instant, so `null` or not checked |
 | --- | --- | --- |
@@ -269,6 +295,7 @@ Where a vendor's controller API exposes what SNMP does not (SSID VLAN, client SS
 
 ## 13. Open questions
 
+- [ ] Which real APs implement enough of the IEEE 802.11 MIB for the generic template (radios, channel, SSID), and which need a vendor template even for those?
 - [ ] Which vendor families come next after Aruba Instant (UniFi, Cisco WLC, Aruba OS 8 controllers, others), and in what order?
 - [ ] Sanitised Aruba Instant walks (a VC and a member AP, with model and firmware) are still needed before Aruba can be qualified.
 - [ ] Should `{$WE.CLIENT.KEY}` be mandatory, so a cluster without it reports clients as `partial` instead of only warning?

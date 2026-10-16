@@ -3,7 +3,7 @@
   "id": "networkexplorer",
   "name": "Network Explorer",
   "namespace": "NetworkExplorer",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "author": "Network Explorer contributors",
   "description": "Monitoring -> Network Explorer: the permission-aware network-wide view (Layer 2, Spanning Tree and VLAN topology, selection detail, findings and collection quality), plus the shared dataset services and exports.",

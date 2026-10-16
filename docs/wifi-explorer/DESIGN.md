@@ -19,7 +19,7 @@ Network Explorer's switch, VLAN and STP interpretation is not duplicated (princi
 
 ## Acquisition owners (sections 20 and 21)
 
-An **owner** is a Zabbix host that carries a Wi-Fi producer. For Aruba Instant that is one host per cluster, pointed at the floating virtual-controller address, because only the elected VC lists the cluster's APs and radios (see the [Aruba review](ARUBA_TEMPLATE_REVIEW.md)).
+An **owner** is a Zabbix host that carries a Wi-Fi producer. For the generic AP template (`Wi-Fi Explorer - Generic AP`, standard MIBs only) it is one host per AP, a `standalone` owner of exactly that AP, its radios and SSIDs. For Aruba Instant it is one host per cluster, pointed at the floating virtual-controller address, because only the elected VC lists the cluster's APs and radios (see the [Aruba review](ARUBA_TEMPLATE_REVIEW.md)).
 
 - An AP is visible because a readable owner's dataset lists it. Wi-Fi Explorer never assumes an AP is itself a polled SNMP endpoint, and creates no per-AP hosts in Phase A.
 - When two readable owners list the same AP (a cluster linked twice, or a VC move), the owner with the newest complete inventory owns it, the AP is counted once, and an info finding names both sources.

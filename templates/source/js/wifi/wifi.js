@@ -74,6 +74,18 @@ WE.sort = function (rows, keys) {
     });
 };
 
+// Band from a channel number, only where the number proves it. 6 GHz channel numbers (1 to 233) overlap 2.4 GHz
+// (1 to 14) and 5 GHz (36 to 177), so only channels above 177 prove 6 GHz; an AP with three or more radios may
+// carry 6 GHz on a channel below 178, so its radios get a band only when the channel proves one.
+WE.channelBand = function (channel, radiosOnAp) {
+    if (channel === null) { return null; }
+    if (channel >= 178 && channel <= 233) { return '6'; }
+    if (radiosOnAp >= 3) { return null; }
+    if (channel >= 1 && channel <= 14) { return '2.4'; }
+    if (channel >= 32 && channel <= 177) { return '5'; }
+    return null;
+};
+
 // An SSID's identity: its name. The same SSID name on several clusters is one service.
 WE.ssidUid = function (name) { return 'ssid-' + sha256('ssid:' + name).substring(0, 24); };
 

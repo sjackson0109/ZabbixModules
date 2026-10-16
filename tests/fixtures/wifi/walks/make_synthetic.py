@@ -8,6 +8,9 @@ RFC 7042) and lab names. The Aruba layout follows AI-AP-MIB as the operator's Ar
   aruba-instant-vc       the cluster's virtual controller: APs, radios, SSIDs, clients and its own RF detections
   aruba-instant-member   a member AP linked by mistake (no roster)
   aruba-instant-ap-01    lab-ap-01 polled at its own address: RF detections, and LLDP towards its switch
+  generic-ap             a standalone AP that implements the standard MIBs only (IEEE 802.11 MIB, ENTITY-MIB,
+                         HOST-RESOURCES-MIB): a 2.4 GHz and a 5 GHz radio, three SSID interfaces, one switched off
+  generic-ap-tri         the same AP with a third radio on a channel that does not prove its band
   sw-wifi-dist-01        RSTP root; LACP Po1 to sw-wifi-access-01 (VLANs 1, 49, 56 but not 57) and Gi1/0/3 to
                          sw-wifi-access-02 (1, 49, 56, 57)
   sw-wifi-access-01      lab-ap-01..03 on Gi1/0/1-3 (native 49, tagged 56 and 57); lab-ap-03's port is down
@@ -161,6 +164,56 @@ def ap01() -> list[tuple[str, str, str]]:
     NE.lldp_remote(a, 1, 1, chassis=ACCESS1, port="Gi1/0/1", port_desc="lab-ap-01", sys_name="sw-wifi-access-01",
                    address="192.0.2.201", pvid=49)
     return [(oid, tag, value) for oid, (tag, value) in a.rows.items()]
+
+
+DOT11 = "1.2.840.10036"
+# A generic AP's radios: ifIndex, name, dot11PHYType (6 erp, 7 ht), DSSS channel, OFDM channel, current power level
+# (of levels in mW), ifOperStatus. Its SSID interfaces: ifIndex, name, SSID, ifAdminStatus.
+GENERIC_RADIOS = [(2, "wifi0", 6, 6, None, 2, [100, 50, 25], 1), (3, "wifi1", 7, None, 36, 1, [200, 100], 1)]
+GENERIC_SSIDS = [(4, "ath0", "Lab-Corp", 1), (5, "ath1", "Lab-Corp", 1), (6, "ath2", "Lab-Guest", 2)]
+
+
+def generic_ap(tri: bool = False) -> list[tuple[str, str, str]]:
+    """A standalone AP with the standard MIBs only; its identity is eth0's MAC, 00:00:5e:00:53:31."""
+    a = NE.Agent()
+    a.str("1.3.6.1.2.1.1.1.0", "Synthetic standards-only access point (invented)")
+    a.oid("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
+    a.ticks("1.3.6.1.2.1.1.3.0", 8640000)
+    a.str("1.3.6.1.2.1.1.5.0", "lab-gap-01")
+    a.ticks("1.3.6.1.2.1.25.1.1.0", 17280000)
+    NE.interface(a, 1, "eth0", "eth0", mac_addr="00:00:5e:00:53:31")
+    radios = GENERIC_RADIOS + ([(7, "wifi2", 7, None, 37, 1, [100], 1)] if tri else [])
+    for ix, name, phy, dsss, ofdm, level, levels, oper in radios:
+        NE.interface(a, ix, name, name, if_type=71, oper=oper, mac_addr=f"00:00:5e:00:53:{0x30 + ix * 16:02x}")
+        a.int(f"{DOT11}.4.1.1.1.{ix}", phy)
+        a.hex(f"{DOT11}.2.1.1.1.{ix}", NE.mac(f"00:00:5e:00:53:{0x30 + ix * 16:02x}"))
+        a.str(f"{DOT11}.1.1.1.9.{ix}", "")
+        a.int(f"{DOT11}.4.3.1.1.{ix}", len(levels))
+        for n, mw in enumerate(levels, 1):
+            a.int(f"{DOT11}.4.3.1.{n + 1}.{ix}", mw)
+        a.int(f"{DOT11}.4.3.1.10.{ix}", level)
+        if dsss is not None:
+            a.int(f"{DOT11}.4.5.1.1.{ix}", dsss)
+        if ofdm is not None:
+            a.int(f"{DOT11}.4.11.1.1.{ix}", ofdm)
+    for ix, name, ssid, admin in GENERIC_SSIDS:
+        NE.interface(a, ix, name, name, if_type=71, admin=admin, oper=admin, mac_addr=f"00:00:5e:00:53:{0x40 + ix:02x}")
+        a.str(f"{DOT11}.1.1.1.9.{ix}", ssid)
+    a.int("1.3.6.1.2.1.47.1.1.1.1.5.1", 3)
+    a.str("1.3.6.1.2.1.47.1.1.1.1.10.1", "1.0.4")
+    a.str("1.3.6.1.2.1.47.1.1.1.1.11.1", "LABGAP0001")
+    a.str("1.3.6.1.2.1.47.1.1.1.1.13.1", "LAB-AP-STD")
+    a.int("1.3.6.1.2.1.25.3.3.1.2.196608", 10)
+    a.int("1.3.6.1.2.1.25.3.3.1.2.196609", 20)
+    a.oid("1.3.6.1.2.1.25.2.3.1.2.1", "1.3.6.1.2.1.25.2.1.2")
+    a.int("1.3.6.1.2.1.25.2.3.1.5.1", 262144)
+    a.int("1.3.6.1.2.1.25.2.3.1.6.1", 65536)
+    a.oid("1.3.6.1.2.1.25.2.3.1.2.31", "1.3.6.1.2.1.25.2.1.4")
+    a.int("1.3.6.1.2.1.25.2.3.1.5.31", 1000)
+    a.int("1.3.6.1.2.1.25.2.3.1.6.31", 999)
+    for ip in ("127.0.0.1", "192.0.2.30"):
+        a.rows[f"1.3.6.1.2.1.4.20.1.1.{ip}"] = ("64", ip)
+    return agent_rows(a)
 
 
 DIST = "00:00:5e:00:53:c0"
@@ -322,6 +375,8 @@ def main() -> None:
     outputs = {HERE / "aruba-instant-vc.snmprec": render(controller()),
                HERE / "aruba-instant-member.snmprec": render(member()),
                HERE / "aruba-instant-ap-01.snmprec": render(ap01()),
+               HERE / "generic-ap.snmprec": render(generic_ap()),
+               HERE / "generic-ap-tri.snmprec": render(generic_ap(tri=True)),
                HERE / "sw-wifi-dist-01.snmprec": render(agent_rows(dist())),
                HERE / "sw-wifi-access-01.snmprec": render(agent_rows(access1())),
                HERE / "sw-wifi-access-02.snmprec": render(agent_rows(access2()))}

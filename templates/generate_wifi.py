@@ -58,9 +58,15 @@ def stale_macro(entry: dict) -> str:
     return entry["interval_macro"].replace(".INTERVAL}", ".STALE}")
 
 
+def item_uid(scope: str | None, key: str) -> str:
+    """The Aruba Instant templates keep their original item UUIDs; a template added later scopes its UUIDs by its own
+    name, since templates of different vendors share the canonical keys."""
+    return uid("item:" + key) if scope is None else uid(scope + ":item:" + key)
+
+
 def dependent(key: str, name: str, dataset: str, master: str, script: str, *, value_type: str = "TEXT",
-              discard: bool = False, history: str = "7d", **extra) -> dict:
-    result = {"uuid": uid("item:" + key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0",
+              discard: bool = False, history: str = "7d", scope: str | None = None, **extra) -> dict:
+    result = {"uuid": item_uid(scope, key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0",
               "history": history, "value_type": value_type}
     if value_type in ("TEXT", "CHAR"):
         result["trends"] = "0"
@@ -75,8 +81,8 @@ def gate(dataset: str, then: str = "return value;") -> str:
     return _common.gate(SCHEMA, dataset, then)
 
 
-def raw_item(entry: dict) -> dict:
-    return {"uuid": uid("item:" + entry["raw_key"]), "name": f"Raw SNMP walk: {entry['dataset']}",
+def raw_item(entry: dict, scope: str | None) -> dict:
+    return {"uuid": item_uid(scope, entry["raw_key"]), "name": f"Raw SNMP walk: {entry['dataset']}",
             "type": "SNMP_AGENT", "snmp_oid": "walk[" + ",".join(entry["walk"]) + "]", "key": entry["raw_key"],
             "delay": entry["interval_macro"], "history": "0", "value_type": "TEXT", "trends": "0",
             "description": "Input for the canonical normaliser only; not stored. A timeout or SNMP error becomes "
@@ -117,13 +123,17 @@ CAPACITY = {
 }
 
 
-def capacity_items(entry: dict) -> list[dict]:
+def capacity_items(entry: dict, scope: str | None, wanted: list[str] | None) -> list[dict]:
+    """The capacity items of one dataset. `wanted` lists key prefixes for a template whose sources cannot give every
+    value (the generic AP template has no utilisation or clients); None means all of them."""
     dataset = entry["dataset"]
     return [dependent(key, name, dataset, normalised_key(dataset), gate(dataset, script), value_type=value_type,
                       discard=True, history="{$WE.CAPACITY.HISTORY}", trends="{$WE.CAPACITY.TRENDS}", units=units,
+                      scope=scope,
                       description="From each complete observation only, for the long-term capacity views; "
                                   "no value when the observation cannot give one.")
-            for key, name, script, value_type, units in CAPACITY.get(dataset, [])]
+            for key, name, script, value_type, units in CAPACITY.get(dataset, [])
+            if wanted is None or any(key == w or key.startswith(w + "[") for w in wanted)]
 
 
 def history_macro(entry: dict) -> str:
@@ -134,27 +144,29 @@ def normalised_key(dataset: str) -> str:
     return f"we.normalised[{dataset}]"
 
 
-def producer_items(entry: dict, template: str) -> list[dict]:
+def producer_items(entry: dict, template: str, meta: dict) -> list[dict]:
     dataset, history = entry["dataset"], history_macro(entry)
     attempt, normalised = entry["attempt_key"], normalised_key(dataset)
-    items = [raw_item(entry),
+    scope = meta.get("uuid_scope")
+    items = [raw_item(entry, scope),
              dependent(normalised, f"Normalised envelope: {dataset}", dataset, entry["raw_key"], compose(entry),
-                       history="0",
+                       history="0", scope=scope,
                        description="The canonical envelope of each attempt, passed to the items below; not stored."),
              dependent(attempt, f"Collection attempt: {dataset}", dataset, normalised, RECEIPT,
-                       history=history,
+                       history=history, scope=scope,
                        description="Every attempt, including partial, failed and unsupported. A complete success is "
                                    "stored as a receipt without its rows, which are in the snapshot.")]
     for key in entry["snapshot_keys"]:
         items.append(dependent(key, f"Last complete snapshot: {dataset}", dataset, normalised, gate(dataset),
-                               discard=True, history=history,
+                               discard=True, history=history, scope=scope,
                                description="Updated only by complete, successful observations."))
     status = dependent(f"we.collection.status[{dataset}]", f"Collection status: {dataset}", dataset, normalised,
-                       COLLECTION_STATUS, value_type="UNSIGNED", history="31d", trends="0",
+                       COLLECTION_STATUS, value_type="UNSIGNED", history="31d", trends="0", scope=scope,
                        valuemap={"name": STATUS_MAP})
     success = dependent(f"we.collection.success[{dataset}]", f"Last complete observation: {dataset}", dataset,
                         normalised, gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
-                        value_type="UNSIGNED", discard=True, history="31d", trends="0", units="unixtime")
+                        value_type="UNSIGNED", discard=True, history="31d", trends="0", units="unixtime",
+                        scope=scope)
     stale = stale_macro(entry)
     success["triggers"] = [{
         "uuid": uid("trigger:stale:" + template + ":" + dataset),
@@ -165,7 +177,7 @@ def producer_items(entry: dict, template: str) -> list[dict]:
         "description": "Partial and failed attempts never refresh this age. An unsupported dataset (for example on "
                        "a member AP) does not alert.",
         "tags": tags(dataset)}]
-    return items + [status, success] + capacity_items(entry)
+    return items + [status, success] + capacity_items(entry, scope, meta.get("capacity"))
 
 
 def macros(entries: list[dict], extra: list[dict]) -> list[dict]:
@@ -206,15 +218,26 @@ def cluster_dashboard(template: str) -> dict:
             "pages": [{"name": "Capacity", "widgets": widgets}]}
 
 
-# Templates that carry a host dashboard: the cluster's virtual controller owns the capacity items.
-DASHBOARDS = {"Aruba Instant VC": cluster_dashboard}
+def ap_dashboard(template: str) -> dict:
+    """The generic AP's host dashboard: its radios by band, from Zabbix's own widgets only."""
+    widgets = [widget("item", f"Radios up, {band} GHz", 24 * i, 0, 24, 3,
+                      [item_field("itemid.0", template, f"we.capacity.radios.up[{band}]")])
+               for i, band in enumerate(BANDS)]
+    widgets.append(graph("Radios up by band", template, [f"we.capacity.radios.up[{band}]" for band in BANDS], 0, 3))
+    return {"uuid": uid("dashboard:" + template), "name": "Wi-Fi Explorer", "auto_start": "NO",
+            "pages": [{"name": "Radios", "widgets": widgets}]}
+
+
+# Templates that carry a host dashboard: the owner of the capacity items (the generic AP itself, or the cluster's
+# virtual controller).
+DASHBOARDS = {"Generic AP": ap_dashboard, "Aruba Instant VC": cluster_dashboard}
 
 
 def build(version: str) -> dict:
     source = manifest()
     templates = []
     for short, meta in source["templates"].items():
-        name = PREFIX + short + SUFFIX
+        name = meta.get("name", PREFIX + short + SUFFIX)
         mine = [e for e in source["datasets"] if e["template"] == short]
         template = {
             "uuid": uid("template:" + name), "template": name, "name": name,
@@ -222,7 +245,7 @@ def build(version: str) -> dict:
                            "It reads only the host's SNMP interface and carries no credentials.",
             "vendor": {"name": "Network Explorer", "version": VERSION},
             "groups": [{"name": GROUP}],
-            "items": [i for e in mine for i in producer_items(e, name)],
+            "items": [i for e in mine for i in producer_items(e, name, meta)],
             "tags": [{"tag": "component", "value": "wifi-explorer"}],
             "macros": macros(mine, meta.get("macros", [])),
             "valuemaps": [{"uuid": uid(f"valuemap:{short}:status"), "name": STATUS_MAP,
