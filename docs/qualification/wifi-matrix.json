@@ -3,6 +3,22 @@
   "comment": "Source of WIFI_MATRIX.md. Change a state only with cited evidence; see README.md.",
   "rows": [
     {
+      "vendor": "Generic",
+      "family": "AP (standard MIBs: IEEE 802.11 MIB, ENTITY-MIB, HOST-RESOURCES-MIB)",
+      "model": null,
+      "firmware": null,
+      "states": {
+        "controller": "Unqualified",
+        "ap_inventory": "Unqualified",
+        "ap_state": "Unqualified",
+        "radio_inventory": "Unqualified",
+        "radio_state": "Unqualified"
+      },
+      "limitations": "No captured walk yet; the normalisers are tested on invented walks only (tests/unit/test_wifi.py). One host per AP, no controller. An agent without the IEEE 802.11 MIB is unsupported (not_wifi_ap). No standard MIB lists clients, channel utilisation, noise floor or RF neighbours.",
+      "evidence": [],
+      "qualified_on": null
+    },
+    {
       "vendor": "Aruba",
       "family": "Instant virtual controller (synthetic lab)",
       "model": null,

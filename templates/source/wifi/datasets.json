@@ -1,6 +1,28 @@
 {
-  "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs.",
+  "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs. The Generic AP producers read standard MIBs only; the Aruba Instant producers are the first vendor templates.",
   "templates": {
+    "Generic AP": {
+      "name": "Wi-Fi Explorer - Generic AP",
+      "uuid_scope": "Wi-Fi Explorer - Generic AP",
+      "description": "Any access point that implements the standard MIBs: SNMPv2-MIB, IF-MIB, the IEEE 802.11 MIB (IEEE802dot11-MIB), ENTITY-MIB, HOST-RESOURCES-MIB and IP-MIB. Link it to one host per AP, at the AP's own address; vendor templates complement it with what no standard MIB carries (associated clients, measured channel utilisation, noise floor, RF neighbours, cluster rosters). An agent without the IEEE 802.11 MIB reports every dataset as unsupported (not_wifi_ap) rather than an empty AP. Never link it beside a vendor Wi-Fi template that already lists the same AP.",
+      "capacity": [
+        "we.capacity.aps.up",
+        "we.capacity.aps.down",
+        "we.capacity.radios.up"
+      ],
+      "macros": [
+        {
+          "macro": "{$WE.CAPACITY.HISTORY}",
+          "value": "7d",
+          "description": "How long the numeric capacity values (AP and radios up) are kept as history."
+        },
+        {
+          "macro": "{$WE.CAPACITY.TRENDS}",
+          "value": "365d",
+          "description": "How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them."
+        }
+      ]
+    },
     "Aruba Instant VC": {
       "description": "Aruba Instant cluster inventory and state from AI-AP-MIB, read from the elected virtual controller. Link it to one host per cluster, pointed at the cluster's floating virtual controller (AVC) address. On a member AP every AP and radio dataset reports unsupported (not_virtual_controller) instead of an empty site.",
       "macros": [
@@ -32,6 +54,178 @@
     }
   },
   "datasets": [
+    {
+      "dataset": "device",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.device(w, e)",
+      "adapter": "generic-ap-device",
+      "raw_key": "we.raw.generic.system",
+      "attempt_key": "we.device.attempt",
+      "snapshot_keys": [
+        "we.device.snapshot"
+      ],
+      "interval_macro": "{$WE.DEVICE.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1",
+        "1.2.840.10036.4.1.1.1",
+        "1.3.6.1.2.1.47.1.1.1.1.5",
+        "1.3.6.1.2.1.47.1.1.1.1.10"
+      ]
+    },
+    {
+      "dataset": "ap_inventory",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.apInventory(w, e)",
+      "adapter": "generic-ap-inventory",
+      "raw_key": "we.raw.generic.ap.inventory",
+      "attempt_key": "we.ap.inventory.attempt",
+      "snapshot_keys": [
+        "we.ap.inventory"
+      ],
+      "interval_macro": "{$WE.AP.INVENTORY.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.3.6.1.2.1.1.5",
+        "1.2.840.10036.4.1.1.1",
+        "1.3.6.1.2.1.2.2.1.3",
+        "1.3.6.1.2.1.2.2.1.6",
+        "1.3.6.1.2.1.47.1.1.1.1.5",
+        "1.3.6.1.2.1.47.1.1.1.1.10",
+        "1.3.6.1.2.1.47.1.1.1.1.11",
+        "1.3.6.1.2.1.47.1.1.1.1.13",
+        "1.3.6.1.2.1.4.20.1.1"
+      ]
+    },
+    {
+      "dataset": "ap_state",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.apState(w, e)",
+      "adapter": "generic-ap-state",
+      "raw_key": "we.raw.generic.ap.state",
+      "attempt_key": "we.ap.state.attempt",
+      "snapshot_keys": [
+        "we.ap.state"
+      ],
+      "interval_macro": "{$WE.AP.STATE.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.2.840.10036.4.1.1.1",
+        "1.3.6.1.2.1.2.2.1.3",
+        "1.3.6.1.2.1.2.2.1.6",
+        "1.3.6.1.2.1.25.1.1",
+        "1.3.6.1.2.1.25.3.3.1.2",
+        "1.3.6.1.2.1.25.2.3.1.2",
+        "1.3.6.1.2.1.25.2.3.1.5",
+        "1.3.6.1.2.1.25.2.3.1.6"
+      ]
+    },
+    {
+      "dataset": "radio_inventory",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.radioInventory(w, e)",
+      "adapter": "generic-ap-radio-inventory",
+      "raw_key": "we.raw.generic.radio.inventory",
+      "attempt_key": "we.radio.inventory.attempt",
+      "snapshot_keys": [
+        "we.radio.inventory"
+      ],
+      "interval_macro": "{$WE.RADIO.INVENTORY.INTERVAL}",
+      "interval": "1h",
+      "stale": "3h",
+      "history": "7d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.2.840.10036.4.1.1.1",
+        "1.3.6.1.2.1.2.2.1.3",
+        "1.3.6.1.2.1.2.2.1.6",
+        "1.2.840.10036.2.1.1.1"
+      ]
+    },
+    {
+      "dataset": "radio_state",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.radioState(w, e)",
+      "adapter": "generic-ap-radio-state",
+      "raw_key": "we.raw.generic.radio.state",
+      "attempt_key": "we.radio.state.attempt",
+      "snapshot_keys": [
+        "we.radio.state"
+      ],
+      "interval_macro": "{$WE.RADIO.STATE.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.2.840.10036.4.1.1.1",
+        "1.3.6.1.2.1.2.2.1.3",
+        "1.3.6.1.2.1.2.2.1.6",
+        "1.3.6.1.2.1.2.2.1.8",
+        "1.2.840.10036.4.3.1",
+        "1.2.840.10036.4.5.1.1",
+        "1.2.840.10036.4.11.1.1"
+      ]
+    },
+    {
+      "dataset": "ssid",
+      "template": "Generic AP",
+      "scripts": [
+        "lib.js",
+        "wifi/wifi.js",
+        "wifi/generic_ap.js"
+      ],
+      "call": "GAP.ssids(w, e)",
+      "adapter": "generic-ap-ssid",
+      "raw_key": "we.raw.generic.ssid",
+      "attempt_key": "we.ssid.attempt",
+      "snapshot_keys": [
+        "we.ssid.snapshot"
+      ],
+      "interval_macro": "{$WE.SSID.INTERVAL}",
+      "interval": "5m",
+      "stale": "15m",
+      "history": "1d",
+      "walk": [
+        "1.3.6.1.2.1.1.3",
+        "1.2.840.10036.4.1.1.1",
+        "1.2.840.10036.1.1.1.9",
+        "1.3.6.1.2.1.2.2.1.7"
+      ]
+    },
     {
       "dataset": "device",
       "template": "Aruba Instant VC",

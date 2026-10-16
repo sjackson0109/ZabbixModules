@@ -4,6 +4,15 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-16
+
+### Added
+- `Wi-Fi Explorer - Generic AP`, the vendor-neutral Wi-Fi template, the counterpart of `Network Explorer - Generic Switch`. It is linked to one host per access point, at the AP's own address, and reads standard MIBs only: SNMPv2-MIB, IF-MIB, the IEEE 802.11 MIB (radios, channel, transmit power, BSSID, SSID), ENTITY-MIB (model, serial, firmware), HOST-RESOURCES-MIB (CPU, memory) and IP-MIB. It feeds the `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state` and `ssid` datasets, the AP and radio capacity items, and a host dashboard of radios up by band built from Zabbix's own widgets. No standard MIB lists clients, measured channel utilisation, noise floor or RF neighbours, so it has no items for them and those fields stay unknown; an agent without the IEEE 802.11 MIB reports every dataset as unsupported (`not_wifi_ap`).
+
+### Changed
+- The Aruba Instant templates are now the first vendor Wi-Fi templates, complementing the generic one, rather than the only Wi-Fi template. Their names, keys and UUIDs are unchanged, so importing over 2.1.0 updates them in place.
+- The [Wi-Fi template requirements](docs/wifi-explorer/TEMPLATE_REQUIREMENTS.md) describe the generic AP template and how vendor templates complement it, with its standard-MIB mapping next to the Aruba Instant one.
+
 ## [2.1.0] - 2026-10-15
 
 ### Changed

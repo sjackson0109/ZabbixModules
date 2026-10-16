@@ -14,7 +14,7 @@ $root->addItem($about(_('Each row is a network the visible APs hear; a flag or a
     _('"Flagged by an AP" repeats the detecting AP\'s own classification (for example suspected unsecure). An unknown network is not a rogue by itself. "Heard best by" shows which AP hears it most strongly; it is not a location.')));
 
 $observers = (new CTableInfo())->setHeader([_('Polled host'), _('AP'), _('Matched by'), _('Detections'), _('Freshness'),
-    _('Observed')])->setNoDataMessage(_('No AP is polled for its own RF view. Link "Wi-Fi Explorer - Aruba Instant AP by SNMP" to a host per AP, at the AP\'s own address.'));
+    _('Observed')])->setNoDataMessage(_('No AP reports its own RF view. No standard MIB lists neighbouring networks, so the generic AP template has none; link a vendor template that does, such as "Wi-Fi Explorer - Aruba Instant AP by SNMP", to a host per AP, at the AP\'s own address.'));
 $basis = ['address'=>_('polled address'), 'host_name'=>_('host name')];
 foreach ($rf['observers'] as $observer) {
     $observers->addRow([new CLink($observer['name'], (string) ($urls[$observer['hostid']] ?? '')),

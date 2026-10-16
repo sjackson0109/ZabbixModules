@@ -12,8 +12,9 @@ use Modules\WifiExplorer\Services\WifiScope;
 use Modules\WifiExplorer\Services\WifiService;
 
 /**
- * Wi-Fi Explorer's reader and model, fed by the real template normalisers run over the synthetic Aruba Instant walks:
- * permission filtering, freshness, the member-AP case, duplicate owners and the trust boundary.
+ * Wi-Fi Explorer's reader and model, fed by the real template normalisers run over the synthetic Aruba Instant and
+ * generic AP walks: permission filtering, freshness, the member-AP case, duplicate owners, standalone APs and the
+ * trust boundary.
  */
 (static function (): void {
     $checks = 0;
@@ -28,11 +29,16 @@ use Modules\WifiExplorer\Services\WifiService;
         'ap_state'=>'we.raw.aruba.ap.state', 'radio_inventory'=>'we.raw.aruba.radio.inventory',
         'radio_state'=>'we.raw.aruba.radio.state', 'ssid'=>'we.raw.aruba.ssid', 'client'=>'we.raw.aruba.client',
         'rf_neighbour'=>'we.raw.aruba.rf.neighbour'];
+    // The generic AP template (standard MIBs only) has no client or RF dataset.
+    $generic = ['device'=>'we.raw.generic.system', 'ap_inventory'=>'we.raw.generic.ap.inventory',
+        'ap_state'=>'we.raw.generic.ap.state', 'radio_inventory'=>'we.raw.generic.radio.inventory',
+        'radio_state'=>'we.raw.generic.radio.state', 'ssid'=>'we.raw.generic.ssid'];
+    $rawFor = static fn(string $walk): array => strpos($walk, 'generic-') === 0 ? $generic : $raw;
     $snapshot = array_flip(WifiDatasetReader::KEYS);
     $attemptKey = array_flip(WifiDatasetReader::ATTEMPTS);
     // The normaliser stamps the current time; the fixtures pin it so freshness is deterministic.
-    $normalise = static function (string $dataset, string $walk, string $time) use ($root, $walks, $raw): array {
-        $out = shell_exec('node '.escapeshellarg($root.'/tests/js/run_normaliser.cjs').' '.escapeshellarg($raw[$dataset])
+    $normalise = static function (string $dataset, string $walk, string $time) use ($root, $walks, $rawFor): array {
+        $out = shell_exec('node '.escapeshellarg($root.'/tests/js/run_normaliser.cjs').' '.escapeshellarg($rawFor($walk)[$dataset])
             .' '.escapeshellarg($walks.$walk));
         $envelope = json_decode((string) $out, true, 512, JSON_THROW_ON_ERROR);
         $envelope['attempted_at'] = $time;
@@ -45,10 +51,10 @@ use Modules\WifiExplorer\Services\WifiService;
         'host'=>$name, 'name'=>$name, 'tags'=>$site === '' ? [] : [['tag'=>'site', 'value'=>$site]],
         'interfaces'=>[['type'=>2, 'useip'=>1, 'ip'=>'192.0.2.'.(int) $id, 'available'=>$available]]];
     $feed = static function (FixtureGateway $gateway, string $hostid, string $walk, string $time,
-            array $only = []) use ($normalise, $snapshot, $attemptKey): array {
+            array $only = []) use ($normalise, $snapshot, $attemptKey, $rawFor): array {
         $out = [];
         foreach (array_keys($snapshot) as $dataset) {
-            if ($only && !in_array($dataset, $only, true)) {
+            if (($only && !in_array($dataset, $only, true)) || !isset($rawFor($walk)[$dataset])) {
                 continue;
             }
             $envelope = $normalise($dataset, $walk, $time);
@@ -216,6 +222,29 @@ use Modules\WifiExplorer\Services\WifiService;
     $inventoryQuality = array_column($result['quality'], null, 'dataset')['ap_inventory'];
     $assert($inventoryQuality['status'] === 'ok' && $inventoryQuality['observed_at'] === null
         && $inventoryQuality['freshness'] === 'unknown', 'A receipt alone says the attempt succeeded, not what was seen.');
+
+    // A standalone AP polled by the generic template owns exactly itself: one AP, its radios and SSIDs, and no
+    // client or RF data (no standard MIB has them), next to an Aruba cluster on the same site.
+    $mixed = new FixtureGateway();
+    $mixed->hostRows = [$host('10', 'avc-west', 'lab-west'), $host('30', 'lab-gap-01', 'lab-west')];
+    $feed($mixed, '10', 'aruba-instant-vc.snmprec', $fresh);
+    $feed($mixed, '30', 'generic-ap.snmprec', $fresh);
+    $result = (new WifiService($mixed, $now))->build(WifiScope::create('lab-west'));
+    $owners = array_column($result['owners'], null, 'hostid');
+    $assert($owners['30']['role'] === 'standalone' && $owners['30']['platform'] === 'generic_ap',
+        'A generic AP host is a standalone owner.');
+    $byName = array_column($result['aps'], null, 'name');
+    $assert(count($result['aps']) === 7 && $byName['lab-gap-01']['owner_hostid'] === '30',
+        'The generic AP joins the cluster\'s six APs on the site.');
+    $gap = $byName['lab-gap-01'];
+    $assert($gap['status'] === 'up' && count($gap['radios']) === 2, 'The generic AP is up with its two radios.');
+    $assert(!array_filter($result['quality'], static fn($q) => $q['hostid'] === '30' && $q['status'] !== 'ok'),
+        'Every generic dataset is a complete observation.');
+    $assert(!array_filter($result['findings'], static fn($f) => $f['hostid'] === '30'
+        && in_array($f['rule'], ['wifi_dataset_failed', 'wifi_owner_not_controller', 'wifi_ap_multiple_owners'], true)),
+        'A standalone AP is neither a failure nor a member AP.');
+    $ssidNames = array_column($result['ssids'], 'name');
+    $assert(in_array('Lab-Corp', $ssidNames, true), 'The generic AP\'s SSIDs are read.');
 
     echo "Wi-Fi Explorer checks passed ($checks checks).\n";
 })();

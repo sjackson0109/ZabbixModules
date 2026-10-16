@@ -101,7 +101,7 @@ if ($data['config_invalid'] ?? false) {
 if ($data['owners'] === []) {
     $root->addItem((new CDiv([
         new CTag('p', true, _('No Wi-Fi data source is visible to you in this scope.')),
-        new CTag('p', true, _('Link the "Wi-Fi Explorer - Aruba Instant VC by SNMP" template to one host per Aruba Instant cluster, pointed at the cluster\'s virtual controller address, and check that your user group can read that host.'))
+        new CTag('p', true, _('Link the "Wi-Fi Explorer - Generic AP" template to one host per access point, at the AP\'s own address, or a vendor template such as "Wi-Fi Explorer - Aruba Instant VC by SNMP" to one host per cluster, and check that your user group can read that host.'))
     ]))->addClass('we-empty'));
     $page->addItem($root)->show();
     return;

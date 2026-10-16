@@ -135,22 +135,24 @@ WIFI_LAB_CONFIG = {
 }
 
 
-NATIVE_DASHBOARDS = {"network_explorer_snmp.yaml": ("Network Explorer - Generic Switch", "Network Explorer"),
-                     "wifi_explorer_snmp.yaml": ("Wi-Fi Explorer - Aruba Instant VC by SNMP", "Wi-Fi Explorer")}
+NATIVE_DASHBOARDS = {"network_explorer_snmp.yaml": [("Network Explorer - Generic Switch", "Network Explorer")],
+                     "wifi_explorer_snmp.yaml": [("Wi-Fi Explorer - Generic AP", "Wi-Fi Explorer"),
+                                                 ("Wi-Fi Explorer - Aruba Instant VC by SNMP", "Wi-Fi Explorer")]}
 
 
 def native_template_checks(config: dict, api, result: dict) -> None:
-    """Both generated device templates import with their host dashboards, whatever modules are enabled."""
+    """The generated device templates import with their host dashboards, whatever modules are enabled."""
     rules = {k: {"createMissing": True, "updateExisting": True}
              for k in ["template_groups", "templates", "items", "triggers", "discoveryRules", "valueMaps", "templateDashboards"]}
-    for file, (template, dashboard) in NATIVE_DASHBOARDS.items():
+    for file, expected in NATIVE_DASHBOARDS.items():
         native = ROOT / "templates/native" / config["version"] / file
         assert_that(api("configuration.import", {"format": "yaml", "source": native.read_text(), "rules": rules}) is True,
                     f"{file} import failed.")
-        found = api("template.get", {"output": ["templateid"], "filter": {"host": template}})
-        assert_that(len(found) == 1, f"{template} missing after import.")
-        dashboards = api("templatedashboard.get", {"templateids": [found[0]["templateid"]], "output": ["name"]})
-        assert_that([d["name"] for d in dashboards] == [dashboard], f"{template} host dashboard missing.")
+        for template, dashboard in expected:
+            found = api("template.get", {"output": ["templateid"], "filter": {"host": template}})
+            assert_that(len(found) == 1, f"{template} missing after import.")
+            dashboards = api("templatedashboard.get", {"templateids": [found[0]["templateid"]], "output": ["name"]})
+            assert_that([d["name"] for d in dashboards] == [dashboard], f"{template} host dashboard missing.")
     result["checks"].append("native-template-import-with-host-dashboards")
 
 

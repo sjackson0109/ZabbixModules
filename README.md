@@ -14,7 +14,7 @@ The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB
 - An optional bounded Python SNMP collector with fixture replay, kept as a frozen schema 1.0 fallback for devices native SNMP items can't reach.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
 - LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; optional dashboard recipes for administrators who want custom compositions.
-- **Monitoring → Wi-Fi Explorer** (installed with Network Explorer): site overview, AP and radio inventory, findings and data quality for Aruba Instant clusters, from a native AI-AP-MIB template and Network Explorer's permission-aware services. Aruba Instant is not yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
+- **Monitoring → Wi-Fi Explorer** (installed with Network Explorer): site overview, AP and radio inventory, findings and data quality for access points, from a generic standard-MIB template (`Wi-Fi Explorer - Generic AP`) complemented by vendor templates (Aruba Instant first), and Network Explorer's permission-aware services. Neither is yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
 - Disposable integration labs, regression tests and deterministic copy-out packages.
 
 Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use.
@@ -40,7 +40,7 @@ The `Network Explorer LAB replay` template is a test data source. It does not pe
 
 - [Network Explorer template requirements](docs/network-explorer/TEMPLATE_REQUIREMENTS.md): inventory, capability evidence, monitoring preservation and qualification gates for the switch templates.
 - [Wi-Fi Explorer requirements](docs/wifi-explorer/REQUIREMENTS.md): the product specification for the Wi-Fi module (phases A–G).
-- [Wi-Fi AP template requirements](docs/wifi-explorer/TEMPLATE_REQUIREMENTS.md): what every Wi-Fi access-point template must do, with Aruba Instant as the reference.
+- [Wi-Fi AP template requirements](docs/wifi-explorer/TEMPLATE_REQUIREMENTS.md): what every Wi-Fi access-point template must do: the generic AP template from standard MIBs, and vendor templates that complement it, with Aruba Instant as the reference.
 
 ## Isolation and identity
 

@@ -1,6 +1,6 @@
 # Manual installation and operations
 
-Applies to release 2.1.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
+Applies to release 2.2.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.2 and 7.4. Try the lab workflow before deploying to an existing Zabbix installation. For a step-by-step installation on Docker-based frontends and multi-proxy estates, follow the [deployment guide](DEPLOYMENT_GUIDE.md). The native templates use standard MIBs only and have been tested against simulated switches; no vendor or model has been qualified on real hardware yet.
 
 ## Frontend package
 
@@ -11,7 +11,7 @@ Applies to release 2.1.0 (Network Explorer and Wi-Fi Explorer) on Zabbix 7.0, 7.
 5. Configure authorised hosts and their controlled `ne.domain` tags, and link a dataset producer (see Templates below); without data, widgets show missing/unknown observations rather than invented ports.
 6. Open **Monitoring → Network Explorer** for the network-wide view; it needs no dashboard. For one switch, use the inherited host dashboard (see Templates below). The widgets can also be added to any dashboard you build, selecting a host or using native Host navigator communication. Validate with an ordinary scoped user as well as an administrator.
 
-For Wi-Fi, import `templates/native/<version>/wifi_explorer_snmp.yaml` and link `Wi-Fi Explorer - Aruba Instant VC by SNMP` to one host per Aruba Instant cluster, pointed at the virtual-controller address, with the same `site` and `ne.domain` tags as the switches its APs plug into. The [deployment guide](DEPLOYMENT_GUIDE.md#7-enrol-wi-fi-clusters-and-verify) has the full steps, and the [Wi-Fi Explorer README](../wifi-explorer/README.md) describes the page.
+For Wi-Fi, import `templates/native/<version>/wifi_explorer_snmp.yaml` and link `Wi-Fi Explorer - Generic AP` to one host per access point at its own address, or a vendor template such as `Wi-Fi Explorer - Aruba Instant VC by SNMP` to one host per Aruba Instant cluster at the virtual-controller address, with the same `site` and `ne.domain` tags as the switches its APs plug into. The [deployment guide](DEPLOYMENT_GUIDE.md#7-enrol-wi-fi-clusters-and-verify) has the full steps, and the [Wi-Fi Explorer README](../wifi-explorer/README.md) describes the page.
 
 `/usr/share/zabbix/modules` is verified in the included official-container labs; it is not assumed to be the path of every package installation.
 
@@ -29,7 +29,7 @@ The `templates` package holds the native templates under `templates/native/<7.0|
 
 1. Import `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml` for your Zabbix version (Data collection > Templates > Import), with *Dashboards* ticked.
 2. Link `Network Explorer - Generic Switch` to each switch that has an SNMP interface. It is one self-contained template holding every item and the switch host dashboard (Ports, Topology, Findings); nothing else needs linking. Until the widget modules are enabled, that dashboard shows its widgets as inaccessible.
-3. Link `Wi-Fi Explorer - Aruba Instant VC by SNMP` to each Aruba Instant cluster; it carries a cluster host dashboard built from Zabbix's own widgets.
+3. Link `Wi-Fi Explorer - Generic AP` to each access point that implements the IEEE 802.11 MIB, or a vendor Wi-Fi template instead (`Wi-Fi Explorer - Aruba Instant VC by SNMP` for each Aruba Instant cluster), never both for the same APs. Each carries a host dashboard built from Zabbix's own widgets.
 
 See [the templates README](../../templates/README.md) for what each template reads. `templates/specifications/` remains the contract for future vendor-family templates; no model should be advertised as supported from its vendor name alone.
 
