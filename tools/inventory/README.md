@@ -110,8 +110,9 @@ python3 tools/inventory/capture_walk.py --host 10.0.0.10 --label cisco-c2960x-15
   (default 900 s). Request pacing is set with `--request-timeout`, `--retries`
   and `--max-repetitions`.
 - The manifest records the outcome of each subtree (`ok`, `timeout`,
-  `no-such-object`, `error` or `skipped`), record counts, `captured_at` (UTC)
-  and the net-snmp version. It contains no credentials and no target address.
+  `no-such-object`, `error` or `skipped`), record counts and `captured_at`
+  (UTC). It contains no credentials, no target address and no capture-host
+  tooling version (the net-snmp version is printed to the terminal only).
 - Exit codes: `0` complete, `2` usage error, `3` nothing could be read, `4`
   partial.
 - To replay a capture, copy `<label>.snmprec` into an snmpsim data directory
@@ -140,6 +141,11 @@ python3 tools/inventory/capture_walk.py --host 10.0.0.10 --label cisco-c2960x-15
     ipAddrTable
 
   Read the `.snmprec` file before you share it.
+- Evidence for this public repository needs a second pass:
+  `tools/qualification/anonymise.py` replaces MAC addresses, vendor-table host
+  names and serial numbers, VLAN names, PoE labels and neighbour LLDP details,
+  drops the end-device MAC tables and anonymises uptime. See
+  [hardware qualification](../../docs/qualification/README.md).
 - Replacements are consistent within one capture. They are consistent across
   captures only if every capture reuses the same `--sanitise-map` file. That
   file holds the real values, so **keep it private**.
@@ -153,12 +159,13 @@ python3 tools/inventory/capture_walk.py --host 10.0.0.10 --label cisco-c2960x-15
 
 To turn a walk into qualification evidence, follow the workflow in
 [hardware qualification](../../docs/qualification/README.md): capture with
-`--sanitise --sanitise-serials --sanitise-aliases`, review the walk by hand,
-then classify and check it with `tools/qualification/qualify.py`.
+`--sanitise --sanitise-serials --sanitise-aliases`, anonymise it with
+`tools/qualification/anonymise.py`, review the walk by hand, then classify and
+check it with `tools/qualification/qualify.py`.
 
 ## What NOT to share
 
 - API tokens, token files, SNMP credential files or environment dumps.
-- The `--sanitise-map` file.
+- The `--sanitise-map` file, or the `anonymise.py` map and config.
 - Unsanitised `.snmprec` files, unless the data owner has agreed to share
   them.

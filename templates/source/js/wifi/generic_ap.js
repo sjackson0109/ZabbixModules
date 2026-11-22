@@ -1,6 +1,6 @@
 // Generic access point (standard MIBs only) -> canonical Wi-Fi datasets.
 //
-// The vendor-neutral Wi-Fi template, the counterpart of Network Explorer - Generic Switch. It is linked to one host
+// The vendor-neutral Wi-Fi template, the counterpart of the Network Explorer Generic Switch. It is linked to one host
 // per AP, at the AP's own address, and reads only standard MIBs:
 //   SNMPv2-MIB system group     device identity
 //   IF-MIB ifTable              the AP's identity (its lowest-numbered Ethernet MAC), radio and SSID interface state

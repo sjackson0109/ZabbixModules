@@ -1,0 +1,971 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://network-explorer.invalid/schema/envelope-1.2.json",
+  "title": "Network Explorer canonical dataset envelope 1.2",
+  "description": "1.1 plus the hardware dataset. Only datasets added in 1.2 declare it; the 1.1 datasets keep schema_version 1.1 and validate against envelope-1.1.schema.json unchanged.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.2"
+    },
+    "dataset": {
+      "enum": [
+        "hardware"
+      ]
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "attempted_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "partial",
+        "failed",
+        "unsupported"
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "native_snmp",
+            "python_snmp",
+            "fixture",
+            "agent"
+          ]
+        },
+        "adapter": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "source_instance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "collection_mode": {
+          "enum": [
+            "once",
+            "periodic"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "adapter",
+        "version"
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "supported",
+            "partial",
+            "unsupported",
+            "unknown"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4096
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ]
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]{1,64}$"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "description": "Row-level problems that did not stop the observation: the affected rows were dropped or carry unknown fields, and the rest of the dataset is complete. Allowed with any status."
+    },
+    "data": {
+      "type": "array",
+      "maxItems": 50000
+    }
+  },
+  "required": [
+    "schema_version",
+    "dataset",
+    "generation_id",
+    "attempted_at",
+    "observed_at",
+    "status",
+    "complete",
+    "source",
+    "capability",
+    "errors",
+    "data"
+  ],
+  "$defs": {
+    "hardware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "uid",
+        "unit",
+        "name",
+        "state",
+        "raw_state"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "global",
+            "cpu",
+            "memory",
+            "fan",
+            "psu",
+            "temperature"
+          ]
+        },
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+        },
+        "unit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "state": {
+          "enum": [
+            "ok",
+            "warning",
+            "critical",
+            "shutdown",
+            "not_present",
+            "not_functioning",
+            "unavailable",
+            "unknown",
+            null
+          ]
+        },
+        "raw_state": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "util_1s_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "util_5s_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "util_1m_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "util_5m_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "total_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "free_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "util_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "speed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source": {
+          "enum": [
+            "unknown",
+            "ac",
+            "dc",
+            "external",
+            "internal_redundant",
+            null
+          ]
+        },
+        "celsius": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "warning_c": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "critical_c": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state_source": {
+          "enum": [
+            "device"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "global"
+              }
+            }
+          },
+          "then": {
+            "required": [],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "celsius"
+                  ]
+                },
+                {
+                  "required": [
+                    "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "speed"
+                  ]
+                },
+                {
+                  "required": [
+                    "state_source"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "warning_c"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "ok",
+                  "warning",
+                  "critical",
+                  "shutdown",
+                  "not_present",
+                  "not_functioning",
+                  "unavailable",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "cpu"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "util_1m_pct",
+              "util_5m_pct"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "celsius"
+                  ]
+                },
+                {
+                  "required": [
+                    "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "speed"
+                  ]
+                },
+                {
+                  "required": [
+                    "state_source"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "warning_c"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "const": null
+              },
+              "unit": {
+                "const": null
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "memory"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "total_bytes",
+              "free_bytes",
+              "util_pct"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "celsius"
+                  ]
+                },
+                {
+                  "required": [
+                    "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "speed"
+                  ]
+                },
+                {
+                  "required": [
+                    "state_source"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "warning_c"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "const": null
+              },
+              "unit": {
+                "const": null
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fan"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "speed"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "celsius"
+                  ]
+                },
+                {
+                  "required": [
+                    "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "state_source"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "warning_c"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "ok",
+                  "warning",
+                  "critical",
+                  "shutdown",
+                  "not_present",
+                  "not_functioning",
+                  "unavailable",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "psu"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "source"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "celsius"
+                  ]
+                },
+                {
+                  "required": [
+                    "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "speed"
+                  ]
+                },
+                {
+                  "required": [
+                    "state_source"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "warning_c"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "ok",
+                  "warning",
+                  "critical",
+                  "shutdown",
+                  "not_present",
+                  "not_functioning",
+                  "unavailable",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "temperature"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "celsius",
+              "warning_c",
+              "critical_c",
+              "state_source"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "source"
+                  ]
+                },
+                {
+                  "required": [
+                    "speed"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_1s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5m_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_5s_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "ok",
+                  "warning",
+                  "critical",
+                  "shutdown",
+                  "not_present",
+                  "not_functioning",
+                  "unavailable",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "hardware"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/hardware"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "complete": {
+            "const": true
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "errors": {
+            "maxItems": 0
+          },
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "supported"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "partial",
+              "failed",
+              "unsupported"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "complete": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "unsupported"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "observed_at": {
+            "type": "null"
+          },
+          "data": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "partial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "observed_at": {
+            "type": "string"
+          },
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "partial"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "unsupported"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "capability": {
+            "properties": {
+              "state": {
+                "const": "unsupported"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

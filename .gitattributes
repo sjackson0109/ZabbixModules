@@ -1,0 +1,2 @@
+# Walk fixtures are data: a CR at a line end becomes part of the last octet string.
+*.snmprec text eol=lf

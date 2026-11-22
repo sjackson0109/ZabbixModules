@@ -2,6 +2,7 @@
 
 | Schema | File | Status |
 |---|---|---|
+| 1.2 | [`envelope-1.2.schema.json`](envelope-1.2.schema.json) | Current for `hardware`, which the vendor templates emit. Only datasets added in 1.2 declare it, so every 1.1 dataset and its readers are unchanged. |
 | 1.1 | [`envelope-1.1.schema.json`](envelope-1.1.schema.json), [examples](examples/) | Current. Emitted by the native SNMP templates. Adds `vlan`, `stp` and `port_capability`, and optional fields on the 1.0 datasets. |
 | 1.0 | [`envelope.schema.json`](envelope.schema.json) | Still accepted by the frontend. Emitted by the Python collector, a frozen fallback that stays on 1.0; it packages an identical copy checked by the test suite. |
 

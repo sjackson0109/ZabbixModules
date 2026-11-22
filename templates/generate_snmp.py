@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the deterministic native SNMP templates (generic standard MIB) for Zabbix 7.0, 7.2 and 7.4.
+"""Build the deterministic native SNMP switch templates for Zabbix 7.0, 7.2 and 7.4, one file per template.
 
 Each dataset producer in templates/source/datasets.json becomes one walk[] master item, a
 JavaScript normaliser that emits the canonical envelope, and gated dependents that only
@@ -12,40 +12,28 @@ import argparse
 import json
 from pathlib import Path
 import sys
-import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _common  # noqa: E402
-from _common import (COLLECTION_STATUS, IF_STATUS, IF_STATUS_CONVERT, IF_STATUS_MAP, STATUS_MAP,  # noqa: E402
-                     VERSION, dump, interface_scalar, js, read_text, widget, write_outputs)
+from _common import (COLLECTION_STATUS, GROUPS, IF_STATUS, IF_STATUS_CONVERT, IF_STATUS_MAP, STATUS_MAP,  # noqa: E402
+                     VERSION, interface_scalar, js, read_text, widget)
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "source"
-GROUP = "Templates/Network Explorer"
-PREFIX = "Network Explorer - "
-# One template per device type, named "Network Explorer - <Vendor> <Series> Switch" for vendor templates.
-# Each holds every item it needs; the dataset components below are generator
-# building blocks only and are never exported as templates of their own.
-PROFILES = [
-    # "scope" keeps the UUIDs of 2.0.0, when this template was "Generic standard MIB", so importing over 2.0.0
-    # renames the template in place and keeps its items, history and host links.
-    {"name": PREFIX + "Generic Switch", "scope": PREFIX + "Generic standard MIB",
-     "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG"],
-     "description": "Link this one template to a switch that has an SNMP interface. It collects every standard-MIB "
-                    "dataset; datasets the device lacks report unsupported without affecting the others. Its host "
-                    "dashboard (Ports, Topology, Findings) needs the Network Explorer widget modules enabled; until "
-                    "then its widgets show as inaccessible.",
-     "dashboard": True},
-    {"name": PREFIX + "LLDP for access points",
-     "components": ["LLDP"],
-     "description": "Link to a Wi-Fi access point's own host (not a switch) so Wi-Fi Explorer can confirm the AP's "
-                    "uplink from the AP side. It collects LLDP only. Never link it beside the Generic Switch "
-                    "template: both own the same keys."},
-]
-PROFILE = PROFILES[0]["name"]
+MANIFEST = SOURCE / "datasets.json"
+# One template per device type, listed under "templates" in the manifest, each exported to its own file named after
+# it (the naming rule is in _common.py): ne_<vendor>_<series>_switch for vendor switches, ne__generic_switch for the
+# generic default, and we_lldp_for_access_points for access points, which sits with Wi-Fi Explorer. Each holds every
+# item it needs; the dataset components are generator building blocks only and are never exported on their own.
+PROFILES = json.loads(read_text(MANIFEST))["templates"]
+# Earlier releases exported every switch template in this one file.
+LEGACY_EXPORTS = ("network_explorer_snmp.yaml",)
+PROFILE = PROFILES[0]["template"]
 FAILED = "__NE_COLLECTION_FAILED__"
 SCHEMA = "1.1"
-NAMESPACE = uuid.UUID("5b0f8e0a-6f0e-4a55-9d0c-2a7f3c1e9b44")
+# Datasets added in schema 1.2 (templates/source/js/lib.js NE.SCHEMAS); the others stay on 1.1.
+SCHEMAS = {"hardware": "1.2", "poe": "1.2"}
+NAMESPACE = _common.NAMESPACES["ne"]
 # sysUpTime is a 32-bit TimeTicks counter (1/100 s), so the uptime in seconds wraps after 2**32 / 100 s (~497 days).
 UPTIME_WRAP_S = 2**32 // 100
 TEMPLATE_DESCRIPTION = {
@@ -56,7 +44,16 @@ TEMPLATE_DESCRIPTION = {
     "VLAN": "VLAN table and per-port membership (Q-BRIDGE-MIB).",
     "STP": "Spanning tree bridge and port state (BRIDGE-MIB, RSTP-MIB), instance 0.",
     "LAG": "Link aggregation bundles and members (IEEE8023-LAG-MIB, ifStackTable).",
+    "Hardware Health": "CPU, memory, fans, power supplies and temperature with the device's own verdicts and "
+                       "thresholds (vendor MIBs).",
 }
+HW_STATE_MAP = "Network Explorer hardware state"
+HW_STATE = {"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5,
+            "unavailable": 6, "unknown": 7}
+HW_STATE_CONVERT = "var m=" + json.dumps(HW_STATE) + "; v=m[v]===undefined?" + str(HW_STATE["unknown"]) + ":m[v];"
+# Parts discovered one by one: (row kind, key stem, label). A part is discovered only while present and readable.
+HW_PARTS = (("psu", "ne.hw.psu", "power supply"), ("fan", "ne.hw.fan", "fan"),
+            ("temperature", "ne.hw.temp", "temperature sensor"))
 
 
 _scope = ""
@@ -68,14 +65,20 @@ def uid(name: str) -> str:
 
 
 def manifest() -> list[dict]:
-    return json.loads(read_text(SOURCE / "datasets.json"))["datasets"]
+    return json.loads(read_text(MANIFEST))["datasets"]
+
+
+def producers(profile: dict, component: str, entries: list[dict]) -> list[dict]:
+    """A component's producers in one template: those without a templates list, and those that list this one."""
+    return [e for e in entries
+            if e["template"] == component and profile["template"] in e.get("templates", [profile["template"]])]
 
 
 def compose(entry: dict) -> str:
     """Same composition as tests/js/run_normaliser.cjs."""
-    read = lambda name: read_text(SOURCE / "js" / name)  # noqa: E731
-    return "\n".join([read("lib.js"), read(entry["script"]),
-                      f"return JSON.stringify(NE.run('{entry['dataset']}', '{entry['adapter']}', value, "
+    scripts = entry["scripts"] if "scripts" in entry else ["lib.js", entry["script"]]
+    return "\n".join([read_text(SOURCE / "js" / name) for name in scripts] +
+                     [f"return JSON.stringify(NE.run('{entry['dataset']}', '{entry['adapter']}', value, "
                       f"function (w, e) {{ return {entry['call']}; }}));"])
 
 
@@ -106,7 +109,7 @@ def dependent(key: str, name: str, dataset: str, master: str, script: str, *, va
 
 def gate(dataset: str, then: str = "return value;") -> str:
     """Throws (and the item discards the value) unless the envelope is a complete observation."""
-    return _common.gate(SCHEMA, dataset, then)
+    return _common.gate(SCHEMAS.get(dataset, SCHEMA), dataset, then)
 
 
 def raw_item(entry: dict) -> dict:
@@ -199,8 +202,117 @@ def interface_discovery(template: str) -> dict:
             "item_prototypes": prototypes}
 
 
-def extras(short: str, template: str) -> list[dict]:
+def hardware_field(match: str, field: str, convert: str = "") -> str:
+    """One field of the first hardware row that matches, from the complete snapshot. A missing row or a null value
+    throws, so the item keeps its last value instead of storing a guess."""
+    return ("var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(" + match + "){var v=r['" + field
+            + "']; if(v===null||v===undefined){throw 'Not reported';}" + convert + " return v;}} "
+            "throw 'Absent; retain last observed value';")
+
+
+def hardware_state_triggers(item_key: str, label: str, name: str, scope: str) -> list[dict]:
+    """The device's own verdict, never a threshold of ours: 1 warning; 2 critical, 3 shutdown or 5 not functioning;
+    4 a part that was present is gone; 6 the device cannot read it."""
+    key = f"last({item_key})"
+    return [
+        {"uuid": uid(f"trigger:hw:{scope}:critical"), "expression": f"{key}=2 or {key}=3 or {key}=5",
+         "name": f"Network Explorer: {label} {name} reports a critical state", "priority": "HIGH",
+         "description": "Critical, shut down or not functioning, as the device reports it.", "tags": tags("hardware")},
+        {"uuid": uid(f"trigger:hw:{scope}:warning"), "expression": f"{key}=1",
+         "name": f"Network Explorer: {label} {name} reports a warning", "priority": "WARNING",
+         "tags": tags("hardware")},
+        {"uuid": uid(f"trigger:hw:{scope}:gone"), "expression": f"{key}=4",
+         "name": f"Network Explorer: {label} {name} is no longer present", "priority": "WARNING",
+         "manual_close": "YES", "tags": tags("hardware")},
+        {"uuid": uid(f"trigger:hw:{scope}:unreadable"), "expression": f"{key}=6",
+         "name": f"Network Explorer: {label} {name} cannot be read", "priority": "WARNING", "tags": tags("hardware")},
+    ]
+
+
+def hardware_scalars(entry: dict, template: str) -> list[dict]:
+    provides, items = entry["provides"], []
+    snapshot = "ne.hardware.snapshot"
+    if "global" in provides:
+        item = dependent("ne.hw.global.state", "Hardware: overall status", "hardware", snapshot,
+                         hardware_field("r.kind==='global'", "state", HW_STATE_CONVERT), value_type="UNSIGNED",
+                         discard=True, history="31d", trends="0", valuemap={"name": HW_STATE_MAP},
+                         description="The device's own summary of its hardware health.")
+        item["triggers"] = hardware_state_triggers(f"/{template}/ne.hw.global.state", "device", "overall status",
+                                                   "global")[:2]
+        items.append(item)
+    if "cpu" in provides:
+        for window in ("1m", "5m"):
+            items.append(dependent(f"ne.hw.cpu.util[{window}]", f"Hardware: CPU utilisation, {window} average",
+                                   "hardware", snapshot, hardware_field("r.kind==='cpu'", f"util_{window}_pct"),
+                                   value_type="FLOAT", discard=True, history="31d", units="%",
+                                   description="As the device averages it. No value while measurement is off."))
+        cpu = f"/{template}/ne.hw.cpu.util[5m]"
+        items[-1]["triggers"] = [{
+            "uuid": uid("trigger:hw:cpu"), "expression": f"min({cpu},{{$NE.HW.CPU.UTIL.FOR}})>{{$NE.HW.CPU.UTIL.MAX}}",
+            "name": "Network Explorer: CPU utilisation above {$NE.HW.CPU.UTIL.MAX}% for {$NE.HW.CPU.UTIL.FOR}",
+            "priority": "WARNING", "tags": tags("hardware")}]
+    if "memory" in provides:
+        memory = dependent("ne.hw.memory.util", "Hardware: memory utilisation", "hardware", snapshot,
+                           hardware_field("r.kind==='memory'", "util_pct"), value_type="FLOAT", discard=True,
+                           history="31d", units="%")
+        util = f"/{template}/ne.hw.memory.util"
+        memory["triggers"] = [{
+            "uuid": uid("trigger:hw:memory"),
+            "expression": f"min({util},{{$NE.HW.MEMORY.UTIL.FOR}})>{{$NE.HW.MEMORY.UTIL.MAX}}",
+            "name": "Network Explorer: memory utilisation above {$NE.HW.MEMORY.UTIL.MAX}% for {$NE.HW.MEMORY.UTIL.FOR}",
+            "priority": "WARNING", "tags": tags("hardware")}]
+        items.append(memory)
+    return items
+
+
+def hardware_discovery(entry: dict, template: str) -> list[dict]:
+    rules = []
+    for kind, stem, label in HW_PARTS:
+        if kind not in entry["provides"]:
+            continue
+        match = f"r.kind==='{kind}'&&r.uid==='{{#HWUID}}'"
+        state = dependent(f"{stem}.state[{{#HWUID}}]", f"{label.capitalize()} {{#HWNAME}}: state", "hardware",
+                          "ne.hardware.snapshot", hardware_field(match, "state", HW_STATE_CONVERT),
+                          value_type="UNSIGNED", discard=True, history="31d", trends="0",
+                          valuemap={"name": HW_STATE_MAP})
+        state["trigger_prototypes"] = hardware_state_triggers(f"/{template}/{stem}.state[{{#HWUID}}]", label,
+                                                              "{#HWNAME}", kind)
+        prototypes = [state]
+        if kind == "fan" and "fan_speed" in entry["provides"]:
+            prototypes.append(dependent(f"{stem}.speed[{{#HWUID}}]", "Fan {#HWNAME}: speed", "hardware",
+                                        "ne.hardware.snapshot", hardware_field(match, "speed"), value_type="UNSIGNED",
+                                        discard=True, history="31d",
+                                        description="As the device reports it; the MIB gives no unit."))
+        if kind == "temperature":
+            prototypes.append(dependent(f"{stem}.value[{{#HWUID}}]", "Temperature sensor {#HWNAME}: temperature",
+                                        "hardware", "ne.hardware.snapshot", hardware_field(match, "celsius"),
+                                        value_type="FLOAT", discard=True, history="31d", units="°C",
+                                        description="The device judges it against its own thresholds; see the "
+                                                    "state item."))
+        for prototype in prototypes:
+            prototype["tags"].append({"tag": "hardware", "value": "{#HWNAME}"})
+        unreadable = "" if kind != "temperature" else "&&r.state!=='unavailable'"
+        rows = (f"return JSON.stringify(e.data.filter(function(r){{return r.kind==='{kind}'&&r.state!=='not_present'"
+                f"&&r.state!=='unknown'{unreadable};}}).map(function(r){{return {{uid:r.uid,name:r.name,"
+                "unit:r.unit===null?'':String(r.unit)};}));")
+        rules.append({"uuid": uid(f"lld:hardware:{kind}"), "name": f"Hardware discovery: {label}s", "type": "DEPENDENT",
+                      "key": f"{stem}.discovery", "delay": "0", "lifetime": "7d",
+                      "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d",
+                      "master_item": {"key": "ne.hardware.snapshot"},
+                      "description": "Fed from the complete hardware snapshot. A part is discovered while the device "
+                                     "reports it present and readable.",
+                      "preprocessing": js(gate("hardware", rows), True),
+                      "lld_macro_paths": [{"lld_macro": "{#HWUID}", "path": "$.uid"},
+                                          {"lld_macro": "{#HWNAME}", "path": "$.name"},
+                                          {"lld_macro": "{#HWUNIT}", "path": "$.unit"}],
+                      "item_prototypes": prototypes})
+    return rules
+
+
+def extras(short: str, template: str, mine: list[dict]) -> list[dict]:
     """Scalars a native trigger needs, read from the complete snapshot."""
+    if short == "Hardware Health":
+        return [item for entry in mine for item in hardware_scalars(entry, template)]
     if short == "Base":
         item = dependent("ne.device.uptime", "Device uptime", "device", "ne.device.snapshot",
                          "var d=JSON.parse(value).data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; return d.uptime_s;",
@@ -244,6 +356,14 @@ def macros(entries: list[dict], short: str) -> list[dict]:
     if short == "LLDP":
         result.append({"macro": "{$NE.LLDP.REDACT_REMOTE}", "value": "0",
                        "description": "1 drops remote system and port descriptions from stored neighbour data."})
+    provides = {p for entry in entries for p in entry.get("provides", [])}
+    for part, label in (("cpu", "CPU"), ("memory", "memory")):
+        if part in provides:
+            name = part.upper()
+            result += [{"macro": f"{{$NE.HW.{name}.UTIL.MAX}}", "value": "90",
+                        "description": f"Alert when {label} utilisation stays above this percentage."},
+                       {"macro": f"{{$NE.HW.{name}.UTIL.FOR}}", "value": "15m",
+                        "description": f"How long {label} utilisation must stay high before alerting."}]
     return sorted(result, key=lambda m: m["macro"])
 
 
@@ -253,6 +373,9 @@ def valuemaps(short: str) -> list[dict]:
     if short == "Interfaces":
         maps.append({"uuid": uid("valuemap:interfaces:if-status"), "name": IF_STATUS_MAP,
                      "mappings": [{"value": str(v), "newvalue": k} for k, v in IF_STATUS.items()]})
+    if short == "Hardware Health":
+        maps.append({"uuid": uid("valuemap:hardware:state"), "name": HW_STATE_MAP,
+                     "mappings": [{"value": str(v), "newvalue": k} for k, v in HW_STATE.items()]})
     return maps
 
 
@@ -262,24 +385,36 @@ def build(version: str) -> dict:
     known = set(e["template"] for e in entries)
     templates = []
     for profile in PROFILES:
-        name = profile["name"]
+        name = profile["template"]
         assert set(profile["components"]) <= known, profile["components"]
+        assert set(profile.get("disabled", [])) <= set(profile["components"]), profile["disabled"]
         _scope = profile.get("scope", name) + ":"
         items, discovery, macro_list, maps = [], [], [], {}
         for short in profile["components"]:
-            mine = [e for e in entries if e["template"] == short]
-            items += [i for e in mine for i in producer_items(e, name)] + extras(short, name)
-            if short == "Interfaces":
-                discovery.append(interface_discovery(name))
+            mine = producers(profile, short, entries)
+            produced = {producer(e) for e in mine}
+            assert mine and len(produced) == len(mine), (name, short, "needs exactly one producer per dataset")
+            own = [i for e in mine for i in producer_items(e, name)] + extras(short, name, mine)
+            rules = [interface_discovery(name)] if short == "Interfaces" else []
+            if short == "Hardware Health":
+                rules += [rule for e in mine for rule in hardware_discovery(e, name)]
+            if short in profile.get("disabled", []):
+                # Shipped but switched off: the operator can enable it on a host whose firmware supports it.
+                for obj in own + rules:
+                    obj["status"] = "DISABLED"
+            items += own
+            discovery += rules
             macro_list += macros(mine, short)
             for m in valuemaps(short):
                 maps[m["name"]] = m
-        parts = "; ".join(f"{short}: {TEMPLATE_DESCRIPTION[short]}" for short in profile["components"])
-        template = {"uuid": uid("template:" + profile.get("scope", name)), "template": name, "name": name,
+        parts = "; ".join(f"{short}: {TEMPLATE_DESCRIPTION[short]}"
+                          + (" Disabled; enable it where the device supports it." if short in profile.get("disabled", []) else "")
+                          for short in profile["components"])
+        template = {"uuid": uid("template:" + profile.get("scope", name)), "template": name, "name": profile["name"],
                     "description": profile["description"] + " Datasets - " + parts +
                                    " Generated by templates/generate_snmp.py; do not edit by hand.",
                     "vendor": {"name": "Network Explorer", "version": VERSION},
-                    "groups": [{"name": GROUP}], "items": items}
+                    "groups": [{"name": GROUPS[_common.product(name)]}], "items": items}
         if discovery:
             template["discovery_rules"] = discovery
         template["tags"] = [{"tag": "component", "value": "network-explorer"}]
@@ -289,12 +424,13 @@ def build(version: str) -> dict:
             template["dashboards"] = [host_dashboard()]
         templates.append(template)
     _scope = ""
-    return {"zabbix_export": {"version": version, "template_groups": [{"uuid": uid("group:" + GROUP), "name": GROUP}],
-                              "templates": templates}}
+    groups = [_common.group(prefix) for prefix in dict.fromkeys(_common.product(t["template"]) for t in templates)]
+    return {"zabbix_export": {"version": version, "template_groups": groups, "templates": templates}}
 
 
-def render(version: str) -> str:
-    return dump(build(version))
+def render(version: str) -> dict[str, str]:
+    """One self-contained export per template, in a file named after its technical name."""
+    return _common.split_exports(build(version)["zabbix_export"])
 
 
 def host_dashboard() -> dict:
@@ -319,8 +455,12 @@ def main() -> None:
     args = parser.parse_args()
     outputs = {}
     for version in ("7.0", "7.2", "7.4"):
-        outputs[ROOT / "native" / version / "network_explorer_snmp.yaml"] = render(version)
-    write_outputs(outputs, args.check)
+        for name, text in render(version).items():
+            outputs[ROOT / "native" / version / name] = text
+    # This generator owns every ne_*.yaml beside them (generate_wifi.py owns the other we_*.yaml); one it no longer
+    # writes is stale.
+    _common.write_native(outputs, args.check, lambda path: path.suffix == ".yaml" and (
+        path.name.startswith("ne_") or path.name in LEGACY_EXPORTS))
 
 
 if __name__ == "__main__":

@@ -16,13 +16,13 @@ const SOURCE = path.join(ROOT, 'templates', 'source');
 
 global.sha256 = (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex');
 
-// Network Explorer producers, then Wi-Fi Explorer producers (which list their scripts and run through WE.run).
-const MANIFESTS = [path.join(SOURCE, 'datasets.json'), path.join(SOURCE, 'wifi', 'datasets.json')];
+// Network Explorer producers (run through NE.run), then Wi-Fi Explorer producers (run through WE.run).
+const MANIFESTS = [[path.join(SOURCE, 'datasets.json'), 'NE.run'], [path.join(SOURCE, 'wifi', 'datasets.json'), 'WE.run']];
 
 function datasetFor(rawKey) {
-  for (const file of MANIFESTS) {
+  for (const [file, runner] of MANIFESTS) {
     const entry = JSON.parse(fs.readFileSync(file, 'utf8')).datasets.find((d) => d.raw_key === rawKey);
-    if (entry) return entry;
+    if (entry) return { ...entry, runner };
   }
   throw new Error(`unknown raw key ${rawKey}`);
 }
@@ -31,7 +31,7 @@ function datasetFor(rawKey) {
 function compose(entry) {
   const read = (name) => fs.readFileSync(path.join(SOURCE, 'js', name), 'utf8');
   const scripts = entry.scripts || ['lib.js', entry.script];
-  const runner = entry.scripts ? 'WE.run' : 'NE.run';
+  const runner = entry.runner || (entry.scripts ? 'WE.run' : 'NE.run');
   return [...scripts.map(read),
     `return JSON.stringify(${runner}('${entry.dataset}', '${entry.adapter}', value, function (w, e) { return ${entry.call}; }));`,
   ].join('\n');
@@ -84,7 +84,8 @@ function renderValue(tag, value) {
 }
 
 function walkText(snmprec, roots) {
-  const rows = snmprec.split('\n').filter(Boolean).map((line) => {
+  // A CRLF checkout must not turn the CR into part of the last value on each line.
+  const rows = snmprec.split(/\r?\n/).filter(Boolean).map((line) => {
     const first = line.indexOf('|'), second = line.indexOf('|', first + 1);
     return [line.slice(0, first), line.slice(first + 1, second), line.slice(second + 1)];
   });

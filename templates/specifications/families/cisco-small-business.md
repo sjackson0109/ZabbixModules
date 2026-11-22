@@ -1,6 +1,6 @@
 # Cisco small-business: production template handoff
 
-Status: **unqualified**; no device fixtures or field evidence are available yet. This file is ready to begin a dedicated implementation thread when access exists.
+Status: **captured-walk tested** for the models and firmware in the [qualification matrix](../../../docs/qualification/MATRIX.md) (SG300, SG350/X/XG, CBS350, C1200, C1300; 15 anonymised captures). They are served by `ne_cisco_small_business_switch` (24-column environment table) and `ne_cisco_sg300_switch` (14-column), with hardware health as described in [HARDWARE.md](../HARDWARE.md). The CBS220 has no CISCOSB tree and stays on the Generic Switch. Any other model or firmware is unqualified. The rest of this file is the original handoff.
 
 ## Scope and profile boundaries
 

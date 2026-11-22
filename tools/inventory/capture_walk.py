@@ -313,6 +313,7 @@ AI_AP_NAME = ARUBA_AI + ".2.1.1.2"
 AI_AP_SERIAL = ARUBA_AI + ".2.1.1.4"
 LLDP_LOC_MAN_ADDR_ENTRY = "1.0.8802.1.1.2.1.3.8.1"   # index: subtype, len, addr
 LLDP_REM_MAN_ADDR_ENTRY = "1.0.8802.1.1.2.1.4.2.1"   # index: timeMark, localPort, remIndex, subtype, len, addr
+LLDP_CONFIG_MAN_ADDR_ENTRY = "1.0.8802.1.1.2.1.1.7.1"  # lldpConfigManAddrTable; index: subtype, len, addr
 # (value column, subtype column, subtype value meaning "networkAddress")
 LLDP_NETWORK_ADDRESS_IDS = (
     ("1.0.8802.1.1.2.1.3.2", "1.0.8802.1.1.2.1.3.1", 5),        # lldpLocChassisId
@@ -394,7 +395,8 @@ class Sanitiser:
         return ipaddress.IPv4Address(self.ipv4(str(ipaddress.IPv4Address(octets)))).packed
 
     def _man_addr_oid(self, oid: str) -> str:
-        for entry, index_before in ((LLDP_LOC_MAN_ADDR_ENTRY, 0), (LLDP_REM_MAN_ADDR_ENTRY, 3)):
+        for entry, index_before in ((LLDP_LOC_MAN_ADDR_ENTRY, 0), (LLDP_REM_MAN_ADDR_ENTRY, 3),
+                                    (LLDP_CONFIG_MAN_ADDR_ENTRY, 0)):
             if not oid.startswith(entry + "."):
                 continue
             arcs = oid[len(entry) + 1:].split(".")
@@ -783,7 +785,8 @@ def capture(args, runner=subprocess.run, environ: dict | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="ne-walk-") as conf_dir:
         write_private(Path(conf_dir) / "snmp.conf", snmp_conf(credentials))
         env = child_environment(conf_dir)
-        version = net_snmp_version(args.snmpbulkwalk, runner)
+        # Printed for the operator only: the capture host's tooling version is kept out of published evidence.
+        print(f"net-snmp {net_snmp_version(args.snmpbulkwalk, runner)}", file=sys.stderr)
         for name, oid in subtrees:
             remaining = deadline - time.monotonic()
             if remaining <= 1:
@@ -812,7 +815,6 @@ def capture(args, runner=subprocess.run, environ: dict | None = None) -> int:
         "format": "network-explorer-walk-manifest-1",
         "device_label": args.label,
         "captured_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "net_snmp_version": version,
         "snmp_version": credentials["version"],
         "snmp_security_level": credentials.get("security_level", ""),
         "walk_options": {"max_repetitions": args.max_repetitions, "request_timeout_s": args.request_timeout,

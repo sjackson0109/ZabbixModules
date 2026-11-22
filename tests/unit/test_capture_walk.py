@@ -129,6 +129,7 @@ def sanitiser_input():
         cw.Record(f"{LLDP_REM}.5.0.6.2", "4", bytes([1, 0, 0x11, 0x22, 0x33])),   # MAC-like, subtype 4
         cw.Record("1.0.8802.1.1.2.1.4.2.1.3.0.5.1.1.4.10.20.30.40", "2", 2),
         cw.Record("1.0.8802.1.1.2.1.3.8.1.3.1.4.10.0.0.1", "2", 2),
+        cw.Record("1.0.8802.1.1.2.1.1.7.1.1.1.4.10.0.0.1", cw.TAG_OCTETS, b"\x00"),   # lldpConfigManAddrTable
         cw.Record("1.3.6.1.2.1.4.20.1.1.10.0.0.1", "64", "10.0.0.1"),
         cw.Record("1.3.6.1.2.1.4.20.1.3.10.0.0.1", "64", "255.255.255.0"),
         cw.Record("1.3.6.1.2.1.4.20.1.1.127.0.0.1", "64", "127.0.0.1"),
@@ -154,6 +155,8 @@ def test_sanitiser_replaces_identifiers_consistently():
     assert f"1.0.8802.1.1.2.1.4.2.1.3.0.5.1.1.4.{mapped}" in output
     assert output["1.3.6.1.2.1.4.20.1.1.10.0.0.1"].value == "192.0.2.1"
     assert "1.0.8802.1.1.2.1.3.8.1.3.1.4.192.0.2.1" in output
+    assert "1.0.8802.1.1.2.1.1.7.1.1.1.4.192.0.2.1" in output   # the config table's index joins the loc table
+    assert not any(".10.0.0.1" in oid for oid in output if oid.startswith("1.0.8802"))
     assert mapped == "192.0.2.2"
     assert output[f"{LLDP_REM}.5.0.6.2"].value == bytes([1, 0, 0x11, 0x22, 0x33])   # not networkAddress
     assert output["1.3.6.1.2.1.4.20.1.3.10.0.0.1"].value == "255.255.255.0"      # mask kept
@@ -308,7 +311,8 @@ def test_capture_with_mocked_snmpbulkwalk(tmp_path, capsys):
     assert outcomes["1.3.6.1.2.1.31.1.1"]["outcome"] == "error"
     assert "***" in outcomes["1.3.6.1.2.1.31.1.1"]["message"]
     assert outcomes["1.0.8802.1.1.2.1"]["outcome"] == "no-such-object"
-    assert manifest["net_snmp_version"] == "5.9.4" and manifest["device_label"] == "lab-sw1"
+    # The capture host's tooling version is printed for the operator but never written to the manifest.
+    assert "net_snmp_version" not in manifest and manifest["device_label"] == "lab-sw1"
     assert manifest["captured_at"].endswith("Z")
     for forbidden in (COMMUNITY, "192.0.2.10"):
         assert forbidden not in manifest_text

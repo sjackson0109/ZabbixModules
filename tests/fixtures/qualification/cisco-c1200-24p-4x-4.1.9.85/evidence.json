@@ -1,0 +1,80 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "absent",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "unsupported",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 45,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 45,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 4,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 2,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 33,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 39,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "Catalyst 1200 Series Smart Switch, 24-port GE, PoE, 4x10G SFP+ (C1200-24P-4X)",
+      "sys_object_id": "1.3.6.1.4.1.9.1.3222"
+    }
+  },
+  "description": "Cisco C1200-24P-4X, 28 ports, firmware 4.1.9.85. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
+  "device": {
+    "family": "Catalyst 1200",
+    "firmware": "4.1.9.85",
+    "model": "C1200-24P-4X",
+    "vendor": "Cisco"
+  },
+  "id": "cisco-c1200-24p-4x-4.1.9.85",
+  "kind": "captured",
+  "walk": "capture.snmprec"
+}

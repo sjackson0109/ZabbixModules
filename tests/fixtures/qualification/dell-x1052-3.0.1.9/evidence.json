@@ -1,0 +1,80 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "absent",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "unsupported",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 67,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 67,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 12,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 11,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 65,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 66,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "Dell Networking X1052 1-10Gb Switch",
+      "sys_object_id": "1.3.6.1.4.1.674.10895.3073"
+    }
+  },
+  "description": "Dell X1052, 52 ports, firmware 3.0.1.9. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
+  "device": {
+    "family": "X-Series",
+    "firmware": "3.0.1.9",
+    "model": "X1052",
+    "vendor": "Dell"
+  },
+  "id": "dell-x1052-3.0.1.9",
+  "kind": "captured",
+  "walk": "capture.snmprec"
+}

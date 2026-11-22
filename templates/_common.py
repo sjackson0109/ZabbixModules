@@ -1,4 +1,4 @@
-"""Helpers shared by the native (generate_snmp.py) and LAB replay (generate_lab.py) template generators.
+"""Helpers shared by the native (generate_snmp.py, generate_wifi.py) and LAB replay (generate_lab.py) template generators.
 
 Both generators must produce preprocessing that survives a Zabbix import unchanged, so the JavaScript
 gates, discard mechanics and YAML dumping live here once.
@@ -8,11 +8,21 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import uuid
 
 import yaml
 
 ROOT = Path(__file__).resolve().parent
+# Native templates are named <product>_<words> in lowercase with single underscores, and their visible name is the
+# product's name, " - ", then the same words in Title Case. Each product's generic template has a double underscore
+# (ne__generic_switch, we__generic_access_point), which sorts it and its file first. The prefix also sets the template
+# group, so a template for access points (we_) sits with Wi-Fi Explorer whichever generator builds it.
+TECHNICAL_NAME = re.compile(r"(ne|we)__?[a-z0-9]+(_[a-z0-9]+)+")
+PRODUCTS = {"ne": "Network Explorer", "we": "Wireless Explorer"}
+GROUPS = {"ne": "Templates/Network Explorer", "we": "Templates/Wi-Fi Explorer"}
+# Each product's UUID namespace (generate_snmp.py and generate_wifi.py); never change one, or every UUID moves.
+NAMESPACES = {"ne": uuid.UUID("5b0f8e0a-6f0e-4a55-9d0c-2a7f3c1e9b44"), "we": uuid.UUID("0f6c55d2-3b4e-4f51-a0de-6f2b0f1c7e3a")}
 # The release version shipped in template vendor metadata (and asserted against NE.VERSION in lib.js).
 VERSION = (ROOT.parent / "VERSION").read_text(encoding="utf-8").strip()
 DISCARD = "__NE_DISCARD__"
@@ -34,6 +44,43 @@ def uid(namespace: uuid.UUID, name: str) -> str:
     # Zabbix imports require v4-shaped UUIDs. Hashing keeps ownership reproducible.
     digest = hashlib.sha256(namespace.bytes + name.encode("utf-8")).digest()[:16]
     return uuid.UUID(bytes=digest, version=4).hex
+
+
+def product(technical: str) -> str:
+    """The product prefix of a native template's technical name, after checking the name and its visible name."""
+    assert TECHNICAL_NAME.fullmatch(technical), technical
+    return technical.split("_", 1)[0]
+
+
+def group(prefix: str) -> dict:
+    return {"uuid": uid(NAMESPACES[prefix], "group:" + GROUPS[prefix]), "name": GROUPS[prefix]}
+
+
+def split_exports(export: dict) -> dict[str, str]:
+    """One self-contained export per template, in a file named after its technical name, carrying only its own
+    template group. Nothing in an export refers to another template, so each file imports on its own."""
+    assert set(export) == {"version", "template_groups", "templates"}, sorted(export)
+    files = {}
+    for template in export["templates"]:
+        prefix = product(template["template"])
+        assert template["name"].startswith(PRODUCTS[prefix] + " - "), template["name"]
+        assert template["groups"] == [{"name": GROUPS[prefix]}], template["groups"]
+        files[template["template"] + ".yaml"] = dump({"zabbix_export": {
+            "version": export["version"], "template_groups": [group(prefix)], "templates": [template]}})
+    return files
+
+
+def write_native(outputs: dict[Path, str], check: bool, owns) -> None:
+    """Writes (or with check, compares) a generator's native exports, then deals with the files it owns, by
+    owns(path), but no longer writes: --check fails on them, a normal run removes them."""
+    write_outputs(outputs, check)
+    stale = sorted(path for folder in sorted({p.parent for p in outputs}) for path in folder.iterdir()
+                   if path not in outputs and owns(path))
+    if stale and check:
+        raise SystemExit("Stale generated files: " + ", ".join(str(p) for p in stale))
+    for path in stale:
+        path.unlink()
+        print(f"Removed stale {path}")
 
 
 def tags(dataset: str, data_source: str) -> list[dict]:
@@ -67,9 +114,16 @@ INTERFACE_IDENTITY = ("var seen={}; for(var i=0;i<e.data.length;i++){var r=e.dat
                       "seen[r.uid]=true;} ")
 
 
+# Hardware rows reach discovery as {#HWUID}, so the same rule applies to their uids.
+HARDWARE_IDENTITY = ("var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];"
+                     "if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||"
+                     "Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';"
+                     "seen[r.uid]=true;} ")
+
+
 def gate(schema: str, dataset: str, then: str = "return value;") -> str:
     """Throws (and the item discards the value) unless the envelope is a complete observation."""
-    identity = INTERFACE_IDENTITY if dataset == "interfaces" else ""
+    identity = {"interfaces": INTERFACE_IDENTITY, "hardware": HARDWARE_IDENTITY}.get(dataset, "")
     return (f"var e=JSON.parse(value); if(e.schema_version!=='{schema}'||e.dataset!=='{dataset}'||e.status!=='ok'||"
             "e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; "
             "if(typeof e.observed_at!=='string'||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/.test(e.observed_at)||"

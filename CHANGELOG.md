@@ -4,6 +4,30 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- The first vendor switch templates, each linked on its own instead of the Generic Switch, carrying everything the Generic Switch collects plus hardware health:
+  - `ne_cisco_small_business_switch`: SG350, SG350X, SG350XG, CBS350, C1200 and C1300.
+  - `ne_cisco_sg300_switch`: SG300 on firmware 1.4.
+  - `ne_dell_n_series_switch`: Dell N-Series on DNOS 6.
+  - `ne_dell_x_series_switch`: Dell X-Series.
+  Vendor templates are named `ne_<vendor>_<series>_switch`, and their visible name is `Network Explorer - ` and the same words in Title Case (`Network Explorer - Cisco Small Business Switch`). Each carries Port Capability disabled, because none of the captured models implements MAU-MIB.
+- The `hardware` dataset (canonical schema 1.2; the 1.1 datasets are unchanged) reports overall status, CPU, memory, power supplies, fans and temperature sensors per stack unit as the device judges them, against the device's own thresholds. Present parts are discovered (`ne.hw.psu.discovery`, `ne.hw.fan.discovery`, `ne.hw.temp.discovery`). CPU and memory alert on `{$NE.HW.CPU.UTIL.*}` and `{$NE.HW.MEMORY.UTIL.*}`. See [HARDWARE.md](templates/specifications/HARDWARE.md).
+- `tools/mib/collect_mibs.py` rebuilds `mib/` locally from the Observium Community Edition: the CISCOSB, RADLAN, Dell (N-Series, X-Series, PowerEdge VRTX switch module and chassis controller, S-Series), Force10, FASTPATH and UCD modules, plus the standard modules they import. Only `mib/README.md` and `mib/SHA256SUMS` are published; the modules stay with their authors' copyright.
+- `tools/qualification/anonymise.py` and 17 anonymised captured walks of Cisco Small Business, Cisco Catalyst 1200/1300, Dell N-Series and Dell X-Series switches under `tests/fixtures/qualification/`, with their rows in the qualification matrix.
+
+### Changed
+- **Breaking (installation):** every native template is its own file, named after it, in place of `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml`, and is named after its product: `ne_` (Network Explorer, switches) or `we_` (Wireless Explorer, access points), then its words in lowercase. The visible name is the product's name and the same words in Title Case. Each product's generic template has a double underscore, which sorts it and its file first.
+  - `Network Explorer - Generic Switch` is now `ne__generic_switch`, still shown as Network Explorer - Generic Switch.
+  - `Wi-Fi Explorer - Generic AP` is now `we__generic_access_point` (Wireless Explorer - Generic Access Point).
+  - `Wi-Fi Explorer - Aruba Instant VC by SNMP` is now `we_aruba_instant_virtual_controller` (Wireless Explorer - Aruba Instant Virtual Controller), and `Wi-Fi Explorer - Aruba Instant AP by SNMP` is now `we_aruba_instant_access_point` (Wireless Explorer - Aruba Instant Access Point).
+  - `Network Explorer - LLDP for access points` is now `we_lldp_for_access_points` (Wireless Explorer - LLDP for Access Points), in the `Templates/Wi-Fi Explorer` group, because it is linked to access points.
+
+  Every template keeps its UUIDs, so importing its file over 2.2.0 renames it in place with its host links, items, history and host dashboard (deployment guide, section 8.5). Item keys are unchanged.
+
+### Fixed
+- LAG: a port that reports its own ifIndex as its attached aggregator (every unbundled port on Cisco Small Business and Dell X-Series) is an individual port. It was reported as `lag_aggregator_unresolved`, which kept the LAG dataset partial and raised the stale-LAG trigger on those switches.
+- Device: a stack's empty slots (chassis entities with no name, model or serial) are no longer listed as stack members.
+
 ## [2.2.0] - 2026-10-16
 
 ### Added

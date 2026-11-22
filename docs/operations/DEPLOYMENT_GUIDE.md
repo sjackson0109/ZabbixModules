@@ -14,7 +14,7 @@ The most important fact first: **with the native SNMP templates, nothing has to 
 | Component | Installed on | What it is |
 |---|---|---|
 | Frontend package (7 module directories) | Every Zabbix frontend (web) container or server | The Network Explorer module, its five dashboard widgets and the Wi-Fi Explorer module. Wi-Fi Explorer is built on Network Explorer's services (permission-aware reads, validation, freshness, and the switch model it uses for AP uplinks and VLAN paths), so the seven directories are one package and are always installed together. Everything is read through the logged-in user's permissions. |
-| Native SNMP templates (2 files) | Imported once, through the frontend, into the Zabbix database | `network_explorer_snmp.yaml` for switches and `wifi_explorer_snmp.yaml` for access points (the generic AP template) and Aruba Instant clusters. Both are `walk[]` SNMP items with JavaScript preprocessing. They run on whichever proxy monitors the host, using the proxy's built-in SNMP poller and JavaScript engine. The switch, AP and cluster templates also carry each host's inherited host dashboard. |
+| Native SNMP templates (one file per template) | Imported once, through the frontend, into the Zabbix database | `ne__generic_switch.yaml` and the other `ne_*.yaml` files for switches, and `we__generic_access_point.yaml` and the other `we_*.yaml` files for access points and Aruba Instant clusters. All are `walk[]` SNMP items with JavaScript preprocessing. They run on whichever proxy monitors the host, using the proxy's built-in SNMP poller and JavaScript engine. The switch, AP and cluster templates also carry each host's inherited host dashboard. |
 | Python collector (optional fallback) | Only proxies that must reach switches native SNMP items can't | Frozen schema 1.0 fallback for switches only. **Not needed for normal operation.** See section 9. |
 
 So the custom Python libraries and OpenSSL builds in your proxy Dockerfiles are not required. The proxies need only:
@@ -190,15 +190,16 @@ If you run more than one frontend against the same database, every frontend must
 
 ## 4. Import the templates
 
-Unpack `network-explorer-templates-2.2.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import both files with **Data collection → Templates → Import**. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
+Unpack `network-explorer-templates-2.2.0.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import the files below with **Data collection → Templates → Import**, one at a time; each stands alone. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
 
-1. `network_explorer_snmp.yaml`: the switch templates. This creates the template group `Templates/Network Explorer` and two self-contained templates:
-   - `Network Explorer - Generic Switch`: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
-   - `Network Explorer - LLDP for access points`: LLDP only, for Wi-Fi access-point hosts (7.2). Never link it to a switch, or beside the Generic template.
-2. `wifi_explorer_snmp.yaml`: the Wi-Fi templates. This creates the template group `Templates/Wi-Fi Explorer` with the generic template and the Aruba Instant vendor templates:
-   - `Wi-Fi Explorer - Generic AP`: any access point that implements the standard MIBs (the IEEE 802.11 MIB above all), read at the AP's own address: the AP, its radios (band, channel, transmit power) and SSIDs, and a host dashboard of radios up by band. No standard MIB lists clients, channel utilisation or RF neighbours, so it collects none. One host per AP.
-   - `Wi-Fi Explorer - Aruba Instant VC by SNMP`: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address, and a cluster host dashboard (APs up and down, clients, channel utilisation and radios by band) built from Zabbix's own widgets. One host per cluster.
-   - `Wi-Fi Explorer - Aruba Instant AP by SNMP`: one AP's own RF view (the neighbouring access points it hears), read at that AP's own address. Optional, one host per AP.
+1. The switch templates, one self-contained template per file, in the template group `Templates/Network Explorer` (created by the first import):
+   - `ne__generic_switch.yaml`, **Network Explorer - Generic Switch**: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP and LAG), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
+   - `ne_cisco_sg300_switch.yaml`, `ne_cisco_small_business_switch.yaml`, `ne_dell_n_series_switch.yaml` and `ne_dell_x_series_switch.yaml`, the vendor switch templates (optional): everything the Generic Switch collects plus hardware health (CPU, memory where the MIBs give it, fans, power supplies and temperature) from the vendor's MIBs, with the same host dashboard. Link one *instead of* the Generic Switch, and only to a model and firmware the [qualification matrix](../qualification/MATRIX.md) lists; every other switch stays on the Generic Switch.
+2. The access-point templates, one self-contained template per file, in the template group `Templates/Wi-Fi Explorer` (created by the first import):
+   - `we__generic_access_point.yaml`, **Wireless Explorer - Generic Access Point**: any access point that implements the standard MIBs (the IEEE 802.11 MIB above all), read at the AP's own address: the AP, its radios (band, channel, transmit power) and SSIDs, and a host dashboard of radios up by band. No standard MIB lists clients, channel utilisation or RF neighbours, so it collects none. One host per AP.
+   - `we_aruba_instant_virtual_controller.yaml`, **Wireless Explorer - Aruba Instant Virtual Controller**: the whole cluster (device, AP inventory and state, radio inventory and state, SSIDs, clients, and the hourly capacity values) from AI-AP-MIB, read at the virtual-controller address, and a cluster host dashboard (APs up and down, clients, channel utilisation and radios by band) built from Zabbix's own widgets. One host per cluster.
+   - `we_aruba_instant_access_point.yaml`, **Wireless Explorer - Aruba Instant Access Point**: one AP's own RF view (the neighbouring access points it hears), read at that AP's own address. Optional, one host per AP.
+   - `we_lldp_for_access_points.yaml`, **Wireless Explorer - LLDP for Access Points**: Network Explorer's LLDP dataset only, for access-point hosts, so an AP confirms its own uplink (7.2). Never link it to a switch, or beside a switch template.
 
 Keep **Dashboards** ticked in the import rules (it is by default). The templates import whether or not the modules are enabled yet; until they are, the switch host dashboard shows its widgets as *Inaccessible widget*. The Wi-Fi dashboards need no module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
 
@@ -256,7 +257,7 @@ Pick one switch per data centre, ideally one with LLDP neighbours that are also 
 
 1. Make sure the host has an **SNMP interface** (v2c or v3) with working credentials, and is **Monitored by** the right proxy (or proxy group).
 2. Add the host tags **`ne.domain`** (2.4) and **`site`** (2.5).
-3. Link **`Network Explorer - Generic Switch`**. It is one self-contained template holding every switch item and the host dashboard.
+3. Link **`ne__generic_switch`** (Network Explorer - Generic Switch), or the vendor template its model is qualified for (section 4). It is one self-contained template holding every switch item and the host dashboard.
 
 The Network Explorer keys all start with `ne.`, so the templates coexist with existing SNMP templates such as the stock network templates. The switch is then walked by both, so expect more SNMP load on the device.
 
@@ -285,7 +286,7 @@ A quick machine check of the same data, as a logged-in user: `zabbix.php?action=
 
 ### 6.4 Roll out
 
-When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links `Network Explorer - Generic Switch`). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
+When the pilot switches in every data centre look right, enrol the rest in batches (a host group or a host prototype/auto-registration action that adds the `ne.domain` and `site` tags and links `ne__generic_switch`). Enrol at least the switches the APs plug into, and the path from them to the spanning-tree root, before relying on Wi-Fi Explorer's VLAN paths. Watch the proxies' SNMP poller and preprocessing busy rates after each batch.
 
 Ports to alert on, and expected speeds, are set with per-interface macros:
 
@@ -296,8 +297,8 @@ Ports to alert on, and expected speeds, are set with per-interface macros:
 
 Pick one Wi-Fi template per access point or cluster, never two for the same APs:
 
-- An Aruba Instant cluster: a cluster host with `Wi-Fi Explorer - Aruba Instant VC by SNMP` (7.1 and 7.2 below). It gives the most: clients and channel utilisation as well as APs, radios and SSIDs.
-- Any other access point that implements the IEEE 802.11 MIB: one host per AP with `Wi-Fi Explorer - Generic AP` (7.1a). Without a vendor template there are no clients, utilisation or RF neighbours for those APs.
+- An Aruba Instant cluster: a cluster host with `we_aruba_instant_virtual_controller` (Wireless Explorer - Aruba Instant Virtual Controller; 7.1 and 7.2 below). It gives the most: clients and channel utilisation as well as APs, radios and SSIDs.
+- Any other access point that implements the IEEE 802.11 MIB: one host per AP with `we__generic_access_point` (Wireless Explorer - Generic Access Point; 7.1a). Without a vendor template there are no clients, utilisation or RF neighbours for those APs.
 - Another vendor's controller or cluster: a vendor template built to the [Wi-Fi template requirements](../wifi-explorer/TEMPLATE_REQUIREMENTS.md), enrolled the way its template says.
 
 Start with one pilot cluster or AP whose access switches are already enrolled (section 6).
@@ -308,7 +309,7 @@ Start with one pilot cluster or AP whose access switches are already enrolled (s
 2. Add an **SNMP interface** at the cluster's **virtual-controller (AVC) address**, with the cluster's SNMP v2c community or v3 credentials. Do not use a member AP's address: on a member every cluster dataset reports *unsupported* (`not_virtual_controller`) and the page says so.
 3. Set **Monitored by** to a proxy that can reach the AVC address (5.4).
 4. Add the host tags **`site`** with the same value as the switches the APs plug into (2.5), and **`ne.domain`** with the same value as those switches (2.4).
-5. Link **`Wi-Fi Explorer - Aruba Instant VC by SNMP`**.
+5. Link **`we_aruba_instant_virtual_controller`** (Wireless Explorer - Aruba Instant Virtual Controller).
 6. Set the client macros on the host (or globally, under Administration → General → Macros, if one policy covers every cluster):
    - `{$WE.CLIENT.IDENTIFIERS}`: `partial` (default), `pseudonymised` or `full` (2.8).
    - With `pseudonymised`, also `{$WE.CLIENT.KEY}` as a **Secret text** macro holding a long random value (for example the output of `openssl rand -hex 32`). Keep the same key across clusters and over time so the same client keeps the same pseudonym. Without a key, `pseudonymised` falls back to `partial` rather than storing full identifiers.
@@ -318,7 +319,7 @@ Start with one pilot cluster or AP whose access switches are already enrolled (s
 1. **Data collection → Hosts → Create host** per AP, named like the AP (Wi-Fi Explorer matches APs to switch ports and floor placements by identity, but people find them by name). Use the same host group rule as 7.1.
 2. Add an **SNMP interface** at the AP's own address, with its SNMP v2c community or v3 credentials, and set **Monitored by** to a proxy that can reach it.
 3. Add the same **`site`** and **`ne.domain`** tags as the switches it plugs into.
-4. Link **`Wi-Fi Explorer - Generic AP`**. For confirmed uplinks also link **`Network Explorer - LLDP for access points`** (7.2).
+4. Link **`we__generic_access_point`** (Wireless Explorer - Generic Access Point). For confirmed uplinks also link **`we_lldp_for_access_points`** (7.2).
 
 In Latest data, `we.device.attempt` should hold `"status":"ok"`. If it holds `"status":"unsupported"` with `not_wifi_ap`, the AP does not expose the IEEE 802.11 MIB: unlink the generic template and use a vendor template for it.
 
@@ -326,8 +327,8 @@ In Latest data, `we.device.attempt` should hold `"status":"ok"`. If it holds `"s
 
 Two Wi-Fi features need a host per AP, at the AP's own address. Skip this unless you want them.
 
-- **RF neighbours tab** (which other access points each AP hears): link **`Wi-Fi Explorer - Aruba Instant AP by SNMP`** to the AP's host, with the same SNMP credentials as the cluster. Name the host like the AP, or give its SNMP interface the AP's address, so Wi-Fi Explorer can tell which AP it observes.
-- **Confirmed uplinks** (the AP's own LLDP agreeing with the switch's): also link **`Network Explorer - LLDP for access points`** to the AP's host, with the same `ne.domain` and `site` tags as the switches. Without it, uplinks are still found from the switches' LLDP (shown as *switch only*), which covers most APs.
+- **RF neighbours tab** (which other access points each AP hears): link **`we_aruba_instant_access_point`** (Wireless Explorer - Aruba Instant Access Point) to the AP's host, with the same SNMP credentials as the cluster. Name the host like the AP, or give its SNMP interface the AP's address, so Wi-Fi Explorer can tell which AP it observes.
+- **Confirmed uplinks** (the AP's own LLDP agreeing with the switch's): also link **`we_lldp_for_access_points`** (Wireless Explorer - LLDP for Access Points) to the AP's host, with the same `ne.domain` and `site` tags as the switches. Without it, uplinks are still found from the switches' LLDP (shown as *switch only*), which covers most APs.
 
 Give each AP host the same host group as its cluster host, so the same users can read both.
 
@@ -369,22 +370,22 @@ Enrol the other clusters the same way, each with its site's `site` tag. Watch th
 
 ## 8. Upgrade and rollback
 
-Upgrade the frontend package and both template files together: a new frontend expects the item keys and schema versions of the matching templates. Do it on the test server first.
+Upgrade the frontend package and the template files together: a new frontend expects the item keys and schema versions of the matching templates. Do it on the test server first.
 
 ### 8.1 Upgrade
 
-1. Back up as in section 2, and export the `Network Explorer -` and `Wi-Fi Explorer -` templates (Data collection → Templates, select them, Export). Copy the Wi-Fi configuration document from **Configure** into a file too; it holds your floors, AP positions, SSID intent and events.
+1. Back up as in section 2, and export the templates in the `Templates/Network Explorer` and `Templates/Wi-Fi Explorer` groups (Data collection → Templates, filter by group, select them, Export). Copy the Wi-Fi configuration document from **Configure** into a file too; it holds your floors, AP positions, SSID intent and events.
 2. **Frontend.**
    - Copy into the mounted modules directory (3.1): rerun the 3.1 commands with the new `RELEASE`, then `docker compose up -d --force-recreate <web service>`.
    - Per-module bind mounts (3.2): unpack the new version into `/opt/zabbix/network-explorer/<new>/`, `chmod -R a+rX` it, repoint the `current` symlink and run `docker compose up -d --force-recreate zabbix-web`.
    - Derived image: build the new tag and redeploy the web container with it.
    - Package install: replace the seven directories in place.
 3. **Re-scan modules** (Administration → General → Modules → Scan directory) if the release notes add or rename a module. Module IDs do not change between releases, so a plain upgrade normally needs no re-scan and the modules stay enabled. Make sure all seven directories are in place before any scan: a scan removes modules whose directory is missing, and removing Wi-Fi Explorer's entry discards its configuration document.
-4. **Templates.** Import the new `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml` with *Update existing* ticked. Leave *Delete missing* unticked unless the release notes tell you to remove retired items; deleting items deletes their history.
+4. **Templates.** Import each new template file you use (`ne_*.yaml` for switches, `we_*.yaml` for access points) with *Update existing* ticked. Leave *Delete missing* unticked unless the release notes tell you to remove retired items; deleting items deletes their history.
 5. Ask users to reload the page (Ctrl+F5) so browsers fetch the new widget JavaScript and CSS.
 6. Repeat the checks in 6.2 and 6.3 on the pilot switches, and 7.3 and 7.4 on the pilot cluster.
 
-Upgrading from 1.4.0 or earlier also needs 8.3, and from 2.0.0 or earlier 8.4.
+Upgrading from 1.4.0 or earlier also needs 8.3, from 2.0.0 or earlier 8.4, and from 2.2.0 or earlier 8.5.
 
 Proxies need nothing for a frontend or template upgrade; they receive the new item configuration automatically. When you upgrade Zabbix itself (for example 7.4 to a later release), upgrade server, proxies and frontend as Zabbix documents, then import the templates from the matching `templates/native/<version>/` directory if one is provided.
 
@@ -399,21 +400,39 @@ Proxies need nothing for a frontend or template upgrade; they receive the new it
 
 Up to 1.4.0, switches were linked to `Network Explorer - Profile - Generic standard MIB`, which linked seven per-dataset templates (`Base`, `Interfaces`, `Port Capability`, `LLDP`, `VLAN`, `STP`, `LAG`). From 2.0.0 each device type has one self-contained template instead. Item keys are unchanged, so hosts keep their items and history if you swap the templates as below. Verified on a Zabbix 7.4.3 lab: every host kept the same item IDs and kept collecting, and history from before the swap was still there.
 
-1. Import the new `network_explorer_snmp.yaml` (8.1 step 4). It adds `Network Explorer - Generic Switch` and `Network Explorer - LLDP for access points` beside the old templates; nothing changes on hosts yet.
+1. Import the new `ne__generic_switch.yaml` and `we_lldp_for_access_points.yaml` (8.1 step 4). They add `ne__generic_switch` and `we_lldp_for_access_points` beside the old templates; nothing changes on hosts yet.
 2. Swap each switch's template. Either:
-   - **One host:** open it, remove `Network Explorer - Profile - Generic standard MIB` from **Templates** with its ×, add `Network Explorer - Generic Switch`, and click **Update**, all in the one save; or
-   - **Many hosts:** select them in Data collection → Hosts → **Mass update** → Templates: first **Unlink** `Network Explorer - Profile - Generic standard MIB` with **Clear when unlinking unticked**, then a second mass update to **Link** `Network Explorer - Generic Switch`. Do not use **Replace**: it also unlinks every other template on those hosts.
+   - **One host:** open it, remove `Network Explorer - Profile - Generic standard MIB` from **Templates** with its ×, add `ne__generic_switch`, and click **Update**, all in the one save; or
+   - **Many hosts:** select them in Data collection → Hosts → **Mass update** → Templates: first **Unlink** `Network Explorer - Profile - Generic standard MIB` with **Clear when unlinking unticked**, then a second mass update to **Link** `ne__generic_switch`. Do not use **Replace**: it also unlinks every other template on those hosts.
 
    Never tick *Clear when unlinking* and never use *Unlink and clear*: that deletes the items and their history. Unlinked items stay on the host until the new template adopts them by key.
-3. Do the same on Wi-Fi access-point hosts linked to `Network Explorer - LLDP`, swapping it for `Network Explorer - LLDP for access points`.
+3. Do the same on Wi-Fi access-point hosts linked to `Network Explorer - LLDP`, swapping it for `we_lldp_for_access_points`.
 4. When no host is linked to them any more (each template's **Linked hosts** is empty), delete the eight old templates in Data collection → Templates with **Delete**, not *Delete and clear*.
 
 ### 8.4 From 2.0.0 or earlier: renamed switch template, no separate dashboard template
 
-In 2.0.0 the switch template was called `Network Explorer - Generic standard MIB`, and the switch host dashboard was a separate template, `Network Explorer - Host dashboard` (`network_explorer_dashboard.yaml`). From 2.1.0 the switch template is `Network Explorer - Generic Switch` and carries the dashboard itself, so a switch still linked to the old dashboard template shows two *Network Explorer* dashboards.
+In 2.0.0 the switch template was called `Network Explorer - Generic standard MIB`, and the switch host dashboard was a separate template, `Network Explorer - Host dashboard` (`network_explorer_dashboard.yaml`). From 2.1.0 the switch template (`Network Explorer - Generic Switch`, now `ne__generic_switch`) carries the dashboard itself, so a switch still linked to the old dashboard template shows two *Network Explorer* dashboards.
 
-1. Import the new `network_explorer_snmp.yaml` with **Dashboards** ticked (8.1 step 4). It renames `Network Explorer - Generic standard MIB` to `Network Explorer - Generic Switch` in place: same template, same host links, items and history, so there is nothing to relink.
+1. Import the new `ne__generic_switch.yaml` with **Dashboards** ticked (8.1 step 4). It renames `Network Explorer - Generic standard MIB` to `ne__generic_switch` in place: same template, same host links, items and history, so there is nothing to relink.
 2. In Data collection → Templates, select `Network Explorer - Host dashboard` and click **Delete**. It holds no items, so nothing is lost; deleting it unlinks it from every host and removes its dashboard, leaving the one from the Generic template.
+
+### 8.5 From 2.2.0 or earlier: one file per template, new template names
+
+Up to 2.2.0 the templates came in two files, `network_explorer_snmp.yaml` (the switch template and the access-point LLDP template) and `wifi_explorer_snmp.yaml` (the Wi-Fi templates). Each template now has its own file named after it, and a new name:
+
+| Up to 2.2.0 | Now | Shown as |
+|---|---|---|
+| `Network Explorer - Generic Switch` | `ne__generic_switch` | Network Explorer - Generic Switch |
+| `Network Explorer - LLDP for access points` | `we_lldp_for_access_points` | Wireless Explorer - LLDP for Access Points |
+| `Wi-Fi Explorer - Generic AP` | `we__generic_access_point` | Wireless Explorer - Generic Access Point |
+| `Wi-Fi Explorer - Aruba Instant VC by SNMP` | `we_aruba_instant_virtual_controller` | Wireless Explorer - Aruba Instant Virtual Controller |
+| `Wi-Fi Explorer - Aruba Instant AP by SNMP` | `we_aruba_instant_access_point` | Wireless Explorer - Aruba Instant Access Point |
+
+The access-point LLDP template also moves from the `Templates/Network Explorer` group to `Templates/Wi-Fi Explorer`. Every template keeps its UUIDs, so an import renames it in place. Verified on Zabbix 7.0.20 and 7.4.3 labs: each template kept its ID, took its new name and group, and hosts linked to it stayed linked with the same item IDs and host dashboard.
+
+1. Import the new file of each template you use (8.1 step 4), with **Dashboards** ticked. Each renames its template in place: same template, host links, items, history and host dashboard, so there is nothing to relink.
+2. Update anything that looks these templates up by name, such as API scripts or your own runbooks. Host links refer to the template itself, so they follow the rename.
+3. Do not import `network_explorer_snmp.yaml` or `wifi_explorer_snmp.yaml` from an earlier release again unless you are rolling back (8.2): they rename the templates back.
 
 ## 9. Optional: the Python collector on a proxy
 

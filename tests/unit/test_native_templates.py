@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("native_templates", ROOT / "templates/generate_snmp.py")
 GEN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GEN)
+WIFI_SPEC = importlib.util.spec_from_file_location("native_wifi_templates", ROOT / "templates/generate_wifi.py")
+WIFI = importlib.util.module_from_spec(WIFI_SPEC)
+WIFI_SPEC.loader.exec_module(WIFI)
 FIXTURES = ROOT / "tests/fixtures/walks"
 VERSIONS = ("7.0", "7.2", "7.4")
 
@@ -61,23 +64,49 @@ def apply(steps: list[dict], value: str) -> str | None:
     return value
 
 
-def attempt(raw_key: str, fixture: str) -> str:
-    walk = subprocess.run(["node", str(ROOT / "tests/js/run_normaliser.cjs"), raw_key, str(FIXTURES / fixture), "--walk-only"],
+def entry_for(raw_key: str) -> dict:
+    return next(e for e in GEN.manifest() if e["raw_key"] == raw_key)
+
+
+def owner(raw_key: str) -> dict:
+    """The first template that holds this producer: canonical keys repeat across templates, raw keys never do."""
+    return next(t for t in templates().values() if any(i["key"] == raw_key for i in t["items"]))
+
+
+def attempt(raw_key: str, fixture: str | Path) -> str:
+    path = fixture if isinstance(fixture, Path) else FIXTURES / fixture
+    walk = subprocess.run(["node", str(ROOT / "tests/js/run_normaliser.cjs"), raw_key, str(path), "--walk-only"],
                           text=True, capture_output=True, check=True).stdout.rstrip("\n")
-    item = next(i for i in all_items() if i["key"] == GEN.manifest()[[d["raw_key"] for d in GEN.manifest()].index(raw_key)]["attempt_key"])
+    key = entry_for(raw_key)["attempt_key"]
+    item = next(i for i in owner(raw_key)["items"] if i["key"] == key)
     return apply(item["preprocessing"], walk)
+
+
+def generic_producer(entry: dict) -> bool:
+    return "templates" not in entry
 
 
 @pytest.mark.parametrize("version", VERSIONS)
 def test_generated_exports_are_current(version):
-    path = ROOT / "templates/native" / version / "network_explorer_snmp.yaml"
-    assert path.read_text() == GEN.render(version)
-    assert yaml.safe_load(path.read_text())["zabbix_export"]["version"] == version
+    files = GEN.render(version)
+    # One file per template, named after it, and no stale export beside them.
+    assert sorted(files) == sorted(p["template"] + ".yaml" for p in GEN.PROFILES)
+    folder = ROOT / "templates/native" / version
+    # The native folder holds exactly the two generators' files: ne_ switches, we_ access points.
+    assert sorted(p.name for p in folder.iterdir()) == sorted([*files, *WIFI.render(version)])
+    assert not any((folder / name).exists() for name in GEN.LEGACY_EXPORTS + WIFI.LEGACY_EXPORTS)
+    for name, text in files.items():
+        assert (folder / name).read_text(encoding="utf-8") == text, name
+        export = yaml.safe_load(text)["zabbix_export"]
+        assert export["version"] == version
+        assert [t["template"] + ".yaml" for t in export["templates"]] == [name]
+        # Each file carries only its own template group, the one its prefix names.
+        assert [g["name"] for g in export["template_groups"]] == [g["name"] for g in export["templates"][0]["groups"]]
 
 
 def test_generic_template_carries_the_host_dashboard():
     templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
-    assert "dashboards" not in templates[GEN.PREFIX + "LLDP for access points"]
+    assert "dashboards" not in templates["we_lldp_for_access_points"]
     dashboards = templates[GEN.PROFILE]["dashboards"]
     assert len(dashboards) == 1
     kinds = {w["type"] for page in dashboards[0]["pages"] for w in page["widgets"]}
@@ -106,17 +135,26 @@ def test_uuids_are_unique_v4_and_keys_unique_per_template():
 def test_one_flat_template_per_device_type_owns_every_dataset():
     # Linking templates beside each other must never be needed: each exported template is self-contained.
     exported = templates()
-    assert set(exported) == {p["name"] for p in GEN.PROFILES}
+    assert set(exported) == {p["template"] for p in GEN.PROFILES}
     for template in exported.values():
         assert "templates" not in template
+    for profile in GEN.PROFILES:
+        keys = {i["key"] for i in exported[profile["template"]]["items"]}
+        for short in profile["components"]:
+            mine = GEN.producers(profile, short, GEN.manifest())
+            # Exactly one producer per dataset in each template, so every canonical key has one owner.
+            assert mine and len({GEN.producer(e) for e in mine}) == len(mine), (profile["template"], short)
+            for entry in mine:
+                for key in [entry["raw_key"], entry["attempt_key"], *entry["snapshot_keys"]]:
+                    assert key in keys, (profile["template"], key)
     generic = exported[GEN.PROFILE]
     keys = {i["key"] for i in generic["items"]}
-    for entry in GEN.manifest():
+    for entry in filter(generic_producer, GEN.manifest()):
         for key in [entry["raw_key"], entry["attempt_key"], *entry["snapshot_keys"]]:
             assert key in keys
     assert [r["key"] for r in generic["discovery_rules"]] == ["ne.interfaces.discovery"]
     # A narrower template holds exactly its own datasets.
-    lldp = exported["Network Explorer - LLDP for access points"]
+    lldp = exported["we_lldp_for_access_points"]
     lldp_keys = {i["key"] for i in generic["items"] if {"tag": "dataset", "value": "lldp"} in i["tags"]}
     assert {i["key"] for i in lldp["items"]} == lldp_keys
 
@@ -141,7 +179,7 @@ def test_javascript_steps_never_rely_on_custom_on_fail():
 
 
 def test_no_credentials_or_secret_macros_in_templates():
-    text = GEN.render("7.0").lower()
+    text = "\n".join(GEN.render("7.0").values()).lower()
     for needle in ("community", "{$snmp_community", "authpassphrase", "privpassphrase", "password"):
         assert needle not in text
 
@@ -149,7 +187,7 @@ def test_no_credentials_or_secret_macros_in_templates():
 def test_attempt_scripts_emit_the_same_envelope_as_the_node_runner():
     if shutil.which("node") is None:
         pytest.skip("Node is needed")
-    for entry in GEN.manifest():
+    for entry in filter(generic_producer, GEN.manifest()):
         envelope = json.loads(attempt(entry["raw_key"], "sw-core-01.snmprec"))
         assert envelope["status"] == "ok", (entry["raw_key"], envelope["errors"])
         assert envelope["dataset"] == entry["dataset"]
@@ -194,8 +232,8 @@ def test_unsupported_dataset_does_not_raise_stale_trigger():
 @pytest.mark.parametrize("version", VERSIONS)
 def test_scripts_are_literal_blocks_never_folded(version):
     # Zabbix's YAML import inserts a space at each escaped line fold, which broke a regex literal in a script.
-    for name in ("network_explorer_snmp.yaml", "wifi_explorer_snmp.yaml"):
-        text = (ROOT / "templates/native" / version / name).read_text()
+    for name in [*GEN.render(version), *WIFI.render(version)]:
+        text = (ROOT / "templates/native" / version / name).read_text(encoding="utf-8")
         assert not any(line.endswith("\\") for line in text.splitlines()), name
         for token in yaml.scan(text):
             if isinstance(token, yaml.ScalarToken) and "\n" in token.value:
@@ -214,7 +252,7 @@ def test_versions_follow_the_release():
 def test_restart_trigger_ignores_a_sysuptime_wrap():
     item = next(i for i in all_items() if i["key"] == "ne.device.uptime")
     expression = item["triggers"][0]["expression"]
-    uptime = "/Network Explorer - Generic Switch/ne.device.uptime"
+    uptime = "/ne__generic_switch/ne.device.uptime"
     assert expression == f"last({uptime})<600 and last({uptime},#2)<{2**32 // 100 - 86400}"
     bound = int(expression.rsplit("<", 1)[1])
     # The hourly poll before a wrap is above the bound, so the drop to near zero is not a restart.
@@ -231,3 +269,109 @@ def test_javascript_is_ecmascript_5_for_duktape():
             for step in item.get("preprocessing", []):
                 if step["type"] == "JAVASCRIPT":
                     dukpy.evaljs("new Function('value', dukpy['script']); true", script=step["parameters"][0])
+
+
+CAPTURES = ROOT / "tests/fixtures/qualification"
+VENDOR = [p for p in GEN.PROFILES if p["template"] != GEN.PROFILE and p["template"].endswith("_switch")]
+# Short words that stay lowercase inside a Title Case name.
+MINOR_WORDS = {"for", "and", "of", "to"}
+
+
+PRODUCTS = {"ne": ("Network Explorer", "Templates/Network Explorer", "ne__generic_switch"),
+            "we": ("Wireless Explorer", "Templates/Wi-Fi Explorer", "we__generic_access_point")}
+
+
+def test_template_names_follow_the_convention():
+    import re
+    assert VENDOR
+    exported = [t for build in (GEN.build, WIFI.build) for t in build("7.4")["zabbix_export"]["templates"]]
+    generics = {generic for _, _, generic in PRODUCTS.values()}
+    for template in exported:
+        technical, visible = template["template"], template["name"]
+        prefix = technical.split("_", 1)[0]
+        product, group, generic = PRODUCTS[prefix]
+        assert re.fullmatch(r"(ne|we)_[a-z0-9]+(_[a-z0-9]+)+", technical.replace("__", "_", 1)), technical
+        # Only each product's generic template has the double underscore, which sorts it (and its file) first.
+        assert ("__" in technical) == (technical in generics), technical
+        # Access points are Wi-Fi Explorer's, switches Network Explorer's, whichever generator builds them.
+        assert template["groups"] == [{"name": group}], technical
+        # The visible name is the product, then the same words in Title Case; a model code such as SG300 or an
+        # acronym such as LLDP keeps its capitals.
+        shown_product, _, title = visible.partition(" - ")
+        assert shown_product == product, visible
+        words = technical[len(prefix) + 1:].lstrip("_").split("_")
+        assert title.lower().split(" ") == words, visible
+        assert all(shown in (word.title(), word.upper()) or (shown == word and word in MINOR_WORDS and i)
+                   for i, (shown, word) in enumerate(zip(title.split(" "), words))), visible
+    for prefix, (_, _, generic) in PRODUCTS.items():
+        assert sorted(t["template"] for t in exported if t["template"].startswith(prefix + "_"))[0] == generic
+    assert GEN.PROFILE == "ne__generic_switch"
+
+
+def test_port_capability_ships_disabled_in_vendor_templates_only():
+    exported = templates()
+    capability = {"tag": "dataset", "value": "port_capability"}
+    generic = [i for i in exported[GEN.PROFILE]["items"] if capability in i["tags"]]
+    assert generic and all("status" not in i for i in generic)
+    for profile in VENDOR:
+        items = [i for i in exported[profile["template"]]["items"] if capability in i["tags"]]
+        assert items and all(i["status"] == "DISABLED" for i in items), profile["template"]
+        others = [i for i in exported[profile["template"]]["items"] if capability not in i["tags"]]
+        assert all("status" not in i for i in others)
+
+
+def test_schema_versions_match_lib_js():
+    import re
+    lib = (ROOT / "templates/source/js/lib.js").read_text(encoding="utf-8")
+    declared = dict(re.findall(r"(\w+): '([0-9.]+)'", re.search(r"^NE\.SCHEMAS = \{([^}]*)\};", lib, re.M).group(1)))
+    assert declared == GEN.SCHEMAS
+
+
+def hardware_template(raw_key: str) -> dict:
+    return owner(raw_key)
+
+
+def substitute(steps: list[dict], macro: str, value: str) -> list[dict]:
+    return [dict(s, parameters=[p.replace(macro, value) for p in s["parameters"]]) for s in steps]
+
+
+@pytest.mark.parametrize("raw_key, label, fans, cpu5m", [
+    ("ne.raw.hw.ciscosb", "cisco-sg350x-48p-2.5.9.54", 3, "4"),
+    ("ne.raw.hw.dnos6", "dell-n4064-6.5.4.23", 6, "5"),
+])
+def test_hardware_snapshot_feeds_discovery_and_scalars(raw_key, label, fans, cpu5m):
+    template = hardware_template(raw_key)
+    items = {i["key"]: i for i in template["items"]}
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    envelope = attempt(raw_key, CAPTURES / label / "capture.snmprec")
+    assert apply(items["ne.hardware.snapshot"]["preprocessing"], envelope) == envelope
+    assert apply(items["ne.hw.cpu.util[5m]"]["preprocessing"], envelope) == cpu5m
+    found = json.loads(apply(rules["ne.hw.fan.discovery"]["preprocessing"], envelope))
+    assert len(found) == fans
+    prototypes = {p["key"]: p for p in rules["ne.hw.fan.discovery"]["item_prototypes"]}
+    state = substitute(prototypes["ne.hw.fan.state[{#HWUID}]"]["preprocessing"], "{#HWUID}", found[0]["uid"])
+    assert apply(state, envelope) == "0"  # ok
+    speed = substitute(prototypes["ne.hw.fan.speed[{#HWUID}]"]["preprocessing"], "{#HWUID}", found[0]["uid"])
+    assert int(apply(speed, envelope)) > 0
+    gone = substitute(prototypes["ne.hw.fan.state[{#HWUID}]"]["preprocessing"], "{#HWUID}", "fan-999")
+    assert apply(gone, envelope) is None  # an absent part keeps its last value
+    temperatures = json.loads(apply(rules["ne.hw.temp.discovery"]["preprocessing"], envelope))
+    value = {p["key"]: p for p in rules["ne.hw.temp.discovery"]["item_prototypes"]}["ne.hw.temp.value[{#HWUID}]"]
+    assert float(apply(substitute(value["preprocessing"], "{#HWUID}", temperatures[0]["uid"]), envelope)) > 0
+
+
+def test_hardware_discovery_skips_unreadable_sensors_and_missing_parts():
+    template = hardware_template("ne.raw.hw.ciscosb.v1")
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    envelope = attempt("ne.raw.hw.ciscosb.v1", CAPTURES / "cisco-sg300-28pp-1.4.11.5" / "capture.snmprec")
+    assert json.loads(apply(rules["ne.hw.temp.discovery"]["preprocessing"], envelope)) == []
+    assert [f["name"] for f in json.loads(apply(rules["ne.hw.fan.discovery"]["preprocessing"], envelope))] == ["fan1_unit1"]
+    assert "ne.hw.memory.util" not in {i["key"] for i in template["items"]}  # no memory source on this family
+
+
+def test_hardware_gate_rejects_unsafe_identity():
+    template = hardware_template("ne.raw.hw.ciscosb")
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    envelope = json.loads(attempt("ne.raw.hw.ciscosb", CAPTURES / "cisco-sg350x-48p-2.5.9.54" / "capture.snmprec"))
+    envelope["data"][-1]["uid"] = "fan-1\"]"
+    assert apply(rules["ne.hw.fan.discovery"]["preprocessing"], json.dumps(envelope)) is None

@@ -35,8 +35,12 @@ function normaliseDevice(walk, env) {
     var members = [];
     for (var i = 0; i < chassis.length; i++) {
         k = String(chassis[i]);
-        members.push({member: blank(NE.text(names[k] || null)) || chassis[i],
-                      model: blank(NE.text(models[k] || null)), serial: blank(NE.text(serials[k] || null)),
+        var name = blank(NE.text(names[k] || null)), model = blank(NE.text(models[k] || null));
+        var serial = blank(NE.text(serials[k] || null));
+        // Stackable units list a chassis entity for every possible stack slot; an empty slot
+        // has no name, model or serial and is not a member.
+        if (name === null && model === null && serial === null) { continue; }
+        members.push({member: name || chassis[i], model: model, serial: serial,
                       firmware: blank(NE.text(soft[k] || null)), role: 'unknown'});
     }
     var first = members.length ? members[0] : {model: null, serial: null, firmware: null};

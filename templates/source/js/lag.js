@@ -36,11 +36,14 @@ function normaliseLag(walk, env) {
         if (types.hasOwnProperty(k) && NE.int(types[k]) === 161 && !aggs[k]) { aggs[k] = 'unknown'; }
     }
     // Members: LACP attachment first, otherwise active ifStack children.
+    // A port attached to its own ifIndex is an individual port: RADLAN agents (Cisco
+    // Small Business, Dell X-Series) report every unbundled port that way, and 0 means
+    // the same thing elsewhere. Neither is a bundle membership.
     var members = {};
     for (k in t.attached) {
         if (!t.attached.hasOwnProperty(k)) { continue; }
         var agg = String(NE.int(t.attached[k]));
-        if (agg === '0') { continue; }
+        if (agg === '0' || agg === k) { continue; }
         if (!aggs[agg]) {
             NE.error(env, 'lag_aggregator_unresolved', 'A LAG member references an aggregator that was not walked.');
             continue;

@@ -1,0 +1,82 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "ok",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "unsupported",
+      "mau": "unsupported",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 36,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 36,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 8,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 37,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 51,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-1",
+    "system": {
+      "sys_descr": "24-Port Gigabit PoE Smart Switch",
+      "sys_object_id": "1.3.6.1.4.1.9.6.1.1009.28.5"
+    }
+  },
+  "description": "Cisco CBS220-24P-4G, 28 ports, firmware 2.0.2.15. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
+  "device": {
+    "family": "Business 220",
+    "firmware": "2.0.2.15",
+    "model": "CBS220-24P-4G",
+    "vendor": "Cisco"
+  },
+  "id": "cisco-cbs220-24p-4g-2.0.2.15",
+  "kind": "captured",
+  "walk": "capture.snmprec"
+}
