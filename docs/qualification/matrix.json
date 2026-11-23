@@ -14,7 +14,9 @@
         "lldp": "Lab simulated",
         "vlan": "Lab simulated",
         "stp": "Lab simulated",
-        "lag": "Lab simulated"
+        "lag": "Lab simulated",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "Invented devices (tests/fixtures/walks), replayed through the native templates and the Zabbix 7.0/7.2/7.4 lab. Qualifies the parsers and templates only, never a vendor, model or firmware.",
       "evidence": [
@@ -38,7 +40,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "Any model or firmware without its own row below is unqualified. Legacy SF/SG and CBS are separate profiles; no Catalyst assumptions.",
       "evidence": [],
@@ -56,7 +60,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. LLDP needs lldp run; PVST+ STP and VLAN data need per-VLAN contexts; CDP is not read yet.",
       "evidence": [],
@@ -74,7 +80,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -94,7 +102,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -114,7 +124,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -134,9 +146,11 @@
         "lldp": "Unsupported",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Unqualified",
+        "poe": "Captured-walk tested"
       },
-      "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. LLDP-MIB exposes only configuration, statistics and local-system scalars: no port or remote tables. MAU-MIB is not implemented, so port capability is unsupported.",
+      "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. LLDP-MIB exposes only configuration, statistics and local-system scalars: no port or remote tables. MAU-MIB is not implemented, so port capability is unsupported. Hardware health is unqualified: the capture did not walk CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series, so the template ships it disabled.",
       "evidence": [
         "cisco-cbs220-24p-4g-2.0.2.15"
       ],
@@ -154,7 +168,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -174,7 +190,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -194,7 +212,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -214,7 +234,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -234,9 +256,11 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Partially qualified",
+        "poe": "Captured-walk tested"
       },
-      "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported. Two virtual interfaces (ifType 53) are both named '1', so both are skipped as identity_ambiguous.",
+      "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported. Two virtual interfaces (ifType 53) are both named '1', so both are skipped as identity_ambiguous. Hardware: the unit reports its temperature sensor as unreadable and lists no power supply, so only CPU and fans are monitored.",
       "evidence": [
         "cisco-sg300-28pp-1.4.11.5"
       ],
@@ -254,7 +278,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -274,7 +300,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -294,7 +322,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -314,7 +344,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
       "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -334,7 +366,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Unsupported"
       },
       "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -354,7 +388,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. Older firmware may lack ifXTable columns.",
       "evidence": [],
@@ -372,7 +408,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "Any model or firmware without its own row below is unqualified. Must be split from PowerConnect by full sysObjectID.",
       "evidence": [],
@@ -390,7 +428,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. Two operating systems; VLT needs a multi-chassis LAG representation.",
       "evidence": [],
@@ -408,9 +448,11 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Unsupported",
-        "lag": "Captured-walk tested"
+        "lag": "Captured-walk tested",
+        "hardware": "Captured-walk tested",
+        "poe": "Captured-walk tested"
       },
-      "limitations": "No entAliasMappingTable, so ports cannot be placed from ENTITY-MIB. MAU-MIB is not implemented, so port capability is unsupported. BRIDGE-MIB dot1dStp is not implemented (STP is in a Dell private MIB the templates do not read). No port was attached to an aggregator when captured.",
+      "limitations": "No entAliasMappingTable, so ports cannot be placed from ENTITY-MIB. MAU-MIB is not implemented, so port capability is unsupported. BRIDGE-MIB dot1dStp is not implemented (STP is in a Dell private MIB the templates do not read). No port was attached to an aggregator when captured. Every PoE port reports pethPsePortPowerPriority 4, outside RFC 3621's 1-3, so its priority is shown as unknown.",
       "evidence": [
         "dell-n1548p-6.8.1.9"
       ],
@@ -428,7 +470,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Unsupported",
-        "lag": "Captured-walk tested"
+        "lag": "Captured-walk tested",
+        "hardware": "Captured-walk tested",
+        "poe": "Unsupported"
       },
       "limitations": "No entAliasMappingTable, so ports cannot be placed from ENTITY-MIB. MAU-MIB is not implemented, so port capability is unsupported. BRIDGE-MIB dot1dStp is not implemented (STP is in a Dell private MIB the templates do not read).",
       "evidence": [
@@ -448,7 +492,9 @@
         "lldp": "Captured-walk tested",
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
-        "lag": "Partially qualified"
+        "lag": "Partially qualified",
+        "hardware": "Captured-walk tested",
+        "poe": "Unsupported"
       },
       "limitations": "ENTITY-MIB lists every port as a root entity (entPhysicalContainedIn 0), so ports get no member or slot. Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. MAU-MIB is not implemented, so port capability is unsupported.",
       "evidence": [
@@ -468,7 +514,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. Smart-managed models may lack LLDP or Q-BRIDGE over SNMP.",
       "evidence": [],
@@ -486,7 +534,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. Smart-managed lines may expose a reduced set.",
       "evidence": [],
@@ -504,7 +554,9 @@
         "lldp": "Unqualified",
         "vlan": "Unqualified",
         "stp": "Unqualified",
-        "lag": "Unqualified"
+        "lag": "Unqualified",
+        "hardware": "Unqualified",
+        "poe": "Unqualified"
       },
       "limitations": "No captured walk yet. UniFi VLAN data may be available only from the controller.",
       "evidence": [],

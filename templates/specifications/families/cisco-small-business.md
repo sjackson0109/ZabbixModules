@@ -1,6 +1,6 @@
 # Cisco small-business: production template handoff
 
-Status: **captured-walk tested** for the models and firmware in the [qualification matrix](../../../docs/qualification/MATRIX.md) (SG300, SG350/X/XG, CBS350, C1200, C1300; 15 anonymised captures). They are served by `ne_cisco_small_business_switch` (24-column environment table) and `ne_cisco_sg300_switch` (14-column), with hardware health as described in [HARDWARE.md](../HARDWARE.md). The CBS220 has no CISCOSB tree and stays on the Generic Switch. Any other model or firmware is unqualified. The rest of this file is the original handoff.
+Status: **captured-walk tested** for the models and firmware in the [qualification matrix](../../../docs/qualification/MATRIX.md) (SG300, SG350/X/XG, CBS220, CBS350, C1200, C1300; 14 anonymised captures). They are served by `ne_cisco_small_business_switch` (24-column environment table) and `ne_cisco_sg300_switch` (14-column), with hardware health as described in [HARDWARE.md](../HARDWARE.md). The CBS220 runs Realtek-based firmware with no CISCOSB tree, so it has its own template, `ne_cisco_cbs220_switch`: the generic datasets with PoE ports joined to their interfaces (CBS220-24P-4G 2.0.2.15 captured), and hardware health from CISCO-ENVMON-MIB shipped disabled until a capture shows it ([HARDWARE.md](../HARDWARE.md)). PoE is described in [POE.md](../POE.md). Any other model or firmware is unqualified. The rest of this file is the original handoff.
 
 ## Scope and profile boundaries
 

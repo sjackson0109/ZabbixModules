@@ -1,6 +1,6 @@
 # 02 — Canonical schema (Canonical Network Discovery Dataset)
 
-Status: **current 1.1** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/envelope-1.1.schema.json`](../../schemas/envelope-1.1.schema.json), with worked examples in [`schemas/examples/`](../../schemas/examples/) checked by `tests/unit/test_schema_1_1.py`. The native templates emit 1.1. Version 1.0 (`schemas/envelope.schema.json`) is still accepted by the frontend and is what the Python collector emits; 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable.
+Status: **current 1.1** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/envelope-1.1.schema.json`](../../schemas/envelope-1.1.schema.json), with worked examples in [`schemas/examples/`](../../schemas/examples/) checked by `tests/unit/test_schema_1_1.py`. The native templates emit 1.1. Version 1.0 (`schemas/envelope.schema.json`) is still accepted by the frontend and is what the Python collector emits; 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable. Schema 1.2 ([`schemas/envelope-1.2.schema.json`](../../schemas/envelope-1.2.schema.json)) adds the `hardware` and `poe` datasets of the vendor and switch templates; only those two declare it, so every 1.1 dataset and its readers are unchanged (section below).
 
 ## Envelope (unchanged from 1.0)
 
@@ -140,6 +140,15 @@ Role and state are separate enums (spec §29). A derived role is labelled as suc
 | member interfaces | `member_interface_uids[]` plus `members[]` (new) with `selected`, `collecting`, `distributing` |
 | operational state | `oper_status` |
 | peer relationship | `actor_system_id`, `partner_system_id`; links grouped at read time from LLDP on member ports |
+
+## Schema 1.2: hardware and PoE
+
+Two datasets added in 1.2 declare `schema_version` `1.2`; the envelope is the same. The frontend does not read them yet: Zabbix items, discovery and triggers built from their snapshots carry them.
+
+| Dataset | Rows | Specification |
+|---|---|---|
+| `hardware` | `kind` `global`, `cpu`, `memory`, `fan`, `psu` or `temperature`; `uid` from the table index; `unit` (stack unit or null); `state` as the device judges it, with `raw_state`; kind-specific readings (utilisation, bytes, speed, supply source, `celsius` with the device's own `warning_c`, `critical_c` or `shutdown_c`) | [HARDWARE.md](../../templates/specifications/HARDWARE.md) |
+| `poe` | `kind` `pse` (one per PSE group: `power_w`, `consumption_w`, `usage_threshold_pct`, `util_pct`, `port_count`) or `port` (one per PSE port: detection `state`, `admin_enabled`, `power_class`, `priority`, the RFC 3621 counters, `if_index` and `interface_uid` where the template can map the port, `power_mw` and `power_limit_mw` from a vendor table) | [POE.md](../../templates/specifications/POE.md) |
 
 ## Size limits
 

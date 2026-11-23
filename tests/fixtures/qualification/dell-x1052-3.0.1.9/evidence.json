@@ -2,10 +2,12 @@
   "classification": {
     "capabilities": {
       "entity": "absent",
+      "hardware": "ok",
       "interfaces": "ok",
       "lag": "ok",
       "lldp": "ok",
       "mau": "unsupported",
+      "poe": "unsupported",
       "stp": "ok",
       "vlan": "ok"
     },
@@ -13,6 +15,12 @@
       "device": {
         "errors": [],
         "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "hardware": {
+        "errors": [],
+        "rows": 7,
         "status": "ok",
         "warnings": []
       },
@@ -40,6 +48,14 @@
         "status": "ok",
         "warnings": []
       },
+      "poe": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
       "port_capability": {
         "errors": [
           "unsupported"
@@ -61,11 +77,12 @@
         "warnings": []
       }
     },
-    "format": "network-explorer-classification-1",
+    "format": "network-explorer-classification-2",
     "system": {
       "sys_descr": "Dell Networking X1052 1-10Gb Switch",
       "sys_object_id": "1.3.6.1.4.1.674.10895.3073"
-    }
+    },
+    "template": "ne_dell_x_series_switch"
   },
   "description": "Dell X1052, 52 ports, firmware 3.0.1.9. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
   "device": {
@@ -76,5 +93,6 @@
   },
   "id": "dell-x1052-3.0.1.9",
   "kind": "captured",
+  "template": "ne_dell_x_series_switch",
   "walk": "capture.snmprec"
 }

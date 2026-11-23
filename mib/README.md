@@ -36,9 +36,10 @@ A later archive may carry newer revisions; `git diff mib/SHA256SUMS` then shows 
 | `force10/` | Dell S-Series on OS9 (FTOS). |
 | `broadcom/` | FASTPATH, which DNOS is derived from. |
 | `net-snmp/` | UCD-SNMP-MIB and friends (Ubiquiti, OS10). |
+| `cisco/` | `CISCO-ENVMON-MIB` alone, for the Cisco Business 220 (CBS220) hardware producer, with `CISCO-SMI`. Not the whole Cisco folder. |
 | `rfc/` | Only the standard modules that the vendor modules import, or that the templates read directly. |
 
-The vendor folders are complete. `rfc/` holds the import closure. Two legacy imports (`RFC-1213` in `DNS-SERVER-MIB` and `RFC1158-MIB` in `RFC1271-MIB`) are not in the release, and neither affects these templates.
+The vendor folders are complete, except `cisco/`, which holds only the modules named in `VENDOR_MODULES` in `tools/mib/collect_mibs.py`. `rfc/` holds the import closure. Two legacy imports (`RFC-1213` in `DNS-SERVER-MIB` and `RFC1158-MIB` in `RFC1271-MIB`) are not in the release, and neither affects these templates.
 
 ## Using them
 

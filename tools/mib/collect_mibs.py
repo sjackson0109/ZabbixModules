@@ -26,6 +26,9 @@ STANDARD_ROOTS = (
     "BRIDGE-MIB", "Q-BRIDGE-MIB", "P-BRIDGE-MIB", "RSTP-MIB", "IEEE8023-LAG-MIB", "HOST-RESOURCES-MIB",
     "EtherLike-MIB",
 )
+# Single modules from other vendor folders that a template reads directly (copied with their imports):
+# CISCO-ENVMON-MIB for the Cisco Business 220 hardware producer.
+VENDOR_MODULES = {"cisco": ("CISCO-ENVMON-MIB",)}
 # Where an imported module is looked for when several folders define it: the importer's own folder first, then these.
 PREFERRED = ("rfc", "net-snmp")
 # Modules every SMI tool provides itself; copied when present but never reported missing.
@@ -81,6 +84,8 @@ def collect(src: Path, dest: Path) -> dict:
             if path.is_file():
                 wanted[path] = path.relative_to(src)
     queue = [resolve(modules, m, "rfc", src) for m in STANDARD_ROOTS if m in modules] + list(wanted)
+    queue += [resolve(modules, m, folder, src) for folder, names in VENDOR_MODULES.items() for m in names
+              if m in modules]
     missing: set[tuple[str, str]] = set()
     seen: set[Path] = set()
     while queue:

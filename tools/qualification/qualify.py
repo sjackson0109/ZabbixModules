@@ -4,7 +4,9 @@
 Stdlib only (Python 3.10+); ``classify`` also needs Node.js, because it replays a walk through the same native
 template normalisers Zabbix runs (``tests/js/run_normaliser.cjs``). Nothing here talks to a device or to Zabbix.
 
-  qualify.py [--product P] classify <file.snmprec>       per-dataset outcome of the native normalisers, as JSON
+  qualify.py [--product P] classify [--template T] <file.snmprec>
+                                                        per-dataset outcome of the native normalisers, as JSON;
+                                                        T is the switch template whose producers are replayed
   qualify.py [--product P] check-evidence <evidence-dir> sanitisation and completeness of one evidence directory
   qualify.py [--product P] matrix [--check | --write]    validate the product's matrix.json against its evidence
                                                         and render (or check) its Markdown matrix
@@ -32,20 +34,16 @@ MATRIX_JSON = ROOT / "docs/qualification/matrix.json"
 MATRIX_MD = ROOT / "docs/qualification/MATRIX.md"
 EVIDENCE_ROOT = ROOT / "tests/fixtures/qualification"
 
-# Raw template keys replayed for a classification, and the canonical dataset each produces.
-RAW_KEYS = {
-    "device": "ne.raw.system",
-    "interfaces_state": "ne.raw.if.state",
-    "interfaces_inventory": "ne.raw.if.inventory",
-    "port_capability": "ne.raw.if.capability",
-    "lldp": "ne.raw.lldp",
-    "vlan": "ne.raw.vlan",
-    "stp": "ne.raw.stp",
-    "lag": "ne.raw.lag",
-}
-CAPABILITIES = ("interfaces", "entity", "mau", "lldp", "vlan", "stp", "lag")
+# A classification replays the producers of one switch template (templates/source/datasets.json), the generic one
+# unless the evidence names another, so a vendor template's own producers (hardware, PoE) are judged on its walks.
+SWITCH_MANIFEST = ROOT / "templates/source/datasets.json"
+DEFAULT_TEMPLATE = "ne__generic_switch"
+# Each producer's name in a classification (the dataset, or dataset_variant where a dataset has two producers).
+PRODUCER_NAMES = {"interfaces": "interfaces_state", "interfaces.inventory": "interfaces_inventory"}
+CAPABILITIES = ("interfaces", "entity", "mau", "lldp", "vlan", "stp", "lag", "hardware", "poe")
 CAPABILITY_LABELS = {"interfaces": "Interfaces", "entity": "ENTITY", "mau": "MAU", "lldp": "LLDP",
-                     "vlan": "VLAN", "stp": "STP", "lag": "LAG"}
+                     "vlan": "VLAN", "stp": "STP", "lag": "LAG", "hardware": "Hardware", "poe": "PoE"}
+SYSTEM_UPTIME = "1.3.6.1.2.1.1.3"
 
 # Wi-Fi Explorer: the Aruba Instant producers (templates/source/wifi/datasets.json) and what each capability means.
 WIFI_RAW_KEYS = {
@@ -211,11 +209,47 @@ def dataset_outcome(envelope: dict) -> dict:
 
 
 def capability_from(outcome: dict, need_rows: bool = True) -> str:
-    """ok (rows present), empty (collected, nothing observed), partial, unsupported or failed."""
+    """ok (rows present), empty (collected, nothing observed), partial, unsupported, failed, or not_walked (the
+    capture never walked what the producer reads, so it shows nothing either way)."""
     status = outcome["status"]
     if status == "ok":
         return "ok" if outcome["rows"] or not need_rows else "empty"
-    return status if status in ("partial", "unsupported", "failed") else "failed"
+    return status if status in ("partial", "unsupported", "failed", "not_walked") else "failed"
+
+
+def switch_templates() -> dict[str, dict]:
+    manifest = json.loads(SWITCH_MANIFEST.read_text(encoding="utf-8"))
+    return {p["template"]: p for p in manifest["templates"] if p["template"].startswith("ne_")}
+
+
+def template_producers(template: str) -> dict[str, dict]:
+    """The producers a switch template holds, by classification name (the generator's rule: a producer with a
+    templates list belongs to those templates only)."""
+    profile = switch_templates().get(template)
+    if profile is None:
+        raise UsageError(f"{template} is not a switch template in {SWITCH_MANIFEST.relative_to(ROOT).as_posix()}")
+    producers = {}
+    for entry in json.loads(SWITCH_MANIFEST.read_text(encoding="utf-8"))["datasets"]:
+        if entry["template"] in profile["components"] and template in entry.get("templates", [template]):
+            producer = entry["dataset"] + ("." + entry["variant"] if entry.get("variant") else "")
+            producers[PRODUCER_NAMES.get(producer, entry["dataset"])] = entry
+    return producers
+
+
+def capture_manifest(walk: Path) -> dict | None:
+    """The capture_walk.py manifest beside a captured walk; synthetic walks have none."""
+    path = walk.parent / "manifest.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
+def walked(entry: dict, manifest: dict | None) -> bool:
+    """Whether the capture walked anything the producer reads besides sysUpTime: a capture lists the subtrees it
+    walked, and a subtree the agent did not implement is still walked (its outcome is no-such-object)."""
+    if manifest is None:
+        return True
+    roots = [s["oid"] for s in manifest.get("subtrees", []) if s.get("outcome") in ("ok", "no-such-object")]
+    return any(oid == root or oid.startswith(root + ".") for oid in entry["walk"] if oid != SYSTEM_UPTIME
+               for root in roots)
 
 
 def classify_wifi(walk: Path) -> dict:
@@ -234,26 +268,40 @@ def classify_wifi(walk: Path) -> dict:
     return {"format": "wifi-explorer-classification-1", "system": system, "datasets": datasets, "capabilities": caps}
 
 
-def classify(walk: Path) -> dict:
-    """Replays a walk through every native normaliser and states, per matrix capability, what it shows."""
-    envelopes = {name: run_normaliser(key, walk) for name, key in RAW_KEYS.items()}
-    datasets = {name: dataset_outcome(envelope) for name, envelope in envelopes.items()}
+def classify(walk: Path, template: str = DEFAULT_TEMPLATE) -> dict:
+    """Replays a walk through every producer of a switch template and states, per matrix capability, what it shows.
+    A capability the template does not collect is not_collected."""
+    manifest = capture_manifest(walk)
+    envelopes, datasets = {}, {}
+    for name, entry in template_producers(template).items():
+        if walked(entry, manifest):
+            envelopes[name] = run_normaliser(entry["raw_key"], walk)
+            datasets[name] = dataset_outcome(envelopes[name])
+        else:
+            datasets[name] = {"status": "not_walked", "rows": 0, "errors": [], "warnings": []}
     caps = {}
     state, inventory = datasets["interfaces_state"], datasets["interfaces_inventory"]
     worst = [capability_from(state), capability_from(inventory)]
     caps["interfaces"] = next((s for s in ("failed", "unsupported", "partial", "empty") if s in worst), "ok")
-    placed = [row for row in envelopes["interfaces_inventory"].get("data") or []
+    placed = [row for row in (envelopes.get("interfaces_inventory") or {}).get("data") or []
               if row.get("member") is not None or row.get("slot") is not None]
     # ENTITY-MIB placement is only visible through the inventory rows it places.
     caps["entity"] = ("ok" if placed else "absent") if caps["interfaces"] in ("ok", "partial") else caps["interfaces"]
     caps["mau"] = capability_from(datasets["port_capability"])
-    for name in ("lldp", "vlan", "stp", "lag"):
-        caps[name] = capability_from(datasets[name])
+    for name in ("lldp", "vlan", "stp", "lag", "hardware", "poe"):
+        caps[name] = capability_from(datasets[name]) if name in datasets else "not_collected"
     records = {oid: (tag, value) for oid, tag, value in read_snmprec(walk)}
     system = {"sys_object_id": records.get(SYS_OBJECT_ID, ("", ""))[1],
               "sys_descr": octets(*records.get(SYS_DESCR, ("4", "")))}
-    return {"format": "network-explorer-classification-1", "system": system, "datasets": datasets,
-            "capabilities": caps}
+    return {"format": "network-explorer-classification-2", "template": template, "system": system,
+            "datasets": datasets, "capabilities": caps}
+
+
+def classify_evidence(evidence: dict, product: str = "network") -> dict:
+    """The classification an evidence directory should hold: its walk replayed through its template's producers."""
+    if product == "network":
+        return classify(walk_path(evidence), evidence.get("template", DEFAULT_TEMPLATE))
+    return PRODUCTS[product]["classify"](walk_path(evidence))
 
 
 # --- products ----------------------------------------------------------------------------------------------------
@@ -473,6 +521,13 @@ def check_evidence(directory: Path, product: str = "network") -> tuple[list[str]
                 errors.append(f"field.{key} is required for field evidence")
         if set(field.get("verified", [])) - set(capabilities):
             errors.append(f"field.verified may list only {', '.join(capabilities)}")
+    if product == "network":
+        template = evidence.get("template", DEFAULT_TEMPLATE)
+        if template not in switch_templates():
+            errors.append(f"template {template} is not a switch template")
+        elif isinstance(evidence.get("classification"), dict) and evidence["classification"].get("template") != template:
+            errors.append(f"classification was not replayed through {template}; run qualify.py classify --template"
+                          f" {template} on the walk and store its output")
     if not isinstance(evidence.get("classification"), dict):
         errors.append("classification is missing; run qualify.py classify on the walk and store its output")
     return errors, warnings
@@ -589,6 +644,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="network (switches, the default) or wifi (Wi-Fi Explorer sources)")
     commands = parser.add_subparsers(dest="command", required=True)
     one = commands.add_parser("classify", help="replay a walk through the native normalisers")
+    one.add_argument("--template", default=DEFAULT_TEMPLATE,
+                     help=f"switch template whose producers to replay (network only; default {DEFAULT_TEMPLATE})")
     one.add_argument("walk", type=Path)
     two = commands.add_parser("check-evidence", help="check one evidence directory")
     two.add_argument("directory", type=Path)
@@ -599,7 +656,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "classify":
-            print(json.dumps(PRODUCTS[args.product]["classify"](args.walk), indent=2, sort_keys=True))
+            result = (classify(args.walk, args.template) if args.product == "network"
+                      else PRODUCTS[args.product]["classify"](args.walk))
+            print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         if args.command == "check-evidence":
             errors, warnings = check_evidence(args.directory, args.product)

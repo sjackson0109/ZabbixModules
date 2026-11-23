@@ -8,7 +8,7 @@ Network Explorer reports observed evidence, and its support claims follow the sa
 
 ## States
 
-Each matrix cell holds one state for one capability: Interfaces, ENTITY, MAU, LLDP, VLAN, STP or LAG.
+Each matrix cell holds one state for one capability: Interfaces, ENTITY, MAU, LLDP, VLAN, STP, LAG, Hardware or PoE. Hardware and PoE are judged through the vendor template that collects them (below).
 
 | State | Meaning | Evidence it needs |
 |---|---|---|
@@ -32,12 +32,14 @@ The earlier vocabulary is **superseded**, but its intent carries over:
 
 ## Classification
 
-`qualify.py classify <walk.snmprec>` replays a walk through every native template normaliser, exactly as Zabbix composes them (`tests/js/run_normaliser.cjs`). It records only stable facts for each dataset: its status, row count and error codes. From those it derives one value per capability:
+`qualify.py classify [--template <name>] <walk.snmprec>` replays a walk through every producer of one switch template, exactly as Zabbix composes them (`tests/js/run_normaliser.cjs`). The template is the generic `ne__generic_switch` unless the evidence names another in its `template` field, so a vendor template's own producers (hardware, PoE with vendor columns) are judged on the walks of the devices they are for. It records the template and only stable facts for each dataset: its status, row count and error codes. From those it derives one value per capability:
 
 - `ok`: rows present.
 - `empty`: collected, but nothing observed (for example no LLDP neighbours or no LAG). This cannot qualify or disqualify a capability.
 - `partial`, `unsupported` or `failed`: as the normaliser reported.
 - `absent`: ENTITY only, for interfaces collected with no member or slot placement.
+- `not_collected`: the template has no producer for it (Hardware on the generic template). It supports no state.
+- `not_walked`: the capture's manifest lists no walked subtree that the producer reads (the CBS220 capture predates its CISCO-ENVMON-MIB producer). A capture that walked a subtree the agent lacks (`no-such-object`) is walked, and shows `unsupported`. `not_walked` supports no state: capture the subtree first.
 
 The stored classification must equal a fresh replay; a pytest re-runs every committed walk. If a normaliser change alters a classification, the affected matrix states are reviewed in the same PR.
 
@@ -64,7 +66,7 @@ The stored classification must equal a fresh replay; a pytest re-runs every comm
    - `capture.snmprec`: the anonymised walk;
    - `manifest.json`: as `anonymise.py` wrote it;
    - `evidence.json`: the record described below.
-5. **Classify.** Run `python3 tools/qualification/qualify.py classify tests/fixtures/qualification/<id>/capture.snmprec`. Store its output as `classification` in `evidence.json`.
+5. **Classify.** Run `python3 tools/qualification/qualify.py classify --template <template> tests/fixtures/qualification/<id>/capture.snmprec`, with the template the device should be linked to (the one in `evidence.json`). Store its output as `classification` in `evidence.json`.
 6. **Check the evidence.** Run `python3 tools/qualification/qualify.py check-evidence tests/fixtures/qualification/<id>`. It must report no errors.
 7. **Update the matrix.** Add or update the row in `matrix.json`, cite the evidence ID, set each state no higher than the evidence supports, and record the known limitations. Run `qualify.py matrix --write`, then commit the matrix and the evidence together.
 8. **Add regression tests where they help.** A behaviour worth keeping, such as a vendor port-numbering quirk or an LLDP subtype 7 local port, also gets a normaliser test against the captured walk.
@@ -78,9 +80,12 @@ The stored classification must equal a fresh replay; a pytest re-runs every comm
   "description": "Acme X-24, 24 copper + 4 SFP+, standalone, LLDP and RSTP enabled.",
   "walk": "capture.snmprec",
   "device": {"vendor": "Acme", "family": "X series", "model": "X-24", "firmware": "1.0.2"},
-  "classification": { "...": "output of qualify.py classify" }
+  "template": "ne_acme_x_series_switch",
+  "classification": { "...": "output of qualify.py classify --template ne_acme_x_series_switch" }
 }
 ```
+
+`template` is optional and names the switch template whose producers classify the walk (default `ne__generic_switch`); `check-evidence` rejects an unknown template, or a classification replayed through a different one.
 
 `kind` is one of the following:
 

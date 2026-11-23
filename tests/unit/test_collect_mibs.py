@@ -56,3 +56,17 @@ def test_checksums_list_every_copied_file(tmp_path):
         digest, rel = line.split("  ")
         assert hashlib.sha256((src / rel).read_bytes()).hexdigest() == digest
         assert (dest / rel).read_bytes() == (src / rel).read_bytes()
+
+
+def test_single_modules_from_other_vendor_folders_come_with_their_imports(tmp_path):
+    src, dest = release(tmp_path), tmp_path / "mib"
+    for rel, text in {"cisco/CISCO-ENVMON-MIB": module("CISCO-ENVMON-MIB", "CISCO-SMI", "SNMPv2-SMI"),
+                      "cisco/CISCO-SMI": module("CISCO-SMI", "SNMPv2-SMI"),
+                      "cisco/CISCO-UNUSED-MIB": module("CISCO-UNUSED-MIB", "SNMPv2-SMI")}.items():
+        (src / rel).parent.mkdir(parents=True, exist_ok=True)
+        (src / rel).write_text(text, encoding="latin-1")
+    result = MIBS.collect(src, dest)
+    copied = {p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file()}
+    # Only the named module and what it imports, never the rest of that vendor's folder.
+    assert {"cisco/CISCO-ENVMON-MIB", "cisco/CISCO-SMI"} <= copied and "cisco/CISCO-UNUSED-MIB" not in copied
+    assert result["other_vendors"] == ["cisco/CISCO-ENVMON-MIB", "cisco/CISCO-SMI"]

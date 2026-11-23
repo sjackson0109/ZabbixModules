@@ -46,12 +46,29 @@ TEMPLATE_DESCRIPTION = {
     "LAG": "Link aggregation bundles and members (IEEE8023-LAG-MIB, ifStackTable).",
     "Hardware Health": "CPU, memory, fans, power supplies and temperature with the device's own verdicts and "
                        "thresholds (vendor MIBs).",
+    "PoE": "Power over Ethernet: budget, consumption and status per PSE unit, and detection status per port "
+           "(POWER-ETHERNET-MIB), with per-port power where the vendor MIB reports it.",
 }
+
+
+def state_convert(states: dict) -> str:
+    """Preprocessing that turns a canonical state name into its value-map number (unknown for anything else)."""
+    return "var m=" + json.dumps(states) + "; v=m[v]===undefined?" + str(states["unknown"]) + ":m[v];"
+
+
 HW_STATE_MAP = "Network Explorer hardware state"
 HW_STATE = {"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5,
             "unavailable": 6, "unknown": 7}
-HW_STATE_CONVERT = "var m=" + json.dumps(HW_STATE) + "; v=m[v]===undefined?" + str(HW_STATE["unknown"]) + ":m[v];"
+HW_STATE_CONVERT = state_convert(HW_STATE)
+POE_PSE_STATE_MAP = "Network Explorer PoE PSE state"
+POE_PSE_STATE = {"on": 0, "off": 1, "faulty": 2, "unknown": 3}
+POE_PORT_STATE_MAP = "Network Explorer PoE port state"
+POE_PORT_STATE = {"delivering": 0, "searching": 1, "disabled": 2, "fault": 3, "test": 4, "other_fault": 5,
+                  "unknown": 6}
 # Parts discovered one by one: (row kind, key stem, label). A part is discovered only while present and readable.
+# Up to 2.2.0 every component emitted the shared collection-status value map and the template's last component won,
+# so that map's UUID is the last component's. Components added since come last but never take it over.
+LATER_COMPONENTS = ("PoE",)
 HW_PARTS = (("psu", "ne.hw.psu", "power supply"), ("fan", "ne.hw.fan", "fan"),
             ("temperature", "ne.hw.temp", "temperature sensor"))
 
@@ -202,9 +219,9 @@ def interface_discovery(template: str) -> dict:
             "item_prototypes": prototypes}
 
 
-def hardware_field(match: str, field: str, convert: str = "") -> str:
-    """One field of the first hardware row that matches, from the complete snapshot. A missing row or a null value
-    throws, so the item keeps its last value instead of storing a guess."""
+def snapshot_field(match: str, field: str, convert: str = "") -> str:
+    """One field of the first snapshot row that matches. A missing row or a null value throws, so the item keeps its
+    last value instead of storing a guess."""
     return ("var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(" + match + "){var v=r['" + field
             + "']; if(v===null||v===undefined){throw 'Not reported';}" + convert + " return v;}} "
             "throw 'Absent; retain last observed value';")
@@ -234,7 +251,7 @@ def hardware_scalars(entry: dict, template: str) -> list[dict]:
     snapshot = "ne.hardware.snapshot"
     if "global" in provides:
         item = dependent("ne.hw.global.state", "Hardware: overall status", "hardware", snapshot,
-                         hardware_field("r.kind==='global'", "state", HW_STATE_CONVERT), value_type="UNSIGNED",
+                         snapshot_field("r.kind==='global'", "state", HW_STATE_CONVERT), value_type="UNSIGNED",
                          discard=True, history="31d", trends="0", valuemap={"name": HW_STATE_MAP},
                          description="The device's own summary of its hardware health.")
         item["triggers"] = hardware_state_triggers(f"/{template}/ne.hw.global.state", "device", "overall status",
@@ -243,7 +260,7 @@ def hardware_scalars(entry: dict, template: str) -> list[dict]:
     if "cpu" in provides:
         for window in ("1m", "5m"):
             items.append(dependent(f"ne.hw.cpu.util[{window}]", f"Hardware: CPU utilisation, {window} average",
-                                   "hardware", snapshot, hardware_field("r.kind==='cpu'", f"util_{window}_pct"),
+                                   "hardware", snapshot, snapshot_field("r.kind==='cpu'", f"util_{window}_pct"),
                                    value_type="FLOAT", discard=True, history="31d", units="%",
                                    description="As the device averages it. No value while measurement is off."))
         cpu = f"/{template}/ne.hw.cpu.util[5m]"
@@ -253,7 +270,7 @@ def hardware_scalars(entry: dict, template: str) -> list[dict]:
             "priority": "WARNING", "tags": tags("hardware")}]
     if "memory" in provides:
         memory = dependent("ne.hw.memory.util", "Hardware: memory utilisation", "hardware", snapshot,
-                           hardware_field("r.kind==='memory'", "util_pct"), value_type="FLOAT", discard=True,
+                           snapshot_field("r.kind==='memory'", "util_pct"), value_type="FLOAT", discard=True,
                            history="31d", units="%")
         util = f"/{template}/ne.hw.memory.util"
         memory["triggers"] = [{
@@ -272,7 +289,7 @@ def hardware_discovery(entry: dict, template: str) -> list[dict]:
             continue
         match = f"r.kind==='{kind}'&&r.uid==='{{#HWUID}}'"
         state = dependent(f"{stem}.state[{{#HWUID}}]", f"{label.capitalize()} {{#HWNAME}}: state", "hardware",
-                          "ne.hardware.snapshot", hardware_field(match, "state", HW_STATE_CONVERT),
+                          "ne.hardware.snapshot", snapshot_field(match, "state", HW_STATE_CONVERT),
                           value_type="UNSIGNED", discard=True, history="31d", trends="0",
                           valuemap={"name": HW_STATE_MAP})
         state["trigger_prototypes"] = hardware_state_triggers(f"/{template}/{stem}.state[{{#HWUID}}]", label,
@@ -280,12 +297,12 @@ def hardware_discovery(entry: dict, template: str) -> list[dict]:
         prototypes = [state]
         if kind == "fan" and "fan_speed" in entry["provides"]:
             prototypes.append(dependent(f"{stem}.speed[{{#HWUID}}]", "Fan {#HWNAME}: speed", "hardware",
-                                        "ne.hardware.snapshot", hardware_field(match, "speed"), value_type="UNSIGNED",
+                                        "ne.hardware.snapshot", snapshot_field(match, "speed"), value_type="UNSIGNED",
                                         discard=True, history="31d",
                                         description="As the device reports it; the MIB gives no unit."))
         if kind == "temperature":
             prototypes.append(dependent(f"{stem}.value[{{#HWUID}}]", "Temperature sensor {#HWNAME}: temperature",
-                                        "hardware", "ne.hardware.snapshot", hardware_field(match, "celsius"),
+                                        "hardware", "ne.hardware.snapshot", snapshot_field(match, "celsius"),
                                         value_type="FLOAT", discard=True, history="31d", units="°C",
                                         description="The device judges it against its own thresholds; see the "
                                                     "state item."))
@@ -307,6 +324,81 @@ def hardware_discovery(entry: dict, template: str) -> list[dict]:
                                           {"lld_macro": "{#HWUNIT}", "path": "$.unit"}],
                       "item_prototypes": prototypes})
     return rules
+
+
+def poe_discovery(entry: dict, template: str) -> list[dict]:
+    """PSE units and PoE ports, each discovered from the complete snapshot. Faults are the device's own verdict; the
+    usage alert uses the device's own threshold (pethMainPseUsageThreshold), never one of ours."""
+    snapshot = "ne.poe.snapshot"
+    pse = "r.kind==='pse'&&r.uid==='{#PSEUID}'"
+    state = dependent("ne.poe.pse.state[{#PSEUID}]", "PoE {#PSENAME}: PSE status", "poe", snapshot,
+                      snapshot_field(pse, "state", state_convert(POE_PSE_STATE)), value_type="UNSIGNED", discard=True,
+                      history="31d", trends="0", valuemap={"name": POE_PSE_STATE_MAP})
+    state["trigger_prototypes"] = [{
+        "uuid": uid("trigger:poe:pse:faulty"), "expression": f"last(/{template}/ne.poe.pse.state[{{#PSEUID}}])=2",
+        "name": "Network Explorer: PoE {#PSENAME} reports a fault", "priority": "HIGH",
+        "description": "pethMainPseOperStatus is faulty, as the device reports it.", "tags": tags("poe")}]
+    readings = [dependent(f"ne.poe.pse.{key}[{{#PSEUID}}]", f"PoE {{#PSENAME}}: {label}", "poe", snapshot,
+                          snapshot_field(pse, field), value_type="FLOAT", discard=True, history="31d", units=units,
+                          description=description)
+                for key, label, field, units, description in (
+                    ("power", "power budget", "power_w", "W", "Nominal power of the PSE (pethMainPsePower)."),
+                    ("consumption", "power consumption", "consumption_w", "W",
+                     "pethMainPseConsumptionPower as the device reports it. Some firmware reports the power "
+                     "allocated to its ports here rather than the power they draw (Cisco 350-class, for example)."),
+                    ("util", "budget used", "util_pct", "%", "Consumption as a share of the budget, the figure the "
+                                                             "device compares with its usage threshold."),
+                    ("threshold", "usage threshold", "usage_threshold_pct", "%",
+                     "The device's own usage alarm threshold (pethMainPseUsageThreshold)."))]
+    util, threshold = (f"/{template}/ne.poe.pse.{k}[{{#PSEUID}}]" for k in ("util", "threshold"))
+    readings[2]["trigger_prototypes"] = [{
+        "uuid": uid("trigger:poe:pse:usage"), "expression": f"last({util})>=last({threshold})",
+        "name": "Network Explorer: PoE {#PSENAME} uses its budget above the device's usage threshold",
+        "priority": "WARNING", "description": "The threshold is the one configured on the device.",
+        "tags": tags("poe")}]
+    pse_prototypes = [state, *readings]
+
+    port = "r.kind==='port'&&r.uid==='{#POEUID}'"
+    port_state = dependent("ne.poe.port.state[{#POEUID}]", "PoE port {#POENAME}: status", "poe", snapshot,
+                           snapshot_field(port, "state", state_convert(POE_PORT_STATE)), value_type="UNSIGNED",
+                           discard=True, history="31d", trends="0", valuemap={"name": POE_PORT_STATE_MAP},
+                           description="pethPsePortDetectionStatus, as the device reports it.")
+    port_state["trigger_prototypes"] = [{
+        "uuid": uid("trigger:poe:port:fault"),
+        "expression": f"last(/{template}/ne.poe.port.state[{{#POEUID}}])=3 or "
+                      f"last(/{template}/ne.poe.port.state[{{#POEUID}}])=5",
+        "name": "Network Explorer: PoE port {#POENAME} reports a fault", "priority": "WARNING",
+        "description": "The port's detection status is fault or another fault, as the device reports it.",
+        "tags": tags("poe")}]
+    port_prototypes = [port_state]
+    if "port_power" in entry["provides"]:
+        port_prototypes.append(dependent("ne.poe.port.power[{#POEUID}]", "PoE port {#POENAME}: power", "poe", snapshot,
+                                         snapshot_field(port, "power_mw", "v=v/1000;"), value_type="FLOAT",
+                                         discard=True, history="31d", units="W",
+                                         description="Power the port delivers, from the vendor MIB (milliwatts)."))
+    for prototype in pse_prototypes:
+        prototype["tags"].append({"tag": "poe", "value": "{#PSENAME}"})
+    for prototype in port_prototypes:
+        prototype["tags"].append({"tag": "poe", "value": "{#POENAME}"})
+    rule = lambda key, name, rows, macros, prototypes, description: {
+        "uuid": uid("lld:" + key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0", "lifetime": "7d",
+        "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d", "master_item": {"key": snapshot},
+        "description": description, "preprocessing": js(gate("poe", rows), True),
+        "lld_macro_paths": [{"lld_macro": m, "path": p} for m, p in macros], "item_prototypes": prototypes}
+    return [
+        rule("ne.poe.pse.discovery", "PoE discovery: PSE units",
+             "return JSON.stringify(e.data.filter(function(r){return r.kind==='pse'&&r.state!=='not_present';})"
+             ".map(function(r){return {uid:r.uid,name:r.name,unit:r.unit===null?'':String(r.unit)};}));",
+             (("{#PSEUID}", "$.uid"), ("{#PSENAME}", "$.name"), ("{#PSEUNIT}", "$.unit")), pse_prototypes,
+             "Fed from the complete PoE snapshot. A stack slot without a unit is not discovered."),
+        rule("ne.poe.port.discovery", "PoE discovery: ports",
+             "return JSON.stringify(e.data.filter(function(r){return r.kind==='port';}).map(function(r){return "
+             "{uid:r.uid,name:r.name,unit:r.unit===null?'':String(r.unit),ifuid:r.interface_uid||''};}));",
+             (("{#POEUID}", "$.uid"), ("{#POENAME}", "$.name"), ("{#POEUNIT}", "$.unit"), ("{#IFUID}", "$.ifuid")),
+             port_prototypes,
+             "Fed from the complete PoE snapshot. {#IFUID} is the interface the port joins to, where the template "
+             "can tell; otherwise it is empty and the port is named by unit and port."),
+    ]
 
 
 def extras(short: str, template: str, mine: list[dict]) -> list[dict]:
@@ -376,6 +468,10 @@ def valuemaps(short: str) -> list[dict]:
     if short == "Hardware Health":
         maps.append({"uuid": uid("valuemap:hardware:state"), "name": HW_STATE_MAP,
                      "mappings": [{"value": str(v), "newvalue": k} for k, v in HW_STATE.items()]})
+    if short == "PoE":
+        for key, name, states in (("pse", POE_PSE_STATE_MAP, POE_PSE_STATE), ("port", POE_PORT_STATE_MAP, POE_PORT_STATE)):
+            maps.append({"uuid": uid(f"valuemap:poe:{key}"), "name": name,
+                         "mappings": [{"value": str(v), "newvalue": k} for k, v in states.items()]})
     return maps
 
 
@@ -390,6 +486,7 @@ def build(version: str) -> dict:
         assert set(profile.get("disabled", [])) <= set(profile["components"]), profile["disabled"]
         _scope = profile.get("scope", name) + ":"
         items, discovery, macro_list, maps = [], [], [], {}
+        status_owner = [c for c in profile["components"] if c not in LATER_COMPONENTS][-1]
         for short in profile["components"]:
             mine = producers(profile, short, entries)
             produced = {producer(e) for e in mine}
@@ -398,6 +495,8 @@ def build(version: str) -> dict:
             rules = [interface_discovery(name)] if short == "Interfaces" else []
             if short == "Hardware Health":
                 rules += [rule for e in mine for rule in hardware_discovery(e, name)]
+            if short == "PoE":
+                rules += [rule for e in mine for rule in poe_discovery(e, name)]
             if short in profile.get("disabled", []):
                 # Shipped but switched off: the operator can enable it on a host whose firmware supports it.
                 for obj in own + rules:
@@ -406,7 +505,9 @@ def build(version: str) -> dict:
             discovery += rules
             macro_list += macros(mine, short)
             for m in valuemaps(short):
-                maps[m["name"]] = m
+                # The collection-status map is shared by every component and keeps the UUID it had up to 2.2.0.
+                if m["name"] != STATUS_MAP or m["name"] not in maps or short == status_owner:
+                    maps[m["name"]] = m
         parts = "; ".join(f"{short}: {TEMPLATE_DESCRIPTION[short]}"
                           + (" Disabled; enable it where the device supports it." if short in profile.get("disabled", []) else "")
                           for short in profile["components"])

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent
 # (ne__generic_switch, we__generic_access_point), which sorts it and its file first. The prefix also sets the template
 # group, so a template for access points (we_) sits with Wi-Fi Explorer whichever generator builds it.
 TECHNICAL_NAME = re.compile(r"(ne|we)__?[a-z0-9]+(_[a-z0-9]+)+")
-PRODUCTS = {"ne": "Network Explorer", "we": "Wireless Explorer"}
+PRODUCTS = {"ne": "Network Explorer", "we": "Wi-Fi Explorer"}
 GROUPS = {"ne": "Templates/Network Explorer", "we": "Templates/Wi-Fi Explorer"}
 # Each product's UUID namespace (generate_snmp.py and generate_wifi.py); never change one, or every UUID moves.
 NAMESPACES = {"ne": uuid.UUID("5b0f8e0a-6f0e-4a55-9d0c-2a7f3c1e9b44"), "we": uuid.UUID("0f6c55d2-3b4e-4f51-a0de-6f2b0f1c7e3a")}

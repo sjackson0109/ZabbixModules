@@ -4,23 +4,28 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-23
+
 ### Added
 - The first vendor switch templates, each linked on its own instead of the Generic Switch, carrying everything the Generic Switch collects plus hardware health:
   - `ne_cisco_small_business_switch`: SG350, SG350X, SG350XG, CBS350, C1200 and C1300.
   - `ne_cisco_sg300_switch`: SG300 on firmware 1.4.
   - `ne_dell_n_series_switch`: Dell N-Series on DNOS 6.
   - `ne_dell_x_series_switch`: Dell X-Series.
-  Vendor templates are named `ne_<vendor>_<series>_switch`, and their visible name is `Network Explorer - ` and the same words in Title Case (`Network Explorer - Cisco Small Business Switch`). Each carries Port Capability disabled, because none of the captured models implements MAU-MIB.
+  - `ne_cisco_cbs220_switch`: Cisco Business 220 (Realtek-based firmware without the Small Business MIBs). Its hardware health reads CISCO-ENVMON-MIB, which Cisco's data sheet lists; no capture has walked it yet, so it ships disabled.
+  Vendor templates are named `ne_<vendor>_<series>_switch`, and their visible name is `Network Explorer - ` and the same words in Title Case (`Network Explorer - Cisco Small Business Switch`). Each carries Port Capability disabled, because none of the captured models implements MAU-MIB. Moving a switch from the Generic Switch to a vendor template keeps its items and history (deployment guide, section 8.6).
 - The `hardware` dataset (canonical schema 1.2; the 1.1 datasets are unchanged) reports overall status, CPU, memory, power supplies, fans and temperature sensors per stack unit as the device judges them, against the device's own thresholds. Present parts are discovered (`ne.hw.psu.discovery`, `ne.hw.fan.discovery`, `ne.hw.temp.discovery`). CPU and memory alert on `{$NE.HW.CPU.UTIL.*}` and `{$NE.HW.MEMORY.UTIL.*}`. See [HARDWARE.md](templates/specifications/HARDWARE.md).
-- `tools/mib/collect_mibs.py` rebuilds `mib/` locally from the Observium Community Edition: the CISCOSB, RADLAN, Dell (N-Series, X-Series, PowerEdge VRTX switch module and chassis controller, S-Series), Force10, FASTPATH and UCD modules, plus the standard modules they import. Only `mib/README.md` and `mib/SHA256SUMS` are published; the modules stay with their authors' copyright.
+- The `poe` dataset (canonical schema 1.2), in every switch template: each PSE unit's budget, consumption, usage threshold and status, and each PoE port's detection status, class, priority and RFC 3621 counters, from POWER-ETHERNET-MIB. Units and ports are discovered (`ne.poe.pse.discovery`, `ne.poe.port.discovery`); a unit that reports a fault or reaches the device's own usage threshold, and a port that reports a fault, raise a problem. The Cisco, CBS220 and Dell N-Series templates name each port after its interface, which their captures show is numbered by ifIndex, and the Cisco ones add the power each port draws (CISCOSB-POE-MIB). A switch without PoE reports the dataset unsupported. See [POE.md](templates/specifications/POE.md).
+- `tools/mib/collect_mibs.py` rebuilds `mib/` locally from the Observium Community Edition: the CISCOSB, RADLAN, Dell (N-Series, X-Series, PowerEdge VRTX switch module and chassis controller, S-Series), Force10, FASTPATH and UCD modules, plus the standard modules they import. It also takes CISCO-ENVMON-MIB alone from the Cisco folder, for the CBS220. Only `mib/README.md` and `mib/SHA256SUMS` are published; the modules stay with their authors' copyright.
 - `tools/qualification/anonymise.py` and 17 anonymised captured walks of Cisco Small Business, Cisco Catalyst 1200/1300, Dell N-Series and Dell X-Series switches under `tests/fixtures/qualification/`, with their rows in the qualification matrix.
+- Qualification: Hardware and PoE columns in the matrix. Evidence may name the switch template whose producers classify its walk (`template`; `qualify.py classify --template`), so vendor producers are judged on the devices they are for. A producer the template lacks is `not_collected`, and one whose subtree the capture never walked is `not_walked`; neither supports a state.
 
 ### Changed
-- **Breaking (installation):** every native template is its own file, named after it, in place of `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml`, and is named after its product: `ne_` (Network Explorer, switches) or `we_` (Wireless Explorer, access points), then its words in lowercase. The visible name is the product's name and the same words in Title Case. Each product's generic template has a double underscore, which sorts it and its file first.
+- **Breaking (installation):** every native template is its own file, named after it, in place of `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml`, and is named after its product: `ne_` (Network Explorer, switches) or `we_` (Wi-Fi Explorer, access points), then its words in lowercase. The visible name is the product's name and the same words in Title Case. Each product's generic template has a double underscore, which sorts it and its file first.
   - `Network Explorer - Generic Switch` is now `ne__generic_switch`, still shown as Network Explorer - Generic Switch.
-  - `Wi-Fi Explorer - Generic AP` is now `we__generic_access_point` (Wireless Explorer - Generic Access Point).
-  - `Wi-Fi Explorer - Aruba Instant VC by SNMP` is now `we_aruba_instant_virtual_controller` (Wireless Explorer - Aruba Instant Virtual Controller), and `Wi-Fi Explorer - Aruba Instant AP by SNMP` is now `we_aruba_instant_access_point` (Wireless Explorer - Aruba Instant Access Point).
-  - `Network Explorer - LLDP for access points` is now `we_lldp_for_access_points` (Wireless Explorer - LLDP for Access Points), in the `Templates/Wi-Fi Explorer` group, because it is linked to access points.
+  - `Wi-Fi Explorer - Generic AP` is now `we__generic_access_point` (Wi-Fi Explorer - Generic Access Point).
+  - `Wi-Fi Explorer - Aruba Instant VC by SNMP` is now `we_aruba_instant_virtual_controller` (Wi-Fi Explorer - Aruba Instant Virtual Controller), and `Wi-Fi Explorer - Aruba Instant AP by SNMP` is now `we_aruba_instant_access_point` (Wi-Fi Explorer - Aruba Instant Access Point).
+  - `Network Explorer - LLDP for access points` is now `we_lldp_for_access_points` (Wi-Fi Explorer - LLDP for Access Points), in the `Templates/Wi-Fi Explorer` group, because it is linked to access points.
 
   Every template keeps its UUIDs, so importing its file over 2.2.0 renames it in place with its host links, items, history and host dashboard (deployment guide, section 8.5). Item keys are unchanged.
 

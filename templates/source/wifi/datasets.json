@@ -3,7 +3,7 @@
   "templates": {
     "Generic AP": {
       "template": "we__generic_access_point",
-      "name": "Wireless Explorer - Generic Access Point",
+      "name": "Wi-Fi Explorer - Generic Access Point",
       "uuid_name": "Wi-Fi Explorer - Generic AP",
       "uuid_scope": "Wi-Fi Explorer - Generic AP",
       "description": "Any access point that implements the standard MIBs: SNMPv2-MIB, IF-MIB, the IEEE 802.11 MIB (IEEE802dot11-MIB), ENTITY-MIB, HOST-RESOURCES-MIB and IP-MIB. Link it to one host per AP, at the AP's own address; vendor templates complement it with what no standard MIB carries (associated clients, measured channel utilisation, noise floor, RF neighbours, cluster rosters). An agent without the IEEE 802.11 MIB reports every dataset as unsupported (not_wifi_ap) rather than an empty AP. Never link it beside a vendor Wi-Fi template that already lists the same AP.",
@@ -27,7 +27,7 @@
     },
     "Aruba Instant VC": {
       "template": "we_aruba_instant_virtual_controller",
-      "name": "Wireless Explorer - Aruba Instant Virtual Controller",
+      "name": "Wi-Fi Explorer - Aruba Instant Virtual Controller",
       "uuid_name": "Wi-Fi Explorer - Aruba Instant VC by SNMP",
       "description": "Aruba Instant cluster inventory and state from AI-AP-MIB, read from the elected virtual controller. Link it to one host per cluster, pointed at the cluster's floating virtual controller (AVC) address. On a member AP every AP and radio dataset reports unsupported (not_virtual_controller) instead of an empty site.",
       "macros": [
@@ -56,7 +56,7 @@
     },
     "Aruba Instant AP": {
       "template": "we_aruba_instant_access_point",
-      "name": "Wireless Explorer - Aruba Instant Access Point",
+      "name": "Wi-Fi Explorer - Aruba Instant Access Point",
       "uuid_name": "Wi-Fi Explorer - Aruba Instant AP by SNMP",
       "description": "One Aruba Instant AP's own RF view from AI-AP-MIB: the neighbouring and interfering access points this AP detects (aiInterferAccessPointTable). Link it to a host per AP, pointed at that AP's own address (not the virtual controller address). Detections keep the AP's own classification; Wi-Fi Explorer never calls a detection malicious."
     }

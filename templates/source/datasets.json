@@ -5,11 +5,11 @@
       "template": "ne__generic_switch", "name": "Network Explorer - Generic Switch",
       "scope": "Network Explorer - Generic standard MIB",
       "comment": "The double underscore sorts this template and its file first. Its visible name is unchanged from 2.1.0. scope keeps the UUIDs it had as \"Network Explorer - Generic standard MIB\" (2.0.0) and \"Network Explorer - Generic Switch\" (2.1.0, 2.2.0), so importing over either renames the template in place and keeps its items, history and host links.",
-      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG"], "dashboard": true,
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "PoE"], "dashboard": true,
       "description": "Link this one template to a switch that has an SNMP interface. It collects every standard-MIB dataset; datasets the device lacks report unsupported without affecting the others. Its host dashboard (Ports, Topology, Findings) needs the Network Explorer widget modules enabled; until then its widgets show as inaccessible."
     },
     {
-      "template": "we_lldp_for_access_points", "name": "Wireless Explorer - LLDP for Access Points",
+      "template": "we_lldp_for_access_points", "name": "Wi-Fi Explorer - LLDP for Access Points",
       "scope": "Network Explorer - LLDP for access points",
       "comment": "For access points, so named we_ and placed in the Wi-Fi Explorer template group, though it collects Network Explorer's LLDP dataset. scope keeps the UUIDs of its name up to 2.2.0, so importing over it renames the template in place.",
       "components": ["LLDP"],
@@ -17,25 +17,32 @@
     },
     {
       "template": "ne_cisco_small_business_switch", "name": "Network Explorer - Cisco Small Business Switch",
-      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health"],
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability"], "dashboard": true,
-      "description": "Link this one template, instead of the Generic Switch, to a Cisco Small Business or Catalyst 1200/1300 switch on the 350-class firmware: SG350, SG350X, SG350XG, CBS350, C1200 and C1300. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs: CPU, temperature against the unit's own thresholds, and fans and power supplies per stack unit. Port capability is included but disabled, because these models do not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco Small Business or Catalyst 1200/1300 switch on the 350-class firmware: SG350, SG350X, SG350XG, CBS350, C1200 and C1300. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs: CPU, temperature against the unit's own thresholds, and fans and power supplies per stack unit. Its PoE ports are named after their interfaces and report the power each one delivers (CISCOSB-POE-MIB). Port capability is included but disabled, because these models do not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
     },
     {
       "template": "ne_cisco_sg300_switch", "name": "Network Explorer - Cisco SG300 Switch",
-      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health"],
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability"], "dashboard": true,
-      "description": "Link this one template, instead of the Generic Switch, to a Cisco SG300 switch on firmware 1.4. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs in their older 14-column layout: CPU, temperature, fans and power supplies. Port capability is included but disabled, because the SG300 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco SG300 switch on firmware 1.4. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs in their older 14-column layout: CPU, temperature, fans and power supplies. Its PoE ports are named after their interfaces and report the power each one delivers (CISCOSB-POE-MIB). Port capability is included but disabled, because the SG300 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    },
+    {
+      "template": "ne_cisco_cbs220_switch", "name": "Network Explorer - Cisco CBS220 Switch",
+      "comment": "The CBS220 runs Realtek-based firmware (its private OIDs sit under enterprise 27282), not the 350-class CISCOSB MIBs, so it has its own template. Hardware Health reads CISCO-ENVMON-MIB, which Cisco's data sheet lists; no capture has walked it yet, so it ships disabled.",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability", "Hardware Health"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco Business 220 (CBS220) smart switch. It collects everything the Generic Switch does, with its PoE ports named after their interfaces. Hardware health (temperature, fans and power supplies from CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series) is included but disabled until a capture shows the switch answers it; enable it on a host to try it. Port capability is included but disabled, because the CBS220 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
     },
     {
       "template": "ne_dell_n_series_switch", "name": "Network Explorer - Dell N Series Switch",
-      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health"],
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability"], "dashboard": true,
-      "description": "Link this one template, instead of the Generic Switch, to a Dell Networking N-Series switch on DNOS 6. The N1548P and N4064 have been tested; other N-Series models use the same MIBs but are unqualified. It collects everything the Generic Switch does, plus hardware health from the DNOS and Dell-Vendor MIBs: overall status, CPU, memory, and fans, power supplies and temperature sensors per stack unit. Port capability is included but disabled, because these models do not implement MAU-MIB. Spanning tree reports unsupported: DNOS has no BRIDGE-MIB spanning tree. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+      "description": "Link this one template, instead of the Generic Switch, to a Dell Networking N-Series switch on DNOS 6. The N1548P and N4064 have been tested; other N-Series models use the same MIBs but are unqualified. It collects everything the Generic Switch does, plus hardware health from the DNOS and Dell-Vendor MIBs: overall status, CPU, memory, and fans, power supplies and temperature sensors per stack unit. Its PoE ports are named after their interfaces. Port capability is included but disabled, because these models do not implement MAU-MIB. Spanning tree reports unsupported: DNOS has no BRIDGE-MIB spanning tree. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
     },
     {
       "template": "ne_dell_x_series_switch", "name": "Network Explorer - Dell X Series Switch",
-      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health"],
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability"], "dashboard": true,
       "description": "Link this one template, instead of the Generic Switch, to a Dell Networking X-Series switch (RADLAN-based firmware). The X1052 has been tested; other X-Series models use the same MIBs but are unqualified. It collects everything the Generic Switch does, plus hardware health from the RADLAN and Dell-Vendor MIBs: overall status, CPU, temperature, fans and power supplies. Port capability is included but disabled, because these models do not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
     }
@@ -148,6 +155,56 @@
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.89.1.6", "1.3.6.1.4.1.89.1.7", "1.3.6.1.4.1.89.1.8", "1.3.6.1.4.1.89.1.9",
                "1.3.6.1.4.1.89.53.15.1", "1.3.6.1.4.1.89.83.1.1.1", "1.3.6.1.4.1.89.83.1.2.1",
                "1.3.6.1.4.1.674.10895.3000.1.2.110.1"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_cisco_cbs220_switch"],
+      "scripts": ["lib.js", "hw.js", "envmon.js"], "call": "normaliseEnvmonHardware(w, e)",
+      "adapter": "cisco-envmon-hardware", "raw_key": "ne.raw.hw.envmon", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["fan", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.9.9.13.1.3.1.2", "1.3.6.1.4.1.9.9.13.1.3.1.3", "1.3.6.1.4.1.9.9.13.1.3.1.4",
+               "1.3.6.1.4.1.9.9.13.1.3.1.6", "1.3.6.1.4.1.9.9.13.1.3.1.7", "1.3.6.1.4.1.9.9.13.1.4.1.2",
+               "1.3.6.1.4.1.9.9.13.1.4.1.3", "1.3.6.1.4.1.9.9.13.1.5.1.2", "1.3.6.1.4.1.9.9.13.1.5.1.3",
+               "1.3.6.1.4.1.9.9.13.1.5.1.4"]
+    },
+    {
+      "dataset": "poe", "template": "PoE", "templates": ["ne__generic_switch", "ne_dell_x_series_switch"],
+      "comment": "RFC 3621 does not map a PSE port to an interface, so these ports are named by group and port.",
+      "script": "poe.js", "call": "normalisePoe(w, e, null, null)",
+      "adapter": "standard-poe", "raw_key": "ne.raw.poe", "attempt_key": "ne.poe.attempt",
+      "snapshot_keys": ["ne.poe.snapshot"], "interval_macro": "{$NE.POE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["pse", "port"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.1.1.7",
+               "1.3.6.1.2.1.105.1.1.1.8", "1.3.6.1.2.1.105.1.1.1.10", "1.3.6.1.2.1.105.1.1.1.11", "1.3.6.1.2.1.105.1.1.1.12",
+               "1.3.6.1.2.1.105.1.1.1.13", "1.3.6.1.2.1.105.1.1.1.14", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.4", "1.3.6.1.2.1.105.1.3.1.1.5"]
+    },
+    {
+      "dataset": "poe", "template": "PoE", "templates": ["ne_dell_n_series_switch", "ne_cisco_cbs220_switch"],
+      "comment": "Captures of these families number each PSE port by its ifIndex, so each port joins to its interface.",
+      "script": "poe.js", "call": "normalisePoe(w, e, 'ifindex', null)",
+      "adapter": "standard-poe-ifindex", "raw_key": "ne.raw.poe.ifindex", "attempt_key": "ne.poe.attempt",
+      "snapshot_keys": ["ne.poe.snapshot"], "interval_macro": "{$NE.POE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["pse", "port"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1",
+               "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.1.1.7",
+               "1.3.6.1.2.1.105.1.1.1.8", "1.3.6.1.2.1.105.1.1.1.10", "1.3.6.1.2.1.105.1.1.1.11", "1.3.6.1.2.1.105.1.1.1.12",
+               "1.3.6.1.2.1.105.1.1.1.13", "1.3.6.1.2.1.105.1.1.1.14", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.4", "1.3.6.1.2.1.105.1.3.1.1.5"]
+    },
+    {
+      "dataset": "poe", "template": "PoE", "templates": ["ne_cisco_small_business_switch", "ne_cisco_sg300_switch"],
+      "comment": "Ports join to their interfaces by ifIndex, and rlPethPsePortTable adds the power each one delivers.",
+      "script": "poe.js", "call": "normalisePoe(w, e, 'ifindex', 'ciscosb')",
+      "adapter": "ciscosb-poe", "raw_key": "ne.raw.poe.ciscosb", "attempt_key": "ne.poe.attempt",
+      "snapshot_keys": ["ne.poe.snapshot"], "interval_macro": "{$NE.POE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["pse", "port", "port_power"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1",
+               "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.1.1.7",
+               "1.3.6.1.2.1.105.1.1.1.8", "1.3.6.1.2.1.105.1.1.1.10", "1.3.6.1.2.1.105.1.1.1.11", "1.3.6.1.2.1.105.1.1.1.12",
+               "1.3.6.1.2.1.105.1.1.1.13", "1.3.6.1.2.1.105.1.1.1.14", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.4", "1.3.6.1.2.1.105.1.3.1.1.5",
+               "1.3.6.1.4.1.9.6.1.101.108.1.1.5", "1.3.6.1.4.1.9.6.1.101.108.1.1.9"]
     }
   ]
 }

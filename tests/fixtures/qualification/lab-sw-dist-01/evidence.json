@@ -2,10 +2,12 @@
   "classification": {
     "capabilities": {
       "entity": "absent",
+      "hardware": "not_collected",
       "interfaces": "ok",
       "lag": "empty",
       "lldp": "ok",
       "mau": "ok",
+      "poe": "unsupported",
       "stp": "ok",
       "vlan": "ok"
     },
@@ -40,6 +42,14 @@
         "status": "ok",
         "warnings": []
       },
+      "poe": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
       "port_capability": {
         "errors": [],
         "rows": 2,
@@ -59,11 +69,12 @@
         "warnings": []
       }
     },
-    "format": "network-explorer-classification-1",
+    "format": "network-explorer-classification-2",
     "system": {
       "sys_descr": "Synthetic switch OS 1.2.3, distribution",
       "sys_object_id": "1.3.6.1.4.1.99999.1.1"
-    }
+    },
+    "template": "ne__generic_switch"
   },
   "description": "Synthetic distribution switch without port entities or LAG; holds the blocking alternate port of the triangle.",
   "id": "lab-sw-dist-01",

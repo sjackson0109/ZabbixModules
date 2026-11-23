@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://network-explorer.invalid/schema/envelope-1.2.json",
   "title": "Network Explorer canonical dataset envelope 1.2",
-  "description": "1.1 plus the hardware dataset. Only datasets added in 1.2 declare it; the 1.1 datasets keep schema_version 1.1 and validate against envelope-1.1.schema.json unchanged.",
+  "description": "1.1 plus the hardware and poe datasets. Only datasets added in 1.2 declare it; the 1.1 datasets keep schema_version 1.1 and validate against envelope-1.1.schema.json unchanged.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -11,7 +11,8 @@
     },
     "dataset": {
       "enum": [
-        "hardware"
+        "hardware",
+        "poe"
       ]
     },
     "generation_id": {
@@ -319,6 +320,12 @@
           "enum": [
             "device"
           ]
+        },
+        "shutdown_c": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       },
       "allOf": [
@@ -347,6 +354,11 @@
                 {
                   "required": [
                     "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "shutdown_c"
                   ]
                 },
                 {
@@ -449,6 +461,11 @@
                 },
                 {
                   "required": [
+                    "shutdown_c"
+                  ]
+                },
+                {
+                  "required": [
                     "source"
                   ]
                 },
@@ -513,6 +530,11 @@
                 {
                   "required": [
                     "critical_c"
+                  ]
+                },
+                {
+                  "required": [
+                    "shutdown_c"
                   ]
                 },
                 {
@@ -594,6 +616,11 @@
                 {
                   "required": [
                     "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "shutdown_c"
                   ]
                 },
                 {
@@ -686,6 +713,11 @@
                 {
                   "required": [
                     "free_bytes"
+                  ]
+                },
+                {
+                  "required": [
+                    "shutdown_c"
                   ]
                 },
                 {
@@ -832,6 +864,358 @@
           }
         }
       ]
+    },
+    "poe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "uid",
+        "unit",
+        "name",
+        "state",
+        "raw_state"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "pse",
+            "port"
+          ]
+        },
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+        },
+        "unit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "state": {
+          "enum": [
+            "on",
+            "off",
+            "faulty",
+            "not_present",
+            "unknown",
+            "delivering",
+            "searching",
+            "disabled",
+            "fault",
+            "test",
+            "other_fault",
+            "unknown"
+          ]
+        },
+        "raw_state": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "power_w": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "consumption_w": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "usage_threshold_pct": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 99
+        },
+        "util_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "port_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "if_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "interface_uid": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{1,128}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "admin_enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "power_class": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4
+        },
+        "priority": {
+          "enum": [
+            "critical",
+            "high",
+            "low",
+            null
+          ]
+        },
+        "power_mw": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "power_limit_mw": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "mps_absent": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "invalid_signature": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "power_denied": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "overload": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "short": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "pse"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "power_w",
+              "consumption_w",
+              "usage_threshold_pct",
+              "util_pct",
+              "port_count"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "admin_enabled"
+                  ]
+                },
+                {
+                  "required": [
+                    "if_index"
+                  ]
+                },
+                {
+                  "required": [
+                    "interface_uid"
+                  ]
+                },
+                {
+                  "required": [
+                    "invalid_signature"
+                  ]
+                },
+                {
+                  "required": [
+                    "mps_absent"
+                  ]
+                },
+                {
+                  "required": [
+                    "overload"
+                  ]
+                },
+                {
+                  "required": [
+                    "port"
+                  ]
+                },
+                {
+                  "required": [
+                    "power_class"
+                  ]
+                },
+                {
+                  "required": [
+                    "power_denied"
+                  ]
+                },
+                {
+                  "required": [
+                    "power_limit_mw"
+                  ]
+                },
+                {
+                  "required": [
+                    "power_mw"
+                  ]
+                },
+                {
+                  "required": [
+                    "priority"
+                  ]
+                },
+                {
+                  "required": [
+                    "short"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "on",
+                  "off",
+                  "faulty",
+                  "not_present",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "port"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "port",
+              "if_index",
+              "interface_uid",
+              "admin_enabled",
+              "power_class",
+              "priority",
+              "power_mw",
+              "power_limit_mw",
+              "mps_absent",
+              "invalid_signature",
+              "power_denied",
+              "overload",
+              "short"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "consumption_w"
+                  ]
+                },
+                {
+                  "required": [
+                    "port_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "power_w"
+                  ]
+                },
+                {
+                  "required": [
+                    "usage_threshold_pct"
+                  ]
+                },
+                {
+                  "required": [
+                    "util_pct"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "state": {
+                "enum": [
+                  "delivering",
+                  "searching",
+                  "disabled",
+                  "fault",
+                  "test",
+                  "other_fault",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "allOf": [
@@ -848,6 +1232,24 @@
           "data": {
             "items": {
               "$ref": "#/$defs/hardware"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "const": "poe"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/$defs/poe"
             }
           }
         }

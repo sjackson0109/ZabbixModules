@@ -136,8 +136,8 @@ WIFI_LAB_CONFIG = {
 
 
 # Each native template is its own file, named after it, with the host dashboard it carries (None for none).
-SWITCH_TEMPLATES = ("ne__generic_switch", "ne_cisco_sg300_switch", "ne_cisco_small_business_switch",
-                    "ne_dell_n_series_switch", "ne_dell_x_series_switch")
+SWITCH_TEMPLATES = ("ne__generic_switch", "ne_cisco_cbs220_switch", "ne_cisco_sg300_switch",
+                    "ne_cisco_small_business_switch", "ne_dell_n_series_switch", "ne_dell_x_series_switch")
 NATIVE_DASHBOARDS = {**{f"{t}.yaml": [(t, "Network Explorer")] for t in SWITCH_TEMPLATES},
                      **{f"{t}.yaml": [(t, dashboard)] for t, dashboard in (
                          ("we__generic_access_point", "Wi-Fi Explorer"),

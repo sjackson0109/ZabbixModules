@@ -2,19 +2,19 @@
 
 A Zabbix frontend package and native SNMP templates for physical port investigation, LLDP topology, VLAN membership and propagation, STP state, LAG relationships and network data quality. Targets Zabbix 7.0–7.4, and Python 3.10+ for the optional collector. The release version is in [`VERSION`](VERSION); changes are in the [changelog](CHANGELOG.md), and packaged releases are on the [releases page](https://github.com/sjackson0109/ZabbixModules/releases) ([how releases are made](docs/operations/RELEASING.md)).
 
-The native templates read standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB, Q-BRIDGE-MIB, BRIDGE-MIB, MAU-MIB, ENTITY-MIB). They are tested against simulated switches on Zabbix 7.0, 7.2 and 7.4; no vendor or model has been qualified on real hardware yet. The [qualification matrix](docs/qualification/MATRIX.md) records what has been shown, and the [qualification workflow](docs/qualification/README.md) explains how a captured walk becomes evidence.
+The generic switch template reads standard MIBs only (IF-MIB, LLDP-MIB, IEEE8023-LAG-MIB, Q-BRIDGE-MIB, BRIDGE-MIB, MAU-MIB, ENTITY-MIB, POWER-ETHERNET-MIB). Vendor switch templates for Cisco Small Business, Catalyst 1200/1300, CBS220 and Dell N- and X-Series add hardware health and PoE detail from the vendor's MIBs. The templates are tested against simulated switches on Zabbix 7.0, 7.2 and 7.4 and against anonymised walks captured from real Cisco and Dell switches; no model has yet been qualified with Zabbix polling the device itself. The [qualification matrix](docs/qualification/MATRIX.md) records what has been shown, and the [qualification workflow](docs/qualification/README.md) explains how a captured walk becomes evidence.
 
 ## What is included
 
 - **Monitoring → Network Explorer**, the network-wide view: a multi-switch Layer 2 topology with the observed spanning-tree root marked, Spanning Tree and VLAN views, site, domain, management-subnet and seed-device scope, clickable switches, links and link ends with interface detail, and the findings and collection quality of the same scope. It needs no dashboard.
 - Permission-aware PHP dataset, identity, topology, policy, navigation and report services.
 - Five dashboard widgets: Port Panel, Physical Topology, Interface Detail, Data Quality and Findings. The template host dashboard (Ports, Topology, Findings) is where one switch is investigated.
-- Versioned canonical JSON Schema (1.1, with 1.0 still accepted).
-- Native standard-MIB SNMP templates for Zabbix 7.0, 7.2 and 7.4, each carrying its inherited host dashboard.
+- Versioned canonical JSON Schema (1.1, with 1.0 still accepted; 1.2 for the hardware and PoE datasets).
+- Native SNMP templates for Zabbix 7.0, 7.2 and 7.4, one file each: a generic standard-MIB switch template and vendor switch templates, each carrying its inherited host dashboard.
 - An optional bounded Python SNMP collector with fixture replay, kept as a frozen schema 1.0 fallback for devices native SNMP items can't reach.
 - Detailed template/discovery contracts and separate vendor-family handoff packs.
 - LAB-only replay templates and inherited host dashboards for Zabbix 7.0, 7.2 and 7.4; optional dashboard recipes for administrators who want custom compositions.
-- **Monitoring → Wi-Fi Explorer** (installed with Network Explorer): site overview, AP and radio inventory, findings and data quality for access points, from a generic standard-MIB template (`we__generic_access_point`, Wireless Explorer - Generic Access Point) complemented by vendor templates (Aruba Instant first), and Network Explorer's permission-aware services. Neither is yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
+- **Monitoring → Wi-Fi Explorer** (installed with Network Explorer): site overview, AP and radio inventory, findings and data quality for access points, from a generic standard-MIB template (`we__generic_access_point`, Wi-Fi Explorer - Generic Access Point) complemented by vendor templates (Aruba Instant first), and Network Explorer's permission-aware services. Neither is yet qualified on real captures; see the [Wi-Fi Explorer README](docs/wifi-explorer/README.md) and its [roadmap](docs/wifi-explorer/ROADMAP.md).
 - Disposable integration labs, regression tests and deterministic copy-out packages.
 
 Network Explorer's network-wide view is available directly from `Monitoring → Network Explorer`. Global dashboards are optional custom compositions and are not required for ordinary Network Explorer use.

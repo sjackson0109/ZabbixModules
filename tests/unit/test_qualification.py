@@ -51,13 +51,14 @@ def test_committed_classifications_match_a_fresh_replay():
     index = qualify.evidence_index()
     assert index, "the synthetic lab evidence is committed"
     for ident, item in index.items():
-        assert qualify.classify(qualify.walk_path(item)) == item["classification"], ident
+        assert qualify.classify_evidence(item) == item["classification"], ident
 
 
 @needs_node
 def test_classification_reports_what_the_walk_shows():
     stack = qualify.classify(WALKS / "sw-stack-01.snmprec")["capabilities"]
-    assert stack == {c: "ok" for c in qualify.CAPABILITIES}
+    # The generic template has no hardware producer; the synthetic walks carry no PoE tables.
+    assert stack == {**{c: "ok" for c in qualify.CAPABILITIES}, "hardware": "not_collected", "poe": "unsupported"}
     dist = qualify.classify(WALKS / "sw-dist-01.snmprec")["capabilities"]
     # No port entities and no LAG rows: absent/empty, never "ok" and never "unsupported".
     assert dist["entity"] == "absent" and dist["lag"] == "empty" and dist["interfaces"] == "ok"
@@ -71,6 +72,46 @@ def test_a_walk_without_lldp_or_mau_is_classified_unsupported(tmp_path):
     walk.write_text("\n".join(lines) + "\n")
     caps = qualify.classify(walk)["capabilities"]
     assert caps["lldp"] == "unsupported" and caps["mau"] == "unsupported" and caps["interfaces"] == "ok"
+
+
+CAPTURES = ROOT / "tests/fixtures/qualification"
+
+
+@needs_node
+def test_evidence_replays_its_own_templates_producers():
+    walk = CAPTURES / "cisco-cbs350-24p-4x-3.6.0.3" / "capture.snmprec"
+    vendor = qualify.classify(walk, "ne_cisco_small_business_switch")
+    assert vendor["template"] == "ne_cisco_small_business_switch"
+    assert (vendor["capabilities"]["hardware"], vendor["capabilities"]["poe"]) == ("ok", "ok")
+    assert qualify.classify(walk)["capabilities"]["hardware"] == "not_collected"
+    with pytest.raises(qualify.UsageError):
+        qualify.classify(walk, "we_lldp_for_access_points")
+
+
+@needs_node
+def test_a_subtree_the_capture_never_walked_is_not_walked_not_unsupported():
+    # The CBS220 capture predates its template and never walked CISCO-ENVMON-MIB: that shows nothing either way.
+    caps = qualify.classify(CAPTURES / "cisco-cbs220-24p-4g-2.0.2.15" / "capture.snmprec",
+                            "ne_cisco_cbs220_switch")["capabilities"]
+    assert (caps["hardware"], caps["poe"], caps["mau"]) == ("not_walked", "ok", "unsupported")
+    entry = row(hardware="Unsupported")
+    entry["evidence"] = ["c"]
+    errors = qualify.validate_matrix({"rows": [entry]}, {"c": evidence("c", "captured", hardware="not_walked")})
+    assert any("no cited captured/field evidence" in e for e in errors)
+
+
+def test_evidence_must_be_classified_through_its_template(tmp_path):
+    source = CAPTURES / "cisco-sg300-28pp-1.4.11.5"
+    target = tmp_path / source.name
+    shutil.copytree(source, target)
+    item = json.loads((target / "evidence.json").read_text(encoding="utf-8"))
+    item["template"] = "ne_cisco_small_business_switch"
+    (target / "evidence.json").write_text(json.dumps(item), encoding="utf-8")
+    errors, _ = qualify.check_evidence(target)
+    assert any("was not replayed through ne_cisco_small_business_switch" in e for e in errors)
+    item["template"] = "ne_acme_switch"
+    (target / "evidence.json").write_text(json.dumps(item), encoding="utf-8")
+    assert any("not a switch template" in e for e in qualify.check_evidence(target)[0])
 
 
 @pytest.mark.parametrize("state, items, problem", [
@@ -154,7 +195,7 @@ def captured(tmp_path, walk_text, sanitised=True, anonymised=True):
     (directory / "evidence.json").write_text(json.dumps({
         "id": "acme-x24-1.0", "kind": "captured", "walk": "capture.snmprec", "description": "Test capture.",
         "device": {"vendor": "Acme", "family": "X", "model": "X-24", "firmware": "1.0"},
-        "classification": {"capabilities": {}}}))
+        "classification": {"template": qualify.DEFAULT_TEMPLATE, "capabilities": {}}}))
     return directory
 
 
@@ -206,7 +247,7 @@ def test_field_evidence_needs_a_field_record(tmp_path):
     directory = captured(tmp_path, sanitised_and_anonymised(tmp_path, records))
     item = json.loads((directory / "evidence.json").read_text())
     item["kind"] = "field"
-    item["field"] = {"verified": ["lldp", "poe"]}
+    item["field"] = {"verified": ["lldp", "optics"]}
     (directory / "evidence.json").write_text(json.dumps(item))
     text = "\n".join(qualify.check_evidence(directory)[0])
     assert "field.observed_on is required" in text and "field.zabbix_version is required" in text
@@ -273,8 +314,8 @@ def test_a_walk_path_cannot_leave_the_repository(tmp_path):
 def test_rendered_matrix_has_every_capability_column():
     rendered = qualify.render_matrix(matrix(), qualify.evidence_index())
     header = next(line for line in rendered.splitlines() if line.startswith("| Vendor / family"))
-    for label in ("Interfaces", "ENTITY", "MAU", "LLDP", "VLAN", "STP", "LAG", "Known limitations", "Evidence",
-                  "Qualified on"):
+    for label in ("Interfaces", "ENTITY", "MAU", "LLDP", "VLAN", "STP", "LAG", "Hardware", "PoE", "Known limitations",
+                  "Evidence", "Qualified on"):
         assert label in header
     assert copy.deepcopy(rendered) == qualify.MATRIX_MD.read_text()
 

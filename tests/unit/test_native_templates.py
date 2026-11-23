@@ -152,7 +152,8 @@ def test_one_flat_template_per_device_type_owns_every_dataset():
     for entry in filter(generic_producer, GEN.manifest()):
         for key in [entry["raw_key"], entry["attempt_key"], *entry["snapshot_keys"]]:
             assert key in keys
-    assert [r["key"] for r in generic["discovery_rules"]] == ["ne.interfaces.discovery"]
+    assert [r["key"] for r in generic["discovery_rules"]] == ["ne.interfaces.discovery", "ne.poe.pse.discovery",
+                                                              "ne.poe.port.discovery"]
     # A narrower template holds exactly its own datasets.
     lldp = exported["we_lldp_for_access_points"]
     lldp_keys = {i["key"] for i in generic["items"] if {"tag": "dataset", "value": "lldp"} in i["tags"]}
@@ -278,7 +279,7 @@ MINOR_WORDS = {"for", "and", "of", "to"}
 
 
 PRODUCTS = {"ne": ("Network Explorer", "Templates/Network Explorer", "ne__generic_switch"),
-            "we": ("Wireless Explorer", "Templates/Wi-Fi Explorer", "we__generic_access_point")}
+            "we": ("Wi-Fi Explorer", "Templates/Wi-Fi Explorer", "we__generic_access_point")}
 
 
 def test_template_names_follow_the_convention():
@@ -308,16 +309,46 @@ def test_template_names_follow_the_convention():
     assert GEN.PROFILE == "ne__generic_switch"
 
 
+COMPONENT_DATASETS = {"Port Capability": "port_capability", "Hardware Health": "hardware"}
+
+
 def test_port_capability_ships_disabled_in_vendor_templates_only():
     exported = templates()
     capability = {"tag": "dataset", "value": "port_capability"}
     generic = [i for i in exported[GEN.PROFILE]["items"] if capability in i["tags"]]
     assert generic and all("status" not in i for i in generic)
+    assert "disabled" not in GEN.PROFILES[0]
     for profile in VENDOR:
-        items = [i for i in exported[profile["template"]]["items"] if capability in i["tags"]]
+        assert "Port Capability" in profile["disabled"], profile["template"]
+        off = [{"tag": "dataset", "value": COMPONENT_DATASETS[c]} for c in profile["disabled"]]
+        template = exported[profile["template"]]
+        items = [i for i in template["items"] if any(tag in i["tags"] for tag in off)]
         assert items and all(i["status"] == "DISABLED" for i in items), profile["template"]
-        others = [i for i in exported[profile["template"]]["items"] if capability not in i["tags"]]
+        others = [i for i in template["items"] if not any(tag in i["tags"] for tag in off)]
         assert all("status" not in i for i in others)
+
+
+def test_shared_value_maps_keep_their_released_uuids():
+    # Adding a component (PoE in 2.3.0) must not move the collection-status map off the UUID hosts already use.
+    released = {"ne__generic_switch": "ee36b38384a941d6b53cbf5d854f4b1a",
+                "ne_cisco_small_business_switch": "2760ea115d56487bb426ee150c9b81dd"}
+    exported = templates()
+    for name, uuid_hex in released.items():
+        maps = {m["name"]: m["uuid"] for m in exported[name]["valuemaps"]}
+        assert maps[GEN.STATUS_MAP] == uuid_hex, name
+
+
+def test_cbs220_hardware_ships_disabled_until_a_capture_shows_it():
+    # CISCO-ENVMON-MIB is listed in Cisco's data sheet, but no capture has walked it (HARDWARE.md).
+    profile = next(p for p in GEN.PROFILES if p["template"] == "ne_cisco_cbs220_switch")
+    assert profile["disabled"] == ["Port Capability", "Hardware Health"]
+    template = templates()["ne_cisco_cbs220_switch"]
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    assert all(rules[k]["status"] == "DISABLED" for k in ("ne.hw.psu.discovery", "ne.hw.fan.discovery",
+                                                           "ne.hw.temp.discovery"))
+    assert all("status" not in rules[k] for k in ("ne.interfaces.discovery", "ne.poe.pse.discovery",
+                                                   "ne.poe.port.discovery"))
+    assert "ENVMON" in template["description"] and "disabled" in template["description"]
 
 
 def test_schema_versions_match_lib_js():
@@ -367,6 +398,51 @@ def test_hardware_discovery_skips_unreadable_sensors_and_missing_parts():
     assert json.loads(apply(rules["ne.hw.temp.discovery"]["preprocessing"], envelope)) == []
     assert [f["name"] for f in json.loads(apply(rules["ne.hw.fan.discovery"]["preprocessing"], envelope))] == ["fan1_unit1"]
     assert "ne.hw.memory.util" not in {i["key"] for i in template["items"]}  # no memory source on this family
+
+
+@pytest.mark.parametrize("raw_key, label, delivering, power", [
+    ("ne.raw.poe.ciscosb", "cisco-cbs350-24p-4x-3.6.0.3", 3, True),
+    ("ne.raw.poe.ifindex", "dell-n1548p-6.8.1.9", 24, False),
+    ("ne.raw.poe", "cisco-cbs220-24p-4g-2.0.2.15", 6, False),
+])
+def test_poe_snapshot_feeds_discovery(raw_key, label, delivering, power):
+    template = owner(raw_key)
+    items = {i["key"]: i for i in template["items"]}
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    envelope = attempt(raw_key, CAPTURES / label / "capture.snmprec")
+    assert apply(items["ne.poe.snapshot"]["preprocessing"], envelope) == envelope
+    units = json.loads(apply(rules["ne.poe.pse.discovery"]["preprocessing"], envelope))
+    # A stack slot without a unit is never discovered (the CBS350 agent lists four groups for two units).
+    assert [u["uid"] for u in units] == (["pse-1", "pse-2"] if "cbs350" in label else ["pse-1"])
+    pse = {p["key"]: p for p in rules["ne.poe.pse.discovery"]["item_prototypes"]}
+    used = float(apply(substitute(pse["ne.poe.pse.util[{#PSEUID}]"]["preprocessing"], "{#PSEUID}", "pse-1"), envelope))
+    assert 0 < used < 100
+    assert apply(substitute(pse["ne.poe.pse.state[{#PSEUID}]"]["preprocessing"], "{#PSEUID}", "pse-1"), envelope) == "0"
+    ports = json.loads(apply(rules["ne.poe.port.discovery"]["preprocessing"], envelope))
+    assert all(p["ifuid"].startswith("if-") for p in ports) == (raw_key != "ne.raw.poe")
+    prototypes = {p["key"]: p for p in rules["ne.poe.port.discovery"]["item_prototypes"]}
+    states = [apply(substitute(prototypes["ne.poe.port.state[{#POEUID}]"]["preprocessing"], "{#POEUID}", p["uid"]),
+                    envelope) for p in ports]
+    assert states.count("0") == delivering
+    assert ("ne.poe.port.power[{#POEUID}]" in prototypes) == power
+    if power:
+        watts = [float(apply(substitute(prototypes["ne.poe.port.power[{#POEUID}]"]["preprocessing"], "{#POEUID}",
+                                        p["uid"]), envelope)) for p in ports]
+        assert watts[0] == 5.476 and sum(1 for w in watts if w > 0) == delivering  # milliwatts shown as watts
+
+
+def test_poe_triggers_use_the_devices_own_verdicts_and_threshold():
+    template = templates()["ne_cisco_small_business_switch"]
+    rules = {r["key"]: r for r in template["discovery_rules"]}
+    triggers = {t["name"]: t["expression"] for rule in ("ne.poe.pse.discovery", "ne.poe.port.discovery")
+                for p in rules[rule]["item_prototypes"] for t in p.get("trigger_prototypes", [])}
+    assert sorted(triggers) == ["Network Explorer: PoE port {#POENAME} reports a fault",
+                                "Network Explorer: PoE {#PSENAME} reports a fault",
+                                "Network Explorer: PoE {#PSENAME} uses its budget above the device's usage threshold"]
+    assert "ne.poe.pse.threshold[{#PSEUID}]" in triggers[
+        "Network Explorer: PoE {#PSENAME} uses its budget above the device's usage threshold"]
+    assert not [m for m in template["macros"] if m["macro"].startswith("{$NE.POE.") and "INTERVAL" not in m["macro"]
+                and "STALE" not in m["macro"]]
 
 
 def test_hardware_gate_rejects_unsafe_identity():
