@@ -885,13 +885,16 @@ zabbix_export:
       history: '{$WE.DEVICE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id001
+        - '{$WE.HEARTBEAT}'
       tags:
       - tag: component
         value: wifi-explorer
@@ -907,7 +910,7 @@ zabbix_export:
       history: '{$WE.DEVICE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[device]
       preprocessing:
@@ -915,12 +918,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -944,6 +949,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -956,7 +963,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[device]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -1864,13 +1871,15 @@ zabbix_export:
       history: '{$WE.AP.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[ap_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -1886,7 +1895,7 @@ zabbix_export:
       history: '{$WE.AP.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[ap_inventory]
       preprocessing:
@@ -1894,12 +1903,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_inventory'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_inventory'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -1923,6 +1934,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -1935,7 +1948,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[ap_inventory]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -2843,13 +2856,15 @@ zabbix_export:
       history: '{$WE.AP.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[ap_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -2865,7 +2880,7 @@ zabbix_export:
       history: '{$WE.AP.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[ap_state]
       preprocessing:
@@ -2873,12 +2888,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ap_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -2902,6 +2919,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -2914,7 +2933,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[ap_state]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -3882,13 +3901,15 @@ zabbix_export:
       history: '{$WE.RADIO.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[radio_inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -3904,7 +3925,7 @@ zabbix_export:
       history: '{$WE.RADIO.INVENTORY.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[radio_inventory]
       preprocessing:
@@ -3912,12 +3933,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_inventory'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_inventory'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -3941,6 +3964,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -3953,7 +3978,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[radio_inventory]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -4861,13 +4886,15 @@ zabbix_export:
       history: '{$WE.RADIO.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[radio_state]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -4883,7 +4910,7 @@ zabbix_export:
       history: '{$WE.RADIO.STATE.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[radio_state]
       preprocessing:
@@ -4891,12 +4918,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='radio_state'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -4920,6 +4949,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -4932,7 +4963,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[radio_state]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -5930,13 +5961,15 @@ zabbix_export:
       history: '{$WE.SSID.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[ssid]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -5952,7 +5985,7 @@ zabbix_export:
       history: '{$WE.SSID.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[ssid]
       preprocessing:
@@ -5960,12 +5993,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ssid'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='ssid'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -5989,6 +6024,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -6001,7 +6038,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[ssid]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -6061,15 +6098,15 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
-    - uuid: 457fbe2900f24e049ff93e0e2e7e8abb
-      name: 'Collection attempt: lldp'
+    - uuid: 1a1be7ca6c2b447bbe1bef6806ce456b
+      name: 'Normalised envelope: lldp'
       type: DEPENDENT
-      key: ne.lldp.attempt
+      key: ne.normalised[lldp]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.lldp
       preprocessing:
@@ -6651,28 +6688,55 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
+    - uuid: 457fbe2900f24e049ff93e0e2e7e8abb
+      name: 'Collection attempt: lldp'
+      type: DEPENDENT
+      key: ne.lldp.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[lldp]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id002
+        - '{$NE.HEARTBEAT}'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: native-snmp
     - uuid: ad2ec6599f874955a52203bda21ed4fb
       name: 'Last complete snapshot: lldp'
       type: DEPENDENT
       key: ne.lldp.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id002
       tags:
       - tag: component
         value: network-explorer
@@ -6691,11 +6755,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id002
       tags:
       - tag: component
         value: network-explorer
@@ -6708,12 +6774,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[lldp]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6749,15 +6815,24 @@ zabbix_export:
     - tag: component
       value: wifi-explorer
     macros:
+    - macro: '{$NE.HEARTBEAT}'
+      value: 2h
+      description: An unchanged state, snapshot or attempt receipt is stored again at least this often; a change is stored at once. Lengthen it to write less; triggers on these items are re-checked only when a value is stored.
     - macro: '{$NE.LLDP.INTERVAL}'
-      value: 5m
+      value: 15m
       description: Polling interval for lldp.
     - macro: '{$NE.LLDP.REDACT_REMOTE}'
       value: '0'
       description: 1 drops remote system and port descriptions from stored neighbour data.
     - macro: '{$NE.LLDP.STALE}'
-      value: 15m
+      value: 45m
       description: Maximum age of a complete lldp observation.
+    - macro: '{$NE.SNAPSHOT.HISTORY}'
+      value: 2d
+      description: How long JSON snapshots and attempt receipts are kept. The frontend reads the latest two; keep it well above {$NE.HEARTBEAT}.
+    - macro: '{$NE.TRENDS}'
+      value: 180d
+      description: How long hourly trends of readings are kept.
     - macro: '{$WE.AP.INVENTORY.HISTORY}'
       value: 7d
       description: How long ap_inventory snapshots and attempts are kept.
@@ -6780,7 +6855,7 @@ zabbix_export:
       value: 7d
       description: How long the numeric capacity values (AP and radios up) are kept as history.
     - macro: '{$WE.CAPACITY.TRENDS}'
-      value: 365d
+      value: 180d
       description: How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them.
     - macro: '{$WE.DEVICE.HISTORY}'
       value: 7d
@@ -6791,6 +6866,9 @@ zabbix_export:
     - macro: '{$WE.DEVICE.STALE}'
       value: 3h
       description: Maximum age of a complete device observation.
+    - macro: '{$WE.HEARTBEAT}'
+      value: 2h
+      description: An unchanged snapshot, attempt receipt or collection status is stored again at least this often; a change is stored at once. Lengthen it to write less.
     - macro: '{$WE.RADIO.INVENTORY.HISTORY}'
       value: 7d
       description: How long radio_inventory snapshots and attempts are kept.
@@ -6813,10 +6891,10 @@ zabbix_export:
       value: 1d
       description: How long ssid snapshots and attempts are kept.
     - macro: '{$WE.SSID.INTERVAL}'
-      value: 5m
+      value: 15m
       description: Polling interval for ssid.
     - macro: '{$WE.SSID.STALE}'
-      value: 15m
+      value: 45m
       description: Maximum age of a complete ssid observation.
     valuemaps:
     - uuid: 9882fb6a7a3e4804a7c946f6814552da

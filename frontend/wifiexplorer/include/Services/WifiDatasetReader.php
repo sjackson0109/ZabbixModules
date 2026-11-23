@@ -5,6 +5,7 @@ namespace Modules\WifiExplorer\Services;
 use Modules\NetworkExplorer\Services\DataGateway;
 use Modules\NetworkExplorer\Services\DatasetQuality;
 use Modules\NetworkExplorer\Services\Limits;
+use Modules\NetworkExplorer\Services\StoredEnvelope;
 
 /**
  * Reads the Wi-Fi snapshots of permitted owner hosts through Network Explorer's gateway, with Network Explorer's
@@ -26,7 +27,7 @@ final class WifiDatasetReader {
     public const MEMBERSHIP = ['we.device.snapshot', 'we.device.attempt', 'we.rf.neighbour', 'we.rf.neighbour.attempt'];
     /** Seconds; matches the templates' {$WE.<DATASET>.STALE} defaults. */
     public const TTL = ['device'=>10800, 'ap_inventory'=>10800, 'ap_state'=>900, 'radio_inventory'=>10800,
-        'radio_state'=>900, 'ssid'=>900, 'client'=>900, 'rf_neighbour'=>2700];
+        'radio_state'=>900, 'ssid'=>2700, 'client'=>900, 'rf_neighbour'=>2700];
 
     private DataGateway $gateway;
     private WifiEnvelopeValidator $validator;
@@ -47,14 +48,24 @@ final class WifiDatasetReader {
         $hostids = array_map('strval', array_keys($hosts));
         $wanted = static fn(array $keys) => array_keys($only === null ? $keys
             : array_filter($keys, static fn($dataset) => in_array($dataset, $only, true)));
-        $items = $hostids ? $this->gateway->items($hostids,
-            array_merge($wanted(self::KEYS), $wanted(self::ATTEMPTS))) : [];
+        $datasets = array_values(array_unique(array_merge(array_values(array_intersect_key(self::KEYS,
+            array_flip($wanted(self::KEYS)))), array_values(array_intersect_key(self::ATTEMPTS, array_flip($wanted(self::ATTEMPTS)))))));
+        $items = $hostids ? $this->gateway->items($hostids, array_merge($wanted(self::KEYS), $wanted(self::ATTEMPTS),
+            array_map(static fn($dataset) => 'we.collection.success['.$dataset.']', $datasets))) : [];
         if (count($items) > Limits::ITEMS) {
             throw new \RuntimeException('item_budget_exceeded');
         }
         $historyItems = [];
+        $observed = [];
         foreach ($items as $item) {
             $key = (string) $item['key_'];
+            // When each dataset last completed: Zabbix's own timestamp of its last complete observation.
+            if (preg_match('/^we\.collection\.success\[([a-z_]{1,64})\]$/D', $key, $match)) {
+                if (isset($hosts[(string) $item['hostid']]) && (int) ($item['lastclock'] ?? 0) > 0) {
+                    $observed[(string) $item['hostid']][$match[1]] = (int) $item['lastclock'];
+                }
+                continue;
+            }
             // Canonical envelopes must be text history; anything else is not a Wi-Fi Explorer producer.
             if (isset($hosts[(string) $item['hostid']]) && (isset(self::KEYS[$key]) || isset(self::ATTEMPTS[$key]))
                     && (int) $item['value_type'] === ITEM_VALUE_TYPE_TEXT) {
@@ -73,12 +84,15 @@ final class WifiDatasetReader {
             $latest = null;
             $success = null;
             $error = null;
-            foreach ($history[(string) $item['itemid']] ?? [] as $row) {
+            // The newest stored value has been confirmed by every complete observation since it was stored.
+            $confirmed = $observed[(string) $item['hostid']][$dataset] ?? null;
+            foreach (array_values($history[(string) $item['itemid']] ?? []) as $index => $row) {
                 $value = (string) ($row['value'] ?? '');
                 $bytes += strlen($value);
                 if ($bytes > Limits::HISTORY_BYTES) {
                     throw new \RuntimeException('response_budget_exceeded');
                 }
+                $value = StoredEnvelope::rehydrate($value, (int) ($row['clock'] ?? 0), $index === 0 ? $confirmed : null);
                 try {
                     $envelope = $this->validator->decode($value, $dataset);
                     $latest = $latest ?? $envelope;

@@ -37,15 +37,15 @@ zabbix_export:
         value: device
       - tag: data_source
         value: native-snmp
-    - uuid: c86c565b9a8f4b079d6f9b0426a5785e
-      name: 'Collection attempt: device'
+    - uuid: 285049727b5e4e539af07e4268554746
+      name: 'Normalised envelope: device'
       type: DEPENDENT
-      key: ne.device.attempt
+      key: ne.normalised[device]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.system
       preprocessing:
@@ -556,28 +556,55 @@ zabbix_export:
         value: device
       - tag: data_source
         value: native-snmp
+    - uuid: c86c565b9a8f4b079d6f9b0426a5785e
+      name: 'Collection attempt: device'
+      type: DEPENDENT
+      key: ne.device.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[device]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id001
+        - '{$NE.HEARTBEAT}'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: device
+      - tag: data_source
+        value: native-snmp
     - uuid: 340b2af16edc4a51af6ebc55cbd6b694
       name: 'Last complete snapshot: device'
       type: DEPENDENT
       key: ne.device.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.device.attempt
+        key: ne.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);delete r.uptime_s;}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -596,11 +623,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.device.attempt
+        key: ne.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -613,12 +642,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[device]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.device.attempt
+        key: ne.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -660,13 +689,13 @@ zabbix_export:
       trends: '0'
       units: uptime
       master_item:
-        key: ne.device.snapshot
+        key: ne.normalised[device]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var d=JSON.parse(value).data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; return d.uptime_s;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='device'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var d=e.data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; return d.uptime_s;
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
@@ -696,7 +725,7 @@ zabbix_export:
     - uuid: 313109cef2ef4cb2abc91439b72de3be
       name: 'Raw SNMP walk: interfaces'
       type: SNMP_AGENT
-      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.1,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.2.2.1.5,1.3.6.1.2.1.2.2.1.7,1.3.6.1.2.1.2.2.1.8,1.3.6.1.2.1.2.2.1.9,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.31.1.1.1.15,1.3.6.1.2.1.10.7.2.1.19]
+      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.1,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.2.2.1.7,1.3.6.1.2.1.2.2.1.8,1.3.6.1.2.1.2.2.1.9,1.3.6.1.2.1.31.1.1.1.1]
       key: ne.raw.if.state
       delay: '{$NE.IF.STATE.INTERVAL}'
       history: '0'
@@ -716,15 +745,15 @@ zabbix_export:
         value: interfaces
       - tag: data_source
         value: native-snmp
-    - uuid: 45c253931e0645cb82bf98849b7bc050
-      name: 'Collection attempt: interfaces'
+    - uuid: 93bbc186ac2d439089acb1df10f57364
+      name: 'Normalised envelope: interfaces'
       type: DEPENDENT
-      key: ne.interfaces.attempt
+      key: ne.normalised[interfaces]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.if.state
       preprocessing:
@@ -1157,8 +1186,8 @@ zabbix_export:
           };
 
           // IF-MIB / ifXTable / EtherLike-MIB walk -> canonical "interfaces" rows.
-          // Used by both the inventory walk (all columns) and the fast state walk
-          // (status and speed columns only); columns absent from a walk become null.
+          // Used by the inventory walk (all columns), the status walk (status columns)
+          // and the link walk (speed and duplex); columns absent from a walk become null.
 
           var IF_ADMIN = {1: 'up', 2: 'down', 3: 'testing'};
           var IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
@@ -1219,6 +1248,8 @@ zabbix_export:
                       parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];
                   }
               }
+              // The link walk (speed and duplex) carries no status columns; only a walk that asked for them can lack them.
+              var statusWalked = NE.has(walk, NE.IF.admin) || NE.has(walk, NE.IF.oper);
               var rows = [], indexes = [];
               for (key in uids) {
                   if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }
@@ -1229,7 +1260,7 @@ zabbix_export:
                   if (uid === null) { continue; }
                   var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
                   var type = NE.int(t.type[k] || null);
-                  if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
+                  if (!t.descr[k] || statusWalked && (!IF_ADMIN[admin] || !IF_OPER[oper])) {
                       NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
                   }
                   var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
@@ -1280,28 +1311,54 @@ zabbix_export:
         value: interfaces
       - tag: data_source
         value: native-snmp
+    - uuid: 45c253931e0645cb82bf98849b7bc050
+      name: 'Collection attempt: interfaces'
+      type: DEPENDENT
+      key: ne.interfaces.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[interfaces]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
     - uuid: 2528176d4f884b84bf69ed5962fad7f0
       name: 'Last complete snapshot: interfaces'
       type: DEPENDENT
       key: ne.interfaces.state
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.interfaces.attempt
+        key: ne.normalised[interfaces]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -1320,11 +1377,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.interfaces.attempt
+        key: ne.normalised[interfaces]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -1337,12 +1396,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[interfaces]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.interfaces.attempt
+        key: ne.normalised[interfaces]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1365,6 +1424,717 @@ zabbix_export:
       - uuid: 6e685345d84b4bf0ba11fc802e055d15
         expression: nodata(/ne_cisco_small_business_switch/ne.collection.success[interfaces],{$NE.IF.STATE.STALE})=1 and last(/ne_cisco_small_business_switch/ne.collection.status[interfaces])<>3
         name: 'Network Explorer: no complete interfaces observation for {$NE.IF.STATE.STALE}'
+        priority: WARNING
+        description: Partial and failed attempts never refresh this age. An unsupported dataset does not alert.
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: interfaces
+        - tag: data_source
+          value: native-snmp
+    - uuid: 24a44e45886b40a5bf347777104bec9c
+      name: 'Raw SNMP walk: interfaces.link'
+      type: SNMP_AGENT
+      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.1,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.2.2.1.5,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.31.1.1.1.15,1.3.6.1.2.1.10.7.2.1.19]
+      key: ne.raw.if.link
+      delay: '{$NE.IF.LINK.INTERVAL}'
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: Input for the canonical normaliser only; not stored. A timeout or SNMP error becomes a failed attempt instead of making the dataset silently disappear.
+      preprocessing:
+      - type: CHECK_NOT_SUPPORTED
+        parameters:
+        - '-1'
+        error_handler: CUSTOM_VALUE
+        error_handler_params: __NE_COLLECTION_FAILED__
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+    - uuid: 1779d7bf05134d9c9e1fd91ec85b79ee
+      name: 'Normalised envelope: interfaces.link'
+      type: DEPENDENT
+      key: ne.normalised[interfaces.link]
+      delay: '0'
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
+      master_item:
+        key: ne.raw.if.link
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          // Shared helpers for Network Explorer SNMP normalisers.
+          // Runs inside Zabbix JavaScript preprocessing (Duktape, ECMAScript 5.1):
+          // no let/const, arrow functions, template literals or ES2015+ library calls.
+          // The global sha256() is provided by Zabbix (and by the Node test harness).
+
+          var NE = {};
+          NE.SCHEMA = '1.1';
+          // Datasets added in schema 1.2 declare it; the 1.1 datasets are unchanged, so their consumers are too.
+          NE.SCHEMAS = {hardware: '1.2', poe: '1.2'};
+          NE.VERSION = '2.3.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+          NE.FAILED = '__NE_COLLECTION_FAILED__';
+          NE.UPTIME = '1.3.6.1.2.1.1.3.0';
+
+          NE.IF = {
+              number: '1.3.6.1.2.1.2.1.0',
+              descr: '1.3.6.1.2.1.2.2.1.2',
+              type: '1.3.6.1.2.1.2.2.1.3',
+              mtu: '1.3.6.1.2.1.2.2.1.4',
+              speed: '1.3.6.1.2.1.2.2.1.5',
+              mac: '1.3.6.1.2.1.2.2.1.6',
+              admin: '1.3.6.1.2.1.2.2.1.7',
+              oper: '1.3.6.1.2.1.2.2.1.8',
+              lastChange: '1.3.6.1.2.1.2.2.1.9',
+              name: '1.3.6.1.2.1.31.1.1.1.1',
+              highSpeed: '1.3.6.1.2.1.31.1.1.1.15',
+              connector: '1.3.6.1.2.1.31.1.1.1.17',
+              alias: '1.3.6.1.2.1.31.1.1.1.18',
+              stack: '1.3.6.1.2.1.31.1.2.1.3',
+              duplex: '1.3.6.1.2.1.10.7.2.1.19',
+              // ENTITY-MIB: physical position of each port (stack member, slot, port).
+              entContained: '1.3.6.1.2.1.47.1.1.1.1.4',
+              entClass: '1.3.6.1.2.1.47.1.1.1.1.5',
+              entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',
+              entAlias: '1.3.6.1.2.1.47.1.3.2.1.2'
+          };
+          NE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';
+
+          // ---------------------------------------------------------------- parsing
+
+          // Parses Zabbix walk[] output: one "OID = TYPE: value" entry per line, numeric
+          // OIDs and enums, quoted STRING values (which may span lines), and unquoted
+          // Hex-STRING values (which net-snmp may wrap onto continuation lines).
+          NE.parseWalk = function (text) {
+              var rows = {}, order = [], pos = 0, len = text.length;
+              var head = /^\.?([0-9]+(?:\.[0-9]+)*) = (?:([A-Za-z0-9-]+): ?)?/;
+              while (pos < len) {
+                  var eol = text.indexOf('\n', pos);
+                  if (eol < 0) { eol = len; }
+                  var line = text.substring(pos, eol);
+                  var m = head.exec(line);
+                  if (!m) { pos = eol + 1; continue; }
+                  var oid = m[1], type = m[2] || 'STRING', start = pos + m[0].length, value;
+                  if (text.charAt(start) === '"') {
+                      var i = start + 1, out = '';
+                      while (i < len && text.charAt(i) !== '"') {
+                          if (text.charAt(i) === '\\' && i + 1 < len) { i++; }
+                          out += text.charAt(i);
+                          i++;
+                      }
+                      value = out;
+                      eol = text.indexOf('\n', i);
+                      if (eol < 0) { eol = len; }
+                  }
+                  else {
+                      value = text.substring(start, eol);
+                      // Unquoted continuation lines (wrapped Hex-STRING) until the next OID line.
+                      while (eol < len) {
+                          var next = text.indexOf('\n', eol + 1);
+                          if (next < 0) { next = len; }
+                          var more = text.substring(eol + 1, next);
+                          if (more === '' || head.test(more)) { break; }
+                          value += ' ' + more;
+                          eol = next;
+                      }
+                      value = value.replace(/\s+$/, '');
+                  }
+                  if (/^No (Such|more) /.test(value)) { type = 'MISSING'; }
+                  if (!rows.hasOwnProperty(oid)) { order.push(oid); }
+                  rows[oid] = {type: type, value: value};
+                  pos = eol + 1;
+              }
+              return {rows: rows, order: order};
+          };
+
+          // Returns {suffix: entry} for every row under base (suffix without the dot).
+          NE.table = function (walk, base) {
+              var out = {}, prefix = base + '.', i, oid;
+              for (i = 0; i < walk.order.length; i++) {
+                  oid = walk.order[i];
+                  if (oid.indexOf(prefix) === 0 && walk.rows[oid].type !== 'MISSING') {
+                      out[oid.substring(prefix.length)] = walk.rows[oid];
+                  }
+              }
+              return out;
+          };
+
+          NE.has = function (walk, base) {
+              var prefix = base + '.', i;
+              for (i = 0; i < walk.order.length; i++) {
+                  if (walk.order[i].indexOf(prefix) === 0 && walk.rows[walk.order[i]].type !== 'MISSING') { return true; }
+              }
+              return false;
+          };
+
+          NE.scalar = function (walk, oid) {
+              var row = walk.rows[oid];
+              return row && row.type !== 'MISSING' ? row : null;
+          };
+
+          // ---------------------------------------------------------------- values
+
+          NE.int = function (entry) {
+              if (!entry) { return null; }
+              var m = /-?[0-9]+/.exec(entry.value);
+              if (!m) { return null; }
+              var n = parseInt(m[0], 10);
+              return isFinite(n) ? n : null;
+          };
+
+          NE.utf8Encode = function (s) {
+              var out = [], i, c;
+              for (i = 0; i < s.length; i++) {
+                  c = s.charCodeAt(i);
+                  if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+                      c = 0x10000 + ((c - 0xd800) << 10) + (s.charCodeAt(++i) - 0xdc00);
+                  }
+                  if (c < 0x80) { out.push(c); }
+                  else if (c < 0x800) { out.push(0xc0 | (c >> 6), 0x80 | (c & 63)); }
+                  else if (c < 0x10000) { out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+                  else { out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+              }
+              return out;
+          };
+
+          NE.utf8Decode = function (bytes) {
+              var out = '', i = 0, c, n, cp;
+              while (i < bytes.length) {
+                  c = bytes[i++];
+                  if (c < 0x80) { cp = c; n = 0; }
+                  else if (c >= 0xc2 && c < 0xe0) { cp = c & 31; n = 1; }
+                  else if (c >= 0xe0 && c < 0xf0) { cp = c & 15; n = 2; }
+                  else if (c >= 0xf0 && c < 0xf5) { cp = c & 7; n = 3; }
+                  else { return null; }
+                  while (n-- > 0) {
+                      if (i >= bytes.length || (bytes[i] & 0xc0) !== 0x80) { return null; }
+                      cp = (cp << 6) | (bytes[i++] & 63);
+                  }
+                  if (cp >= 0x10000) {
+                      cp -= 0x10000;
+                      out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023));
+                  }
+                  else { out += String.fromCharCode(cp); }
+              }
+              return out;
+          };
+
+          // Raw octets of an OCTET STRING / BITS value, whichever form Zabbix printed.
+          NE.bytes = function (entry) {
+              if (!entry) { return null; }
+              var v = entry.value, out = [], parts, i;
+              if (entry.type === 'Hex-STRING' || entry.type === 'BITS') {
+                  parts = v.split(/\s+/);
+                  for (i = 0; i < parts.length; i++) {
+                      if (!/^[0-9A-Fa-f]{2}$/.test(parts[i])) { break; }
+                      out.push(parseInt(parts[i], 16));
+                  }
+                  return out;
+              }
+              // A MacAddress display hint prints "0:1b:2c:..." as a STRING.
+              if (/^[0-9A-Fa-f]{1,2}([:-][0-9A-Fa-f]{1,2}){5,}$/.test(v)) {
+                  parts = v.split(/[:-]/);
+                  for (i = 0; i < parts.length; i++) { out.push(parseInt(parts[i], 16)); }
+                  return out;
+              }
+              // Zabbix prints octets that are valid UTF-8 as a STRING.
+              return NE.utf8Encode(v);
+          };
+
+          NE.hex = function (bytes) {
+              var out = '', i;
+              for (i = 0; i < bytes.length; i++) { out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16); }
+              return out;
+          };
+
+          NE.text = function (entry) {
+              if (!entry) { return null; }
+              if (entry.type === 'Hex-STRING') {
+                  var bytes = NE.bytes(entry), decoded = NE.utf8Decode(bytes);
+                  return decoded !== null ? decoded.replace(/\u0000+$/, '') : 'hex:' + NE.hex(bytes);
+              }
+              return entry.value;
+          };
+
+          NE.mac = function (entry) {
+              var b = NE.bytes(entry);
+              if (!b || b.length !== 6) { return null; }
+              var parts = [], i;
+              for (i = 0; i < 6; i++) { parts.push((b[i] < 16 ? '0' : '') + b[i].toString(16)); }
+              return parts.join(':');
+          };
+
+          // Bits set in an octet string, numbered MSB-first from 0 (SNMP BITS and PortList).
+          NE.bitsSet = function (bytes, offset) {
+              var out = [], i, b;
+              if (!bytes) { return out; }
+              for (i = 0; i < bytes.length; i++) {
+                  for (b = 0; b < 8; b++) {
+                      if (bytes[i] & (0x80 >> b)) { out.push(i * 8 + b + (offset || 0)); }
+                  }
+              }
+              return out;
+          };
+
+          NE.ipFromOctets = function (octets) {
+              var i, parts = [];
+              if (octets.length === 4) { return octets.join('.'); }
+              if (octets.length !== 16) { return null; }
+              for (i = 0; i < 16; i += 2) { parts.push(((octets[i] << 8) | octets[i + 1]).toString(16)); }
+              // RFC 5952: compress the longest run (two or more) of zero groups.
+              var best = -1, bestLen = 1, run = 0;
+              for (i = 0; i <= 8; i++) {
+                  if (i < 8 && parts[i] === '0') { run++; continue; }
+                  if (run > bestLen) { best = i - run; bestLen = run; }
+                  run = 0;
+              }
+              if (best < 0) { return parts.join(':'); }
+              return parts.slice(0, best).join(':') + '::' + parts.slice(best + bestLen).join(':');
+          };
+
+          // "1,3-5,49"; empty list gives "", null gives null.
+          NE.ranges = function (ids) {
+              if (ids === null) { return null; }
+              var sorted = ids.slice().sort(function (a, b) { return a - b; }), out = [], i, start, prev;
+              for (i = 0; i < sorted.length; i++) {
+                  if (i > 0 && sorted[i] === prev) { continue; }
+                  if (start === undefined) { start = prev = sorted[i]; continue; }
+                  if (sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+                  out.push(start === prev ? String(start) : start + '-' + prev);
+                  start = prev = sorted[i];
+              }
+              if (start !== undefined) { out.push(start === prev ? String(start) : start + '-' + prev); }
+              return out.join(',');
+          };
+
+          // ---------------------------------------------------------------- interfaces
+
+          NE.uid = function (name, descr) {
+              var basis = null;
+              if (name !== null && name !== undefined && name.replace(/^\s+|\s+$/g, '') !== '') {
+                  basis = 'name:' + name.replace(/^\s+|\s+$/g, '');
+              }
+              else if (descr !== null && descr !== undefined && descr.replace(/^\s+|\s+$/g, '') !== '') {
+                  basis = 'description:' + descr.replace(/^\s+|\s+$/g, '');
+              }
+              return basis === null ? null : 'if-' + sha256(basis).substring(0, 24);
+          };
+
+          // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
+          NE.interfaceIndex = function (walk, env, quiet) {
+              var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
+              var out = {}, seen = {}, k, uid;
+              for (k in descrs) { if (descrs.hasOwnProperty(k)) { out[k] = null; } }
+              for (k in names) { if (names.hasOwnProperty(k)) { out[k] = null; } }
+              for (k in out) {
+                  if (!out.hasOwnProperty(k)) { continue; }
+                  uid = NE.uid(NE.text(names[k] || null), NE.text(descrs[k] || null));
+                  out[k] = uid;
+                  if (uid !== null) { seen[uid] = (seen[uid] || 0) + 1; }
+              }
+              for (k in out) {
+                  if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
+                      out[k] = null;
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
+                  }
+              }
+              return out;
+          };
+
+          // ---------------------------------------------------------------- LLDP identifiers
+
+          // Chassis subtype 4 / port subtype 3 are MAC; chassis 5 / port 4 are network addresses.
+          NE.lldpId = function (subtypeEntry, valueEntry, kind) {
+              var subtype = NE.int(subtypeEntry), macType = kind === 'chassis' ? 4 : 3;
+              var netType = kind === 'chassis' ? 5 : 4, value = null, bytes;
+              if (subtype === macType) { value = NE.mac(valueEntry); }
+              else if (subtype === netType) {
+                  bytes = NE.bytes(valueEntry);
+                  if (bytes && bytes.length > 1 && (bytes[0] === 1 || bytes[0] === 2)) { value = NE.ipFromOctets(bytes.slice(1)); }
+              }
+              if (value === null && valueEntry) { value = NE.text(valueEntry); }
+              return {subtype: subtype !== null && subtype >= 1 && subtype <= 7 ? subtype : null, value: value || ''};
+          };
+
+          // ---------------------------------------------------------------- MAU / speeds
+
+          // IANA-MAU-MIB dot3MauType arc -> [speed bit/s, duplex, media]. The same
+          // numbers are the IANAifMauTypeListBits positions.
+          // From 40G up (IANA-MAU-MIB revision 2017-04-10):
+          //   70 dot3MauType40GbaseKR4, 71 40GbaseCR4, 72 40GbaseSR4, 73 40GbaseFR,
+          //   74 40GbaseLR4, 75 100GbaseCR10, 76 100GbaseSR10, 77 100GbaseLR4,
+          //   78 100GbaseER4, 88 25GbaseCR, 89 25GbaseCRS, 90 25GbaseKR, 91 25GbaseKRS,
+          //   92 25GbaseR, 93 25GbaseSR, 94 25GbaseT, 95 40GbaseER4, 96 40GbaseR,
+          //   97 40GbaseT, 98 100GbaseCR4, 99 100GbaseKR4, 100 100GbaseKP4,
+          //   101 100GbaseR, 102 100GbaseSR4.
+          // That revision defines no 2.5G, 5G or 50G types. Media is null for 25G/40G/
+          // 100G MAUs other than BASE-T: the port_capability media enum has no SFP28 or
+          // QSFP value, and a backplane or undefined PMD names no cage.
+          NE.MAU = {
+              5: [10e6, null, 'copper'], 10: [10e6, 'half', 'copper'], 11: [10e6, 'full', 'copper'],
+              14: [100e6, 'half', 'copper'], 15: [100e6, 'half', 'copper'], 16: [100e6, 'full', 'copper'],
+              17: [100e6, 'half', 'sfp'], 18: [100e6, 'full', 'sfp'], 19: [100e6, 'half', 'copper'], 20: [100e6, 'full', 'copper'],
+              21: [1e9, 'half', 'sfp'], 22: [1e9, 'full', 'sfp'], 23: [1e9, 'half', 'sfp'], 24: [1e9, 'full', 'sfp'],
+              25: [1e9, 'half', 'sfp'], 26: [1e9, 'full', 'sfp'], 27: [1e9, 'half', 'copper'], 28: [1e9, 'full', 'copper'],
+              29: [1e9, 'half', 'copper'], 30: [1e9, 'full', 'copper'],
+              31: [10e9, 'full', 'sfp_plus'], 32: [10e9, 'full', 'sfp_plus'], 33: [10e9, 'full', 'sfp_plus'],
+              34: [10e9, 'full', 'sfp_plus'], 35: [10e9, 'full', 'sfp_plus'], 36: [10e9, 'full', 'sfp_plus'],
+              41: [10e9, 'full', 'copper'], 44: [100e6, 'full', 'sfp'], 45: [100e6, 'full', 'sfp'], 46: [100e6, 'full', 'sfp'],
+              47: [1e9, 'full', 'sfp'], 48: [1e9, 'full', 'sfp'], 49: [1e9, 'full', 'sfp'],
+              54: [10e9, 'full', 'copper'], 55: [10e9, 'full', 'sfp_plus'],
+              70: [40e9, 'full', null], 71: [40e9, 'full', null], 72: [40e9, 'full', null], 73: [40e9, 'full', null],
+              74: [40e9, 'full', null], 75: [100e9, 'full', null], 76: [100e9, 'full', null], 77: [100e9, 'full', null],
+              78: [100e9, 'full', null],
+              88: [25e9, 'full', null], 89: [25e9, 'full', null], 90: [25e9, 'full', null], 91: [25e9, 'full', null],
+              92: [25e9, 'full', null], 93: [25e9, 'full', null], 94: [25e9, 'full', 'copper'],
+              95: [40e9, 'full', null], 96: [40e9, 'full', null], 97: [40e9, 'full', 'copper'],
+              98: [100e9, 'full', null], 99: [100e9, 'full', null], 100: [100e9, 'full', null], 101: [100e9, 'full', null],
+              102: [100e9, 'full', null]
+          };
+
+          NE.mauArc = function (entry) {
+              if (!entry) { return null; }
+              var m = /([0-9]+)$/.exec(entry.value);
+              return m ? parseInt(m[1], 10) : null;
+          };
+
+          // Autonegotiation capability bits (ifMauAutoNegCapAdvertisedBits and the
+          // LLDP 802.3 extension) -> distinct speeds in bit/s.
+          NE.AUTONEG_SPEED = {1: 10e6, 2: 10e6, 3: 100e6, 4: 100e6, 5: 100e6, 6: 100e6, 7: 100e6,
+                              12: 1e9, 13: 1e9, 14: 1e9, 15: 1e9};
+
+          NE.speedsFromBits = function (bits, table) {
+              var seen = {}, out = [], i, s;
+              for (i = 0; i < bits.length; i++) {
+                  s = table === 'mau' ? (NE.MAU[bits[i]] ? NE.MAU[bits[i]][0] : null) : NE.AUTONEG_SPEED[bits[i]];
+                  if (s && !seen[s]) { seen[s] = true; out.push(s); }
+              }
+              return out.sort(function (a, b) { return a - b; });
+          };
+
+          // ---------------------------------------------------------------- envelope
+
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
+              }
+              if (list.length < 256) { list.push({code: code, message: message}); }
+          };
+
+          NE.envelope = function (dataset, adapter) {
+              var now = new Date().toISOString();
+              return {
+                  schema_version: NE.SCHEMAS[dataset] || NE.SCHEMA, dataset: dataset,
+                  generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
+                  attempted_at: now, observed_at: null, status: 'failed', complete: false,
+                  source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
+              };
+          };
+
+          // Runs a dataset normaliser and sets status/completeness consistently.
+          //   normalise(walk, env) returns rows, or throws {unsupported: reason}.
+          //   Any error recorded on env makes the result partial.
+          NE.run = function (dataset, adapter, value, normalise) {
+              var env = NE.envelope(dataset, adapter);
+              if (value === NE.FAILED || value === '' || value === null || value === undefined) {
+                  NE.error(env, 'collection_failed', 'The SNMP walk returned no data or the item is not supported.');
+                  return env;
+              }
+              var walk, rows;
+              try {
+                  walk = NE.parseWalk(String(value));
+                  if (!NE.scalar(walk, NE.UPTIME)) {
+                      NE.error(env, 'agent_unreachable', 'The walk did not include sysUpTime; the agent did not answer.');
+                      return env;
+                  }
+                  rows = normalise(walk, env);
+              }
+              catch (e) {
+                  if (e && e.unsupported) {
+                      env.status = 'unsupported';
+                      env.capability = {state: 'unsupported', reason: e.unsupported};
+                      env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
+                      return env;
+                  }
+                  // A normaliser bug still records a failed attempt rather than no
+                  // envelope at all. The message is fixed: an exception can quote
+                  // device data.
+                  env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
+                  return env;
+              }
+              env.observed_at = env.attempted_at;
+              env.data = rows;
+              if (env.errors.length) {
+                  env.status = 'partial';
+                  env.capability = {state: 'partial', reason: env.errors[0].message};
+              }
+              else {
+                  env.status = 'ok';
+                  env.complete = true;
+                  env.capability = {state: 'supported', reason: null};
+              }
+              return env;
+          };
+
+          // IF-MIB / ifXTable / EtherLike-MIB walk -> canonical "interfaces" rows.
+          // Used by the inventory walk (all columns), the status walk (status columns)
+          // and the link walk (speed and duplex); columns absent from a walk become null.
+
+          var IF_ADMIN = {1: 'up', 2: 'down', 3: 'testing'};
+          var IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
+          var IF_LOGICAL_TYPES = {24: true, 53: true, 131: true, 135: true, 136: true, 161: true};
+
+          // ENTITY-MIB classes: chassis 3, module 9, port 10, stack 11.
+          var ENT_CHASSIS = 3, ENT_MODULE = 9, ENT_PORT = 10, ENT_STACK = 11;
+
+          // ifIndex -> {member, slot, port} from entAliasMappingTable and the containment tree.
+          // Ports with no mapping, or whose tree does not reach a chassis, are left unplaced.
+          function entityPositions(t) {
+              var out = {}, chassisCount = 0, key;
+              for (key in t.entClass) {
+                  if (t.entClass.hasOwnProperty(key) && NE.int(t.entClass[key]) === ENT_CHASSIS) { chassisCount++; }
+              }
+              for (key in t.entAlias) {
+                  if (!t.entAlias.hasOwnProperty(key)) { continue; }
+                  var target = /^\.?1\.3\.6\.1\.2\.1\.2\.2\.1\.1\.([0-9]+)$/.exec(t.entAlias[key].value);
+                  var ent = key.split('.')[0];
+                  if (!target || NE.int(t.entClass[ent] || null) !== ENT_PORT) { continue; }
+                  var slot = null, member = null, node = ent, depth = 0;
+                  while (depth++ < 16) {
+                      var parent = NE.int(t.entContained[node] || null);
+                      if (parent === null || parent === 0) { break; }
+                      node = String(parent);
+                      var cls = NE.int(t.entClass[node] || null);
+                      if (cls === ENT_MODULE && slot === null) { slot = NE.int(t.entRelPos[node] || null); }
+                      if (cls === ENT_CHASSIS) {
+                          var above = NE.int(t.entContained[node] || null);
+                          if (above !== null && NE.int(t.entClass[String(above)] || null) === ENT_STACK) {
+                              member = NE.int(t.entRelPos[node] || null);
+                          }
+                          else if (chassisCount === 1) { member = 1; }
+                          break;
+                      }
+                  }
+                  if (member !== null && !out.hasOwnProperty(target[1])) {
+                      out[target[1]] = {member: member, slot: slot, port: NE.int(t.entRelPos[ent] || null)};
+                  }
+              }
+              return out;
+          }
+
+          function normaliseInterfaces(walk, env) {
+              var t = {}, key;
+              for (key in NE.IF) {
+                  if (NE.IF.hasOwnProperty(key)) { t[key] = NE.table(walk, NE.IF[key]); }
+              }
+              var uids = NE.interfaceIndex(walk, env);
+              var uptime = NE.int(NE.scalar(walk, NE.UPTIME));
+              var observed = Date.parse(env.attempted_at);
+              var positions = entityPositions(t);
+              var parents = {};
+              for (key in t.stack) {
+                  if (!t.stack.hasOwnProperty(key)) { continue; }
+                  var pair = key.split('.');
+                  if (pair.length === 2 && pair[0] !== '0' && pair[1] !== '0' && NE.int(t.stack[key]) === 1) {
+                      parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];
+                  }
+              }
+              // The link walk (speed and duplex) carries no status columns; only a walk that asked for them can lack them.
+              var statusWalked = NE.has(walk, NE.IF.admin) || NE.has(walk, NE.IF.oper);
+              var rows = [], indexes = [];
+              for (key in uids) {
+                  if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }
+              }
+              indexes.sort(function (a, b) { return a - b; });
+              for (var i = 0; i < indexes.length; i++) {
+                  var k = String(indexes[i]), uid = uids[k];
+                  if (uid === null) { continue; }
+                  var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
+                  var type = NE.int(t.type[k] || null);
+                  if (!t.descr[k] || statusWalked && (!IF_ADMIN[admin] || !IF_OPER[oper])) {
+                      NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
+                  }
+                  var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
+                  if (high !== null && high > 0) { bps = high * 1000000; }
+                  else if (speed !== null && speed > 0 && speed < 4294967295) { bps = speed; }
+                  var connector = NE.int(t.connector[k] || null), physical = null;
+                  if (connector === 1) { physical = true; }
+                  else if (connector === 2) { physical = false; }
+                  else if (type === 6) { physical = true; }
+                  else if (type !== null && IF_LOGICAL_TYPES[type]) { physical = false; }
+                  var duplex = NE.int(t.duplex[k] || null);
+                  var lastChange = null, ticks = NE.int(t.lastChange[k] || null);
+                  if (ticks !== null && ticks > 0 && uptime !== null && ticks <= uptime) {
+                      lastChange = new Date(observed - (uptime - ticks) * 10).toISOString();
+                  }
+                  var parent = parents[k] ? uids[parents[k]] || null : null;
+                  rows.push({
+                      uid: uid, if_index: indexes[i],
+                      name: NE.text(t.name[k] || null), description: NE.text(t.descr[k] || null),
+                      alias: NE.text(t.alias[k] || null), type: type, physical: physical,
+                      admin_status: IF_ADMIN[admin] || null, oper_status: IF_OPER[oper] || null,
+                      speed_bps: bps, duplex: duplex === 2 ? 'half' : (duplex === 3 ? 'full' : null),
+                      mtu: NE.int(t.mtu[k] || null), mac_address: NE.mac(t.mac[k] || null),
+                      last_change: lastChange, stack_parent_uid: parent,
+                      member: positions[k] ? positions[k].member : null, slot: positions[k] ? positions[k].slot : null,
+                      port: positions[k] ? positions[k].port : null
+                  });
+              }
+              var expected = NE.int(NE.scalar(walk, NE.IF.number));
+              if (expected !== null && expected !== indexes.length) {
+                  NE.warning(env, 'interface_count_mismatch', 'ifNumber does not match the number of interface rows walked.');
+              }
+              // Skipping a few bad rows keeps the snapshot current; losing every row means the walk itself is unusable.
+              if (!rows.length && (indexes.length || expected > 0)) {
+                  NE.error(env, 'identity_ambiguous', 'No interface in the walk could be identified by a unique name.');
+              }
+              if (!indexes.length && expected === null) {
+                  throw {unsupported: 'The agent returned no IF-MIB interface table.'};
+              }
+              return rows;
+          }
+
+          return JSON.stringify(NE.run('interfaces', 'standard-if-link', value, function (w, e) { return normaliseInterfaces(w, e); }));
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+    - uuid: a1ba482284ee472fbd2e9a44c6dbd8f3
+      name: 'Collection attempt: interfaces.link'
+      type: DEPENDENT
+      key: ne.interfaces.link.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[interfaces.link]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+    - uuid: afef926a818e44d7a8de9f1dd986cd9d
+      name: 'Last complete snapshot: interfaces.link'
+      type: DEPENDENT
+      key: ne.interfaces.link
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
+      master_item:
+        key: ne.normalised[interfaces.link]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} return JSON.stringify(e);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+    - uuid: 7bcda44276464086a9a11eeaaa438836
+      name: 'Collection status: interfaces.link'
+      type: DEPENDENT
+      key: ne.collection.status[interfaces.link]
+      delay: '0'
+      history: 31d
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: Network Explorer collection status
+      master_item:
+        key: ne.normalised[interfaces.link]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+    - uuid: 491184f7604746db8c9c4a65e8c329da
+      name: 'Last complete observation: interfaces.link'
+      type: DEPENDENT
+      key: ne.collection.success[interfaces.link]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      units: unixtime
+      master_item:
+        key: ne.normalised[interfaces.link]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
+      triggers:
+      - uuid: 8fb75c93792e476496ba5654d7bc210b
+        expression: nodata(/ne_cisco_small_business_switch/ne.collection.success[interfaces.link],{$NE.IF.LINK.STALE})=1 and last(/ne_cisco_small_business_switch/ne.collection.status[interfaces.link])<>3
+        name: 'Network Explorer: no complete interfaces.link observation for {$NE.IF.LINK.STALE}'
         priority: WARNING
         description: Partial and failed attempts never refresh this age. An unsupported dataset does not alert.
         tags:
@@ -1397,15 +2167,15 @@ zabbix_export:
         value: interfaces
       - tag: data_source
         value: native-snmp
-    - uuid: 30d2167e51e94549891b103bd1c46f87
-      name: 'Collection attempt: interfaces.inventory'
+    - uuid: d3a137aed34e4aa893e653d162a4dbee
+      name: 'Normalised envelope: interfaces.inventory'
       type: DEPENDENT
-      key: ne.interfaces.inventory.attempt
+      key: ne.normalised[interfaces.inventory]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.if.inventory
       preprocessing:
@@ -1838,8 +2608,8 @@ zabbix_export:
           };
 
           // IF-MIB / ifXTable / EtherLike-MIB walk -> canonical "interfaces" rows.
-          // Used by both the inventory walk (all columns) and the fast state walk
-          // (status and speed columns only); columns absent from a walk become null.
+          // Used by the inventory walk (all columns), the status walk (status columns)
+          // and the link walk (speed and duplex); columns absent from a walk become null.
 
           var IF_ADMIN = {1: 'up', 2: 'down', 3: 'testing'};
           var IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
@@ -1900,6 +2670,8 @@ zabbix_export:
                       parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];
                   }
               }
+              // The link walk (speed and duplex) carries no status columns; only a walk that asked for them can lack them.
+              var statusWalked = NE.has(walk, NE.IF.admin) || NE.has(walk, NE.IF.oper);
               var rows = [], indexes = [];
               for (key in uids) {
                   if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }
@@ -1910,7 +2682,7 @@ zabbix_export:
                   if (uid === null) { continue; }
                   var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
                   var type = NE.int(t.type[k] || null);
-                  if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
+                  if (!t.descr[k] || statusWalked && (!IF_ADMIN[admin] || !IF_OPER[oper])) {
                       NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
                   }
                   var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;
@@ -1961,28 +2733,54 @@ zabbix_export:
         value: interfaces
       - tag: data_source
         value: native-snmp
+    - uuid: 30d2167e51e94549891b103bd1c46f87
+      name: 'Collection attempt: interfaces.inventory'
+      type: DEPENDENT
+      key: ne.interfaces.inventory.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[interfaces.inventory]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: interfaces
+      - tag: data_source
+        value: native-snmp
     - uuid: 0d5390071f464c0b92f9e612c0a5ed08
       name: 'Last complete snapshot: interfaces.inventory'
       type: DEPENDENT
       key: ne.interfaces.inventory
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.interfaces.inventory.attempt
+        key: ne.normalised[interfaces.inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.last_change){r.last_change=m(Date.parse(r.last_change));}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -2001,11 +2799,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.interfaces.inventory.attempt
+        key: ne.normalised[interfaces.inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -2018,12 +2818,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[interfaces.inventory]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.interfaces.inventory.attempt
+        key: ne.normalised[interfaces.inventory]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -2079,15 +2879,15 @@ zabbix_export:
       - tag: data_source
         value: native-snmp
       status: DISABLED
-    - uuid: 88ab4c2bcec34d318afddd45e361f194
-      name: 'Collection attempt: port_capability'
+    - uuid: b925040e05924046a5e0302607abfeea
+      name: 'Normalised envelope: port_capability'
       type: DEPENDENT
-      key: ne.port_capability.attempt
+      key: ne.normalised[port_capability]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.if.capability
       preprocessing:
@@ -2599,28 +3399,55 @@ zabbix_export:
       - tag: data_source
         value: native-snmp
       status: DISABLED
+    - uuid: 88ab4c2bcec34d318afddd45e361f194
+      name: 'Collection attempt: port_capability'
+      type: DEPENDENT
+      key: ne.port_capability.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[port_capability]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: port_capability
+      - tag: data_source
+        value: native-snmp
+      status: DISABLED
     - uuid: df163e33df164384b51bd29227812a20
       name: 'Last complete snapshot: port_capability'
       type: DEPENDENT
       key: ne.port_capability.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.port_capability.attempt
+        key: ne.normalised[port_capability]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='port_capability'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='port_capability'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -2640,11 +3467,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.port_capability.attempt
+        key: ne.normalised[port_capability]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -2658,12 +3487,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[port_capability]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.port_capability.attempt
+        key: ne.normalised[port_capability]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -2719,15 +3548,15 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
-    - uuid: 9aaa7450c6b84211ae8ea02f8c830861
-      name: 'Collection attempt: lldp'
+    - uuid: 159a7b88fb0543ca8be779153b5d08be
+      name: 'Normalised envelope: lldp'
       type: DEPENDENT
-      key: ne.lldp.attempt
+      key: ne.normalised[lldp]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.lldp
       preprocessing:
@@ -3309,28 +4138,54 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
+    - uuid: 9aaa7450c6b84211ae8ea02f8c830861
+      name: 'Collection attempt: lldp'
+      type: DEPENDENT
+      key: ne.lldp.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[lldp]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: native-snmp
     - uuid: c6f6452c32e8427eb41e075d69d7cb16
       name: 'Last complete snapshot: lldp'
       type: DEPENDENT
       key: ne.lldp.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -3349,11 +4204,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -3366,12 +4223,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[lldp]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -3426,15 +4283,15 @@ zabbix_export:
         value: vlan
       - tag: data_source
         value: native-snmp
-    - uuid: 360b992ce40e461d9b5e528ebdbb0ecd
-      name: 'Collection attempt: vlan'
+    - uuid: a367987a23954574bafb1a1ef46b7810
+      name: 'Normalised envelope: vlan'
       type: DEPENDENT
-      key: ne.vlan.attempt
+      key: ne.normalised[vlan]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.vlan
       preprocessing:
@@ -3997,28 +4854,54 @@ zabbix_export:
         value: vlan
       - tag: data_source
         value: native-snmp
+    - uuid: 360b992ce40e461d9b5e528ebdbb0ecd
+      name: 'Collection attempt: vlan'
+      type: DEPENDENT
+      key: ne.vlan.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[vlan]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: vlan
+      - tag: data_source
+        value: native-snmp
     - uuid: 01e21b12847c4c6ab45fb42ac0343b84
       name: 'Last complete snapshot: vlan'
       type: DEPENDENT
       key: ne.vlan.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.vlan.attempt
+        key: ne.normalised[vlan]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='vlan'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='vlan'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4037,11 +4920,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.vlan.attempt
+        key: ne.normalised[vlan]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4054,12 +4939,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[vlan]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.vlan.attempt
+        key: ne.normalised[vlan]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -4114,15 +4999,15 @@ zabbix_export:
         value: stp
       - tag: data_source
         value: native-snmp
-    - uuid: bddd8cc7ac374bb5bd4b09b2068a0217
-      name: 'Collection attempt: stp'
+    - uuid: 419afe96ed834893933108ab4381a16e
+      name: 'Normalised envelope: stp'
       type: DEPENDENT
-      key: ne.stp.attempt
+      key: ne.normalised[stp]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.stp
       preprocessing:
@@ -4665,28 +5550,54 @@ zabbix_export:
         value: stp
       - tag: data_source
         value: native-snmp
+    - uuid: bddd8cc7ac374bb5bd4b09b2068a0217
+      name: 'Collection attempt: stp'
+      type: DEPENDENT
+      key: ne.stp.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[stp]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('time_since_topology_change_s')){var s=r.time_since_topology_change_s;r.topology_changed_at=s===null?null:m(t-s*1000);delete r.time_since_topology_change_s;}} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: stp
+      - tag: data_source
+        value: native-snmp
     - uuid: 445428080077465d919d8d4024ebe4f5
       name: 'Last complete snapshot: stp'
       type: DEPENDENT
       key: ne.stp.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.stp.attempt
+        key: ne.normalised[stp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='stp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='stp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; if(r.hasOwnProperty('time_since_topology_change_s')){var s=r.time_since_topology_change_s;r.topology_changed_at=s===null?null:m(t-s*1000);delete r.time_since_topology_change_s;}} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4705,11 +5616,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.stp.attempt
+        key: ne.normalised[stp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4722,12 +5635,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[stp]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.stp.attempt
+        key: ne.normalised[stp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -4768,18 +5681,20 @@ zabbix_export:
       value_type: CHAR
       trends: '0'
       master_item:
-        key: ne.stp.snapshot
+        key: ne.normalised[stp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){var v=a[i]['root_bridge_id']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='stp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){var v=a[i]['root_bridge_id']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4807,19 +5722,22 @@ zabbix_export:
       delay: '0'
       history: 31d
       value_type: UNSIGNED
+      trends: '0'
       master_item:
-        key: ne.stp.snapshot
+        key: ne.normalised[stp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){var v=a[i]['topology_changes']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='stp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){var v=a[i]['topology_changes']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -4850,15 +5768,15 @@ zabbix_export:
         value: lag
       - tag: data_source
         value: native-snmp
-    - uuid: 4d9d1e3f80e3417a8a701b32b69cee57
-      name: 'Collection attempt: lag'
+    - uuid: 65134f3d202f4bb2939d453b3f622dd7
+      name: 'Normalised envelope: lag'
       type: DEPENDENT
-      key: ne.lag.attempt
+      key: ne.normalised[lag]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.lag
       preprocessing:
@@ -5403,28 +6321,54 @@ zabbix_export:
         value: lag
       - tag: data_source
         value: native-snmp
+    - uuid: 4d9d1e3f80e3417a8a701b32b69cee57
+      name: 'Collection attempt: lag'
+      type: DEPENDENT
+      key: ne.lag.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[lag]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lag
+      - tag: data_source
+        value: native-snmp
     - uuid: 0350a69016304ef0bb68ba273106912e
       name: 'Last complete snapshot: lag'
       type: DEPENDENT
       key: ne.lag.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.lag.attempt
+        key: ne.normalised[lag]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lag'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -5443,11 +6387,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.lag.attempt
+        key: ne.normalised[lag]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -5460,12 +6406,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[lag]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.lag.attempt
+        key: ne.normalised[lag]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -5520,15 +6466,15 @@ zabbix_export:
         value: hardware
       - tag: data_source
         value: native-snmp
-    - uuid: 89d49970693b42e5b23f712c7f0120f5
-      name: 'Collection attempt: hardware'
+    - uuid: cb7f966196b043fbbdbc8da9c9d765c6
+      name: 'Normalised envelope: hardware'
       type: DEPENDENT
-      key: ne.hardware.attempt
+      key: ne.normalised[hardware]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.hw.ciscosb
       preprocessing:
@@ -6152,28 +7098,54 @@ zabbix_export:
         value: hardware
       - tag: data_source
         value: native-snmp
+    - uuid: 89d49970693b42e5b23f712c7f0120f5
+      name: 'Collection attempt: hardware'
+      type: DEPENDENT
+      key: ne.hardware.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[hardware]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; var g=['util_1s_pct','util_5s_pct','util_1m_pct','util_5m_pct','util_pct','speed','celsius'];for(var j=0;j<g.length;j++){if(r.hasOwnProperty(g[j])){r[g[j]]=null;}} delete r.free_bytes;} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: hardware
+      - tag: data_source
+        value: native-snmp
     - uuid: 2ed804789489410c9550cf18371e5752
       name: 'Last complete snapshot: hardware'
       type: DEPENDENT
       key: ne.hardware.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.hardware.attempt
+        key: ne.normalised[hardware]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; var g=['util_1s_pct','util_5s_pct','util_1m_pct','util_5m_pct','util_pct','speed','celsius'];for(var j=0;j<g.length;j++){if(r.hasOwnProperty(g[j])){r[g[j]]=null;}} delete r.free_bytes;} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -6192,11 +7164,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.hardware.attempt
+        key: ne.normalised[hardware]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -6209,12 +7183,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[hardware]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.hardware.attempt
+        key: ne.normalised[hardware]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6253,16 +7227,17 @@ zabbix_export:
       delay: '0'
       history: 31d
       value_type: FLOAT
+      trends: '{$NE.TRENDS}'
       units: '%'
-      description: As the device averages it. No value while measurement is off.
+      description: As the device averages it, to 0.1%. No value while measurement is off.
       master_item:
-        key: ne.hardware.snapshot
+        key: ne.normalised[hardware]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='cpu'){var v=r['util_1m_pct']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='cpu'){var v=r['util_1m_pct']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
@@ -6282,16 +7257,17 @@ zabbix_export:
       delay: '0'
       history: 31d
       value_type: FLOAT
+      trends: '{$NE.TRENDS}'
       units: '%'
-      description: As the device averages it. No value while measurement is off.
+      description: As the device averages it, to 0.1%. No value while measurement is off.
       master_item:
-        key: ne.hardware.snapshot
+        key: ne.normalised[hardware]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='cpu'){var v=r['util_5m_pct']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='cpu'){var v=r['util_5m_pct']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
@@ -6316,11 +7292,11 @@ zabbix_export:
           value: hardware
         - tag: data_source
           value: native-snmp
-    - uuid: 4af7a34efa9449299cf3853211f5a0d1
+    - uuid: c1658562a8f8460b8f78df3656817d15
       name: 'Raw SNMP walk: poe'
       type: SNMP_AGENT
-      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.105.1.1.1.3,1.3.6.1.2.1.105.1.1.1.6,1.3.6.1.2.1.105.1.1.1.7,1.3.6.1.2.1.105.1.1.1.8,1.3.6.1.2.1.105.1.1.1.10,1.3.6.1.2.1.105.1.1.1.11,1.3.6.1.2.1.105.1.1.1.12,1.3.6.1.2.1.105.1.1.1.13,1.3.6.1.2.1.105.1.1.1.14,1.3.6.1.2.1.105.1.3.1.1.2,1.3.6.1.2.1.105.1.3.1.1.3,1.3.6.1.2.1.105.1.3.1.1.4,1.3.6.1.2.1.105.1.3.1.1.5,1.3.6.1.4.1.9.6.1.101.108.1.1.5,1.3.6.1.4.1.9.6.1.101.108.1.1.9]
-      key: ne.raw.poe.ciscosb
+      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.2.2.1.2,1.3.6.1.2.1.31.1.1.1.1,1.3.6.1.2.1.105.1.1.1.3,1.3.6.1.2.1.105.1.1.1.6,1.3.6.1.2.1.105.1.1.1.7,1.3.6.1.2.1.105.1.1.1.8,1.3.6.1.2.1.105.1.1.1.10,1.3.6.1.2.1.105.1.1.1.11,1.3.6.1.2.1.105.1.1.1.12,1.3.6.1.2.1.105.1.1.1.13,1.3.6.1.2.1.105.1.1.1.14,1.3.6.1.2.1.105.1.3.1.1.2,1.3.6.1.2.1.105.1.3.1.1.3,1.3.6.1.2.1.105.1.3.1.1.5]
+      key: ne.raw.poe.ifindex
       delay: '{$NE.POE.INTERVAL}'
       history: '0'
       value_type: TEXT
@@ -6339,17 +7315,17 @@ zabbix_export:
         value: poe
       - tag: data_source
         value: native-snmp
-    - uuid: a29f01d871b945718fca20b7e3557885
-      name: 'Collection attempt: poe'
+    - uuid: 1209473a95434e2db8a770c5b34c2aa5
+      name: 'Normalised envelope: poe'
       type: DEPENDENT
-      key: ne.poe.attempt
+      key: ne.normalised[poe]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
-        key: ne.raw.poe.ciscosb
+        key: ne.raw.poe.ifindex
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6893,7 +7869,31 @@ zabbix_export:
               return POE.sort(rows);
           }
 
-          return JSON.stringify(NE.run('poe', 'ciscosb-poe', value, function (w, e) { return normalisePoe(w, e, 'ifindex', 'ciscosb'); }));
+          return JSON.stringify(NE.run('poe', 'standard-poe-ifindex', value, function (w, e) { return normalisePoe(w, e, 'ifindex', null); }));
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+    - uuid: a29f01d871b945718fca20b7e3557885
+      name: 'Collection attempt: poe'
+      type: DEPENDENT
+      key: ne.poe.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[poe]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -6906,23 +7906,25 @@ zabbix_export:
       type: DEPENDENT
       key: ne.poe.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.poe.attempt
+        key: ne.normalised[poe]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -6941,11 +7943,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.poe.attempt
+        key: ne.normalised[poe]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: network-explorer
@@ -6958,12 +7962,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[poe]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.poe.attempt
+        key: ne.normalised[poe]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -6995,6 +7999,682 @@ zabbix_export:
           value: poe
         - tag: data_source
           value: native-snmp
+    - uuid: 308080293cc244b1864b53013bb82516
+      name: 'Raw SNMP walk: poe.power'
+      type: SNMP_AGENT
+      snmp_oid: walk[1.3.6.1.2.1.1.3,1.3.6.1.2.1.105.1.1.1.3,1.3.6.1.2.1.105.1.1.1.6,1.3.6.1.2.1.105.1.3.1.1.2,1.3.6.1.2.1.105.1.3.1.1.3,1.3.6.1.2.1.105.1.3.1.1.4,1.3.6.1.4.1.9.6.1.101.108.1.1.5,1.3.6.1.4.1.9.6.1.101.108.1.1.9]
+      key: ne.raw.poe.power.ciscosb
+      delay: '{$NE.POE.POWER.INTERVAL}'
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: Input for the canonical normaliser only; not stored. A timeout or SNMP error becomes a failed attempt instead of making the dataset silently disappear.
+      preprocessing:
+      - type: CHECK_NOT_SUPPORTED
+        parameters:
+        - '-1'
+        error_handler: CUSTOM_VALUE
+        error_handler_params: __NE_COLLECTION_FAILED__
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+    - uuid: f4c8d2ea6bcf48e380380a59ded52450
+      name: 'Normalised envelope: poe.power'
+      type: DEPENDENT
+      key: ne.normalised[poe.power]
+      delay: '0'
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
+      master_item:
+        key: ne.raw.poe.power.ciscosb
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          // Shared helpers for Network Explorer SNMP normalisers.
+          // Runs inside Zabbix JavaScript preprocessing (Duktape, ECMAScript 5.1):
+          // no let/const, arrow functions, template literals or ES2015+ library calls.
+          // The global sha256() is provided by Zabbix (and by the Node test harness).
+
+          var NE = {};
+          NE.SCHEMA = '1.1';
+          // Datasets added in schema 1.2 declare it; the 1.1 datasets are unchanged, so their consumers are too.
+          NE.SCHEMAS = {hardware: '1.2', poe: '1.2'};
+          NE.VERSION = '2.3.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+          NE.FAILED = '__NE_COLLECTION_FAILED__';
+          NE.UPTIME = '1.3.6.1.2.1.1.3.0';
+
+          NE.IF = {
+              number: '1.3.6.1.2.1.2.1.0',
+              descr: '1.3.6.1.2.1.2.2.1.2',
+              type: '1.3.6.1.2.1.2.2.1.3',
+              mtu: '1.3.6.1.2.1.2.2.1.4',
+              speed: '1.3.6.1.2.1.2.2.1.5',
+              mac: '1.3.6.1.2.1.2.2.1.6',
+              admin: '1.3.6.1.2.1.2.2.1.7',
+              oper: '1.3.6.1.2.1.2.2.1.8',
+              lastChange: '1.3.6.1.2.1.2.2.1.9',
+              name: '1.3.6.1.2.1.31.1.1.1.1',
+              highSpeed: '1.3.6.1.2.1.31.1.1.1.15',
+              connector: '1.3.6.1.2.1.31.1.1.1.17',
+              alias: '1.3.6.1.2.1.31.1.1.1.18',
+              stack: '1.3.6.1.2.1.31.1.2.1.3',
+              duplex: '1.3.6.1.2.1.10.7.2.1.19',
+              // ENTITY-MIB: physical position of each port (stack member, slot, port).
+              entContained: '1.3.6.1.2.1.47.1.1.1.1.4',
+              entClass: '1.3.6.1.2.1.47.1.1.1.1.5',
+              entRelPos: '1.3.6.1.2.1.47.1.1.1.1.6',
+              entAlias: '1.3.6.1.2.1.47.1.3.2.1.2'
+          };
+          NE.BRIDGE_PORT_IFINDEX = '1.3.6.1.2.1.17.1.4.1.2';
+
+          // ---------------------------------------------------------------- parsing
+
+          // Parses Zabbix walk[] output: one "OID = TYPE: value" entry per line, numeric
+          // OIDs and enums, quoted STRING values (which may span lines), and unquoted
+          // Hex-STRING values (which net-snmp may wrap onto continuation lines).
+          NE.parseWalk = function (text) {
+              var rows = {}, order = [], pos = 0, len = text.length;
+              var head = /^\.?([0-9]+(?:\.[0-9]+)*) = (?:([A-Za-z0-9-]+): ?)?/;
+              while (pos < len) {
+                  var eol = text.indexOf('\n', pos);
+                  if (eol < 0) { eol = len; }
+                  var line = text.substring(pos, eol);
+                  var m = head.exec(line);
+                  if (!m) { pos = eol + 1; continue; }
+                  var oid = m[1], type = m[2] || 'STRING', start = pos + m[0].length, value;
+                  if (text.charAt(start) === '"') {
+                      var i = start + 1, out = '';
+                      while (i < len && text.charAt(i) !== '"') {
+                          if (text.charAt(i) === '\\' && i + 1 < len) { i++; }
+                          out += text.charAt(i);
+                          i++;
+                      }
+                      value = out;
+                      eol = text.indexOf('\n', i);
+                      if (eol < 0) { eol = len; }
+                  }
+                  else {
+                      value = text.substring(start, eol);
+                      // Unquoted continuation lines (wrapped Hex-STRING) until the next OID line.
+                      while (eol < len) {
+                          var next = text.indexOf('\n', eol + 1);
+                          if (next < 0) { next = len; }
+                          var more = text.substring(eol + 1, next);
+                          if (more === '' || head.test(more)) { break; }
+                          value += ' ' + more;
+                          eol = next;
+                      }
+                      value = value.replace(/\s+$/, '');
+                  }
+                  if (/^No (Such|more) /.test(value)) { type = 'MISSING'; }
+                  if (!rows.hasOwnProperty(oid)) { order.push(oid); }
+                  rows[oid] = {type: type, value: value};
+                  pos = eol + 1;
+              }
+              return {rows: rows, order: order};
+          };
+
+          // Returns {suffix: entry} for every row under base (suffix without the dot).
+          NE.table = function (walk, base) {
+              var out = {}, prefix = base + '.', i, oid;
+              for (i = 0; i < walk.order.length; i++) {
+                  oid = walk.order[i];
+                  if (oid.indexOf(prefix) === 0 && walk.rows[oid].type !== 'MISSING') {
+                      out[oid.substring(prefix.length)] = walk.rows[oid];
+                  }
+              }
+              return out;
+          };
+
+          NE.has = function (walk, base) {
+              var prefix = base + '.', i;
+              for (i = 0; i < walk.order.length; i++) {
+                  if (walk.order[i].indexOf(prefix) === 0 && walk.rows[walk.order[i]].type !== 'MISSING') { return true; }
+              }
+              return false;
+          };
+
+          NE.scalar = function (walk, oid) {
+              var row = walk.rows[oid];
+              return row && row.type !== 'MISSING' ? row : null;
+          };
+
+          // ---------------------------------------------------------------- values
+
+          NE.int = function (entry) {
+              if (!entry) { return null; }
+              var m = /-?[0-9]+/.exec(entry.value);
+              if (!m) { return null; }
+              var n = parseInt(m[0], 10);
+              return isFinite(n) ? n : null;
+          };
+
+          NE.utf8Encode = function (s) {
+              var out = [], i, c;
+              for (i = 0; i < s.length; i++) {
+                  c = s.charCodeAt(i);
+                  if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+                      c = 0x10000 + ((c - 0xd800) << 10) + (s.charCodeAt(++i) - 0xdc00);
+                  }
+                  if (c < 0x80) { out.push(c); }
+                  else if (c < 0x800) { out.push(0xc0 | (c >> 6), 0x80 | (c & 63)); }
+                  else if (c < 0x10000) { out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+                  else { out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63)); }
+              }
+              return out;
+          };
+
+          NE.utf8Decode = function (bytes) {
+              var out = '', i = 0, c, n, cp;
+              while (i < bytes.length) {
+                  c = bytes[i++];
+                  if (c < 0x80) { cp = c; n = 0; }
+                  else if (c >= 0xc2 && c < 0xe0) { cp = c & 31; n = 1; }
+                  else if (c >= 0xe0 && c < 0xf0) { cp = c & 15; n = 2; }
+                  else if (c >= 0xf0 && c < 0xf5) { cp = c & 7; n = 3; }
+                  else { return null; }
+                  while (n-- > 0) {
+                      if (i >= bytes.length || (bytes[i] & 0xc0) !== 0x80) { return null; }
+                      cp = (cp << 6) | (bytes[i++] & 63);
+                  }
+                  if (cp >= 0x10000) {
+                      cp -= 0x10000;
+                      out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 1023));
+                  }
+                  else { out += String.fromCharCode(cp); }
+              }
+              return out;
+          };
+
+          // Raw octets of an OCTET STRING / BITS value, whichever form Zabbix printed.
+          NE.bytes = function (entry) {
+              if (!entry) { return null; }
+              var v = entry.value, out = [], parts, i;
+              if (entry.type === 'Hex-STRING' || entry.type === 'BITS') {
+                  parts = v.split(/\s+/);
+                  for (i = 0; i < parts.length; i++) {
+                      if (!/^[0-9A-Fa-f]{2}$/.test(parts[i])) { break; }
+                      out.push(parseInt(parts[i], 16));
+                  }
+                  return out;
+              }
+              // A MacAddress display hint prints "0:1b:2c:..." as a STRING.
+              if (/^[0-9A-Fa-f]{1,2}([:-][0-9A-Fa-f]{1,2}){5,}$/.test(v)) {
+                  parts = v.split(/[:-]/);
+                  for (i = 0; i < parts.length; i++) { out.push(parseInt(parts[i], 16)); }
+                  return out;
+              }
+              // Zabbix prints octets that are valid UTF-8 as a STRING.
+              return NE.utf8Encode(v);
+          };
+
+          NE.hex = function (bytes) {
+              var out = '', i;
+              for (i = 0; i < bytes.length; i++) { out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16); }
+              return out;
+          };
+
+          NE.text = function (entry) {
+              if (!entry) { return null; }
+              if (entry.type === 'Hex-STRING') {
+                  var bytes = NE.bytes(entry), decoded = NE.utf8Decode(bytes);
+                  return decoded !== null ? decoded.replace(/\u0000+$/, '') : 'hex:' + NE.hex(bytes);
+              }
+              return entry.value;
+          };
+
+          NE.mac = function (entry) {
+              var b = NE.bytes(entry);
+              if (!b || b.length !== 6) { return null; }
+              var parts = [], i;
+              for (i = 0; i < 6; i++) { parts.push((b[i] < 16 ? '0' : '') + b[i].toString(16)); }
+              return parts.join(':');
+          };
+
+          // Bits set in an octet string, numbered MSB-first from 0 (SNMP BITS and PortList).
+          NE.bitsSet = function (bytes, offset) {
+              var out = [], i, b;
+              if (!bytes) { return out; }
+              for (i = 0; i < bytes.length; i++) {
+                  for (b = 0; b < 8; b++) {
+                      if (bytes[i] & (0x80 >> b)) { out.push(i * 8 + b + (offset || 0)); }
+                  }
+              }
+              return out;
+          };
+
+          NE.ipFromOctets = function (octets) {
+              var i, parts = [];
+              if (octets.length === 4) { return octets.join('.'); }
+              if (octets.length !== 16) { return null; }
+              for (i = 0; i < 16; i += 2) { parts.push(((octets[i] << 8) | octets[i + 1]).toString(16)); }
+              // RFC 5952: compress the longest run (two or more) of zero groups.
+              var best = -1, bestLen = 1, run = 0;
+              for (i = 0; i <= 8; i++) {
+                  if (i < 8 && parts[i] === '0') { run++; continue; }
+                  if (run > bestLen) { best = i - run; bestLen = run; }
+                  run = 0;
+              }
+              if (best < 0) { return parts.join(':'); }
+              return parts.slice(0, best).join(':') + '::' + parts.slice(best + bestLen).join(':');
+          };
+
+          // "1,3-5,49"; empty list gives "", null gives null.
+          NE.ranges = function (ids) {
+              if (ids === null) { return null; }
+              var sorted = ids.slice().sort(function (a, b) { return a - b; }), out = [], i, start, prev;
+              for (i = 0; i < sorted.length; i++) {
+                  if (i > 0 && sorted[i] === prev) { continue; }
+                  if (start === undefined) { start = prev = sorted[i]; continue; }
+                  if (sorted[i] === prev + 1) { prev = sorted[i]; continue; }
+                  out.push(start === prev ? String(start) : start + '-' + prev);
+                  start = prev = sorted[i];
+              }
+              if (start !== undefined) { out.push(start === prev ? String(start) : start + '-' + prev); }
+              return out.join(',');
+          };
+
+          // ---------------------------------------------------------------- interfaces
+
+          NE.uid = function (name, descr) {
+              var basis = null;
+              if (name !== null && name !== undefined && name.replace(/^\s+|\s+$/g, '') !== '') {
+                  basis = 'name:' + name.replace(/^\s+|\s+$/g, '');
+              }
+              else if (descr !== null && descr !== undefined && descr.replace(/^\s+|\s+$/g, '') !== '') {
+                  basis = 'description:' + descr.replace(/^\s+|\s+$/g, '');
+              }
+              return basis === null ? null : 'if-' + sha256(basis).substring(0, 24);
+          };
+
+          // {ifIndex: uid} from the ifName/ifDescr join columns every dataset walks.
+          // Duplicate or missing identities map to null, so those rows are dropped.
+          // They are reported as a warning unless quiet is set, for datasets that only
+          // join to interfaces.
+          NE.interfaceIndex = function (walk, env, quiet) {
+              var names = NE.table(walk, NE.IF.name), descrs = NE.table(walk, NE.IF.descr);
+              var out = {}, seen = {}, k, uid;
+              for (k in descrs) { if (descrs.hasOwnProperty(k)) { out[k] = null; } }
+              for (k in names) { if (names.hasOwnProperty(k)) { out[k] = null; } }
+              for (k in out) {
+                  if (!out.hasOwnProperty(k)) { continue; }
+                  uid = NE.uid(NE.text(names[k] || null), NE.text(descrs[k] || null));
+                  out[k] = uid;
+                  if (uid !== null) { seen[uid] = (seen[uid] || 0) + 1; }
+              }
+              for (k in out) {
+                  if (out.hasOwnProperty(k) && (out[k] === null || seen[out[k]] > 1)) {
+                      out[k] = null;
+                      if (!quiet) { NE.warning(env, 'identity_ambiguous', 'An interface name is missing or duplicated; that interface is skipped.'); }
+                  }
+              }
+              return out;
+          };
+
+          // ---------------------------------------------------------------- LLDP identifiers
+
+          // Chassis subtype 4 / port subtype 3 are MAC; chassis 5 / port 4 are network addresses.
+          NE.lldpId = function (subtypeEntry, valueEntry, kind) {
+              var subtype = NE.int(subtypeEntry), macType = kind === 'chassis' ? 4 : 3;
+              var netType = kind === 'chassis' ? 5 : 4, value = null, bytes;
+              if (subtype === macType) { value = NE.mac(valueEntry); }
+              else if (subtype === netType) {
+                  bytes = NE.bytes(valueEntry);
+                  if (bytes && bytes.length > 1 && (bytes[0] === 1 || bytes[0] === 2)) { value = NE.ipFromOctets(bytes.slice(1)); }
+              }
+              if (value === null && valueEntry) { value = NE.text(valueEntry); }
+              return {subtype: subtype !== null && subtype >= 1 && subtype <= 7 ? subtype : null, value: value || ''};
+          };
+
+          // ---------------------------------------------------------------- MAU / speeds
+
+          // IANA-MAU-MIB dot3MauType arc -> [speed bit/s, duplex, media]. The same
+          // numbers are the IANAifMauTypeListBits positions.
+          // From 40G up (IANA-MAU-MIB revision 2017-04-10):
+          //   70 dot3MauType40GbaseKR4, 71 40GbaseCR4, 72 40GbaseSR4, 73 40GbaseFR,
+          //   74 40GbaseLR4, 75 100GbaseCR10, 76 100GbaseSR10, 77 100GbaseLR4,
+          //   78 100GbaseER4, 88 25GbaseCR, 89 25GbaseCRS, 90 25GbaseKR, 91 25GbaseKRS,
+          //   92 25GbaseR, 93 25GbaseSR, 94 25GbaseT, 95 40GbaseER4, 96 40GbaseR,
+          //   97 40GbaseT, 98 100GbaseCR4, 99 100GbaseKR4, 100 100GbaseKP4,
+          //   101 100GbaseR, 102 100GbaseSR4.
+          // That revision defines no 2.5G, 5G or 50G types. Media is null for 25G/40G/
+          // 100G MAUs other than BASE-T: the port_capability media enum has no SFP28 or
+          // QSFP value, and a backplane or undefined PMD names no cage.
+          NE.MAU = {
+              5: [10e6, null, 'copper'], 10: [10e6, 'half', 'copper'], 11: [10e6, 'full', 'copper'],
+              14: [100e6, 'half', 'copper'], 15: [100e6, 'half', 'copper'], 16: [100e6, 'full', 'copper'],
+              17: [100e6, 'half', 'sfp'], 18: [100e6, 'full', 'sfp'], 19: [100e6, 'half', 'copper'], 20: [100e6, 'full', 'copper'],
+              21: [1e9, 'half', 'sfp'], 22: [1e9, 'full', 'sfp'], 23: [1e9, 'half', 'sfp'], 24: [1e9, 'full', 'sfp'],
+              25: [1e9, 'half', 'sfp'], 26: [1e9, 'full', 'sfp'], 27: [1e9, 'half', 'copper'], 28: [1e9, 'full', 'copper'],
+              29: [1e9, 'half', 'copper'], 30: [1e9, 'full', 'copper'],
+              31: [10e9, 'full', 'sfp_plus'], 32: [10e9, 'full', 'sfp_plus'], 33: [10e9, 'full', 'sfp_plus'],
+              34: [10e9, 'full', 'sfp_plus'], 35: [10e9, 'full', 'sfp_plus'], 36: [10e9, 'full', 'sfp_plus'],
+              41: [10e9, 'full', 'copper'], 44: [100e6, 'full', 'sfp'], 45: [100e6, 'full', 'sfp'], 46: [100e6, 'full', 'sfp'],
+              47: [1e9, 'full', 'sfp'], 48: [1e9, 'full', 'sfp'], 49: [1e9, 'full', 'sfp'],
+              54: [10e9, 'full', 'copper'], 55: [10e9, 'full', 'sfp_plus'],
+              70: [40e9, 'full', null], 71: [40e9, 'full', null], 72: [40e9, 'full', null], 73: [40e9, 'full', null],
+              74: [40e9, 'full', null], 75: [100e9, 'full', null], 76: [100e9, 'full', null], 77: [100e9, 'full', null],
+              78: [100e9, 'full', null],
+              88: [25e9, 'full', null], 89: [25e9, 'full', null], 90: [25e9, 'full', null], 91: [25e9, 'full', null],
+              92: [25e9, 'full', null], 93: [25e9, 'full', null], 94: [25e9, 'full', 'copper'],
+              95: [40e9, 'full', null], 96: [40e9, 'full', null], 97: [40e9, 'full', 'copper'],
+              98: [100e9, 'full', null], 99: [100e9, 'full', null], 100: [100e9, 'full', null], 101: [100e9, 'full', null],
+              102: [100e9, 'full', null]
+          };
+
+          NE.mauArc = function (entry) {
+              if (!entry) { return null; }
+              var m = /([0-9]+)$/.exec(entry.value);
+              return m ? parseInt(m[1], 10) : null;
+          };
+
+          // Autonegotiation capability bits (ifMauAutoNegCapAdvertisedBits and the
+          // LLDP 802.3 extension) -> distinct speeds in bit/s.
+          NE.AUTONEG_SPEED = {1: 10e6, 2: 10e6, 3: 100e6, 4: 100e6, 5: 100e6, 6: 100e6, 7: 100e6,
+                              12: 1e9, 13: 1e9, 14: 1e9, 15: 1e9};
+
+          NE.speedsFromBits = function (bits, table) {
+              var seen = {}, out = [], i, s;
+              for (i = 0; i < bits.length; i++) {
+                  s = table === 'mau' ? (NE.MAU[bits[i]] ? NE.MAU[bits[i]][0] : null) : NE.AUTONEG_SPEED[bits[i]];
+                  if (s && !seen[s]) { seen[s] = true; out.push(s); }
+              }
+              return out.sort(function (a, b) { return a - b; });
+          };
+
+          // ---------------------------------------------------------------- envelope
+
+          NE.error = function (env, code, message) { NE.note(env.errors, code, message); };
+
+          // A problem confined to one row: the row is dropped or kept with unknown
+          // fields, and the rest of the dataset stays a complete observation.
+          NE.warning = function (env, code, message) { NE.note(env.warnings, code, message); };
+
+          NE.note = function (list, code, message) {
+              for (var i = 0; i < list.length; i++) {
+                  if (list[i].code === code) { return; }
+              }
+              if (list.length < 256) { list.push({code: code, message: message}); }
+          };
+
+          NE.envelope = function (dataset, adapter) {
+              var now = new Date().toISOString();
+              return {
+                  schema_version: NE.SCHEMAS[dataset] || NE.SCHEMA, dataset: dataset,
+                  generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
+                  attempted_at: now, observed_at: null, status: 'failed', complete: false,
+                  source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},
+                  capability: {state: 'unknown', reason: null}, errors: [], warnings: [], data: []
+              };
+          };
+
+          // Runs a dataset normaliser and sets status/completeness consistently.
+          //   normalise(walk, env) returns rows, or throws {unsupported: reason}.
+          //   Any error recorded on env makes the result partial.
+          NE.run = function (dataset, adapter, value, normalise) {
+              var env = NE.envelope(dataset, adapter);
+              if (value === NE.FAILED || value === '' || value === null || value === undefined) {
+                  NE.error(env, 'collection_failed', 'The SNMP walk returned no data or the item is not supported.');
+                  return env;
+              }
+              var walk, rows;
+              try {
+                  walk = NE.parseWalk(String(value));
+                  if (!NE.scalar(walk, NE.UPTIME)) {
+                      NE.error(env, 'agent_unreachable', 'The walk did not include sysUpTime; the agent did not answer.');
+                      return env;
+                  }
+                  rows = normalise(walk, env);
+              }
+              catch (e) {
+                  if (e && e.unsupported) {
+                      env.status = 'unsupported';
+                      env.capability = {state: 'unsupported', reason: e.unsupported};
+                      env.errors = [{code: 'unsupported', message: e.unsupported}];
+                      env.warnings = [];
+                      return env;
+                  }
+                  // A normaliser bug still records a failed attempt rather than no
+                  // envelope at all. The message is fixed: an exception can quote
+                  // device data.
+                  env.errors = [{code: 'normaliser_error', message: 'The normaliser failed on this walk; nothing was observed.'}];
+                  env.warnings = [];
+                  return env;
+              }
+              env.observed_at = env.attempted_at;
+              env.data = rows;
+              if (env.errors.length) {
+                  env.status = 'partial';
+                  env.capability = {state: 'partial', reason: env.errors[0].message};
+              }
+              else {
+                  env.status = 'ok';
+                  env.complete = true;
+                  env.capability = {state: 'supported', reason: null};
+              }
+              return env;
+          };
+
+          // Power over Ethernet -> canonical "poe" rows (schema 1.2), from POWER-ETHERNET-MIB (RFC 3621):
+          //   one "pse" row per PSE group (pethMainPseTable): budget, consumption and the device's own usage threshold;
+          //   one "port" row per PSE port (pethPsePortTable): detection status, class, priority and the RFC counters.
+          // A group is a stack unit or module (pethPsePortGroupIndex). RFC 3621 does not map a PSE port to an interface,
+          // so a port joins to one only where captures show how the vendor numbers its ports (portMap 'ifindex': the port
+          // index is the ifIndex). The Cisco Small Business vendor table adds the power each port delivers, in milliwatts.
+
+          var POE = {
+              PORT: '1.3.6.1.2.1.105.1.1.1',
+              MAIN: '1.3.6.1.2.1.105.1.3.1.1',
+              // rlPethPsePortTable (CISCOSB-POE-MIB), indexed like pethPsePortTable. Columns 5 (rlPethPsePortOutputPower)
+              // and 9 (rlPethPsePortOperPowerLimit) are in milliwatts and sit at the same place in the SG300 1.4 layout,
+              // whose other columns differ, so only those two are read.
+              CISCOSB_PORT: '1.3.6.1.4.1.9.6.1.101.108.1.1',
+              DETECTION: {1: 'disabled', 2: 'searching', 3: 'delivering', 4: 'fault', 5: 'test', 6: 'other_fault'},
+              OPER: {1: 'on', 2: 'off', 3: 'faulty'},
+              PRIORITY: {1: 'critical', 2: 'high', 3: 'low'}
+          };
+
+          POE.count = function (entry) {
+              var v = NE.int(entry || null);
+              return v === null || v < 0 ? null : v;
+          };
+
+          POE.sort = function (rows) {
+              return rows.sort(function (a, b) {
+                  if (a.kind !== b.kind) { return a.kind === 'pse' ? -1 : 1; }
+                  if (a.unit !== b.unit) { return (a.unit || 0) - (b.unit || 0); }
+                  return (a.port || 0) - (b.port || 0);
+              });
+          };
+
+          // portMap: 'ifindex' or null. vendor: 'ciscosb' or null.
+          function normalisePoe(walk, env, portMap, vendor) {
+              var admin = NE.table(walk, POE.PORT + '.3'), oper = NE.table(walk, POE.MAIN + '.3');
+              if (!Object.keys(admin).length && !Object.keys(oper).length) {
+                  throw {unsupported: 'The agent returned no POWER-ETHERNET-MIB PSE or PSE port tables.'};
+              }
+              var port = function (n) { return NE.table(walk, POE.PORT + '.' + n); };
+              var detection = port(6), priority = port(7), mps = port(8), klass = port(10), invalid = port(11);
+              var denied = port(12), overload = port(13), shorted = port(14);
+              var power = vendor === 'ciscosb' ? NE.table(walk, POE.CISCOSB_PORT + '.5') : null;
+              var limit = vendor === 'ciscosb' ? NE.table(walk, POE.CISCOSB_PORT + '.9') : null;
+              if (power !== null && Object.keys(admin).length && !Object.keys(power).length) {
+                  NE.warning(env, 'vendor_power_missing', 'The vendor PoE table is missing, so per-port power is not reported.');
+              }
+              var uids = portMap === 'ifindex' ? NE.interfaceIndex(walk, env, true) : {};
+              var names = portMap === 'ifindex' ? NE.table(walk, NE.IF.name) : {};
+              var rows = [], ports = {}, k, m;
+
+              for (k in admin) {
+                  if (!admin.hasOwnProperty(k) || !(m = /^([0-9]+)\.([0-9]+)$/.exec(k))) { continue; }
+                  var group = parseInt(m[1], 10), index = parseInt(m[2], 10);
+                  if (!detection[k]) {
+                      NE.error(env, 'incomplete_row', 'A PSE port row has no detection status; the walk is incomplete.');
+                      continue;
+                  }
+                  ports[group] = (ports[group] || 0) + 1;
+                  var det = NE.int(detection[k]), on = NE.int(admin[k]), cls = NE.int(klass[k] || null);
+                  var row = {kind: 'port', uid: 'port-' + group + '-' + index, unit: group, name: 'Port ' + group + '/' + index,
+                             state: POE.DETECTION[det] || 'unknown', raw_state: det, port: index,
+                             if_index: null, interface_uid: null,
+                             admin_enabled: on === 1 ? true : (on === 2 ? false : null),
+                             // The class is valid only while the port delivers power (RFC 3621).
+                             power_class: det === 3 && cls !== null && cls >= 1 && cls <= 5 ? cls - 1 : null,
+                             priority: POE.PRIORITY[NE.int(priority[k] || null)] || null,
+                             power_mw: null, power_limit_mw: null,
+                             mps_absent: POE.count(mps[k]), invalid_signature: POE.count(invalid[k]),
+                             power_denied: POE.count(denied[k]), overload: POE.count(overload[k]), short: POE.count(shorted[k])};
+                  if (portMap === 'ifindex') {
+                      if (uids[String(index)]) {
+                          row.if_index = index;
+                          row.interface_uid = uids[String(index)];
+                          row.name = NE.text(names[String(index)] || null) || row.name;
+                      }
+                      else {
+                          NE.warning(env, 'port_unmapped', 'A PoE port has no interface with its index; it is named by group and port.');
+                      }
+                  }
+                  if (power !== null) {
+                      row.power_mw = POE.count(power[k]);
+                      row.power_limit_mw = POE.count(limit[k]);
+                  }
+                  rows.push(row);
+              }
+
+              var any = Object.keys(ports).length > 0;
+              if (!any && Object.keys(oper).length) {
+                  NE.error(env, 'port_table_missing', 'The PSE table has rows but the PSE port table has none.');
+              }
+              for (k in oper) {
+                  if (!oper.hasOwnProperty(k) || !/^[0-9]+$/.test(k)) { continue; }
+                  var unit = parseInt(k, 10), status = NE.int(oper[k]);
+                  var pse = {kind: 'pse', uid: 'pse-' + unit, unit: unit, name: (portMap === 'ifindex' ? 'Unit ' : 'Group ') + unit,
+                             state: POE.OPER[status] || 'unknown', raw_state: status, power_w: null, consumption_w: null,
+                             usage_threshold_pct: null, util_pct: null, port_count: ports[unit] || 0};
+                  if (any && !ports[unit]) {
+                      // A stack slot without a unit: the agent lists the group but no ports on it.
+                      pse.state = 'not_present';
+                  }
+                  else {
+                      var budget = NE.int(NE.scalar(walk, POE.MAIN + '.2.' + k)), used = NE.int(NE.scalar(walk, POE.MAIN + '.4.' + k));
+                      var threshold = NE.int(NE.scalar(walk, POE.MAIN + '.5.' + k));
+                      pse.power_w = budget !== null && budget >= 0 ? budget : null;
+                      pse.consumption_w = used !== null && used >= 0 ? used : null;
+                      pse.usage_threshold_pct = threshold !== null && threshold >= 1 && threshold <= 99 ? threshold : null;
+                      pse.util_pct = pse.power_w && pse.consumption_w !== null
+                          ? Math.round(pse.consumption_w * 1000 / pse.power_w) / 10 : null;
+                  }
+                  rows.push(pse);
+              }
+              return POE.sort(rows);
+          }
+
+          return JSON.stringify(NE.run('poe', 'ciscosb-poe-power', value, function (w, e) { return normalisePoe(w, e, null, 'ciscosb'); }));
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+    - uuid: d9ec004612d746a8b628c11df2b53eb9
+      name: 'Collection attempt: poe.power'
+      type: DEPENDENT
+      key: ne.poe.power.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[poe.power]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+    - uuid: 5d492cb5beea4b9dbaf7db46998f7ccc
+      name: 'Collection status: poe.power'
+      type: DEPENDENT
+      key: ne.collection.status[poe.power]
+      delay: '0'
+      history: 31d
+      value_type: UNSIGNED
+      trends: '0'
+      valuemap:
+        name: Network Explorer collection status
+      master_item:
+        key: ne.normalised[poe.power]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+    - uuid: f397189f72ab48cd85a012d5fb0d0751
+      name: 'Last complete observation: poe.power'
+      type: DEPENDENT
+      key: ne.collection.success[poe.power]
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      trends: '0'
+      units: unixtime
+      master_item:
+        key: ne.normalised[poe.power]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - |-
+          try { return (function (value) {
+          var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return Math.floor(Date.parse(e.observed_at)/1000);
+          })(value); } catch (error) { return '__NE_DISCARD__'; }
+      - type: NOT_MATCHES_REGEX
+        parameters:
+        - ^__NE_DISCARD__$
+        error_handler: DISCARD_VALUE
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: poe
+      - tag: data_source
+        value: native-snmp
+      triggers:
+      - uuid: e94531e0b36446c494c167e69a69040f
+        expression: nodata(/ne_cisco_small_business_switch/ne.collection.success[poe.power],{$NE.POE.POWER.STALE})=1 and last(/ne_cisco_small_business_switch/ne.collection.status[poe.power])<>3
+        name: 'Network Explorer: no complete poe.power observation for {$NE.POE.POWER.STALE}'
+        priority: WARNING
+        description: Partial and failed attempts never refresh this age. An unsupported dataset does not alert.
+        tags:
+        - tag: component
+          value: network-explorer
+        - tag: dataset
+          value: poe
+        - tag: data_source
+          value: native-snmp
     discovery_rules:
     - uuid: 59c148adceb640e3a25125c2ce09d42a
       name: Interface discovery
@@ -7005,8 +8685,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.interfaces.inventory
-      description: Fed from the complete inventory snapshot, so a partial walk never removes ports.
+        key: ne.normalised[interfaces.inventory]
+      description: Fed from complete inventory observations, so a partial walk never removes ports. Processed only when the port list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7018,6 +8698,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#IFUID}'
         path: $.uid
@@ -7039,18 +8721,20 @@ zabbix_export:
         valuemap:
           name: Network Explorer interface status
         master_item:
-          key: ne.interfaces.state
+          key: ne.normalised[interfaces]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['oper_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['oper_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7084,18 +8768,20 @@ zabbix_export:
         valuemap:
           name: Network Explorer interface status
         master_item:
-          key: ne.interfaces.state
+          key: ne.normalised[interfaces]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['admin_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['admin_status']; if(v===null||v===undefined){return 4;}var m={"up": 1, "down": 2, "testing": 3, "unknown": 4, "dormant": 5, "not_present": 6, "lower_layer_down": 7}; v=m[v]===undefined?4:m[v]; return v;}} throw 'Interface absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7112,20 +8798,23 @@ zabbix_export:
         delay: '0'
         history: 31d
         value_type: UNSIGNED
+        trends: '0'
         units: bps
         master_item:
-          key: ne.interfaces.state
+          key: ne.normalised[interfaces.link]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['speed_bps']; if(v===null||v===undefined){return 0;} return v;}} throw 'Interface absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['speed_bps']; if(v===null||v===undefined){return 0;} return v;}} throw 'Interface absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7137,10 +8826,10 @@ zabbix_export:
           value: '{#IFNAME}'
         trigger_prototypes:
         - uuid: 54af4a233fed43208b1db3481de7bb20
-          expression: '{$NE.IF.EXPECTED_SPEED:"{#IFNAME}"}>0 and last(/ne_cisco_small_business_switch/ne.if.oper[{#IFUID}])=1 and min(/ne_cisco_small_business_switch/ne.if.speed[{#IFUID}],{$NE.IF.SPEED.DEGRADED_FOR})>0 and max(/ne_cisco_small_business_switch/ne.if.speed[{#IFUID}],{$NE.IF.SPEED.DEGRADED_FOR})<{$NE.IF.EXPECTED_SPEED:"{#IFNAME}"}'
+          expression: '{$NE.IF.EXPECTED_SPEED:"{#IFNAME}"}>0 and last(/ne_cisco_small_business_switch/ne.if.oper[{#IFUID}])=1 and last(/ne_cisco_small_business_switch/ne.if.speed[{#IFUID}])>0 and last(/ne_cisco_small_business_switch/ne.if.speed[{#IFUID}])<{$NE.IF.EXPECTED_SPEED:"{#IFNAME}"}'
           name: 'Network Explorer: {#IFNAME} below expected speed'
           priority: WARNING
-          description: Uses the explicit per-port override only. Derived expectations are shown by the frontend.
+          description: Uses the explicit per-port override only. Derived expectations are shown by the frontend. Speed is read every {$NE.IF.LINK.INTERVAL}.
           tags:
           - tag: component
             value: network-explorer
@@ -7157,18 +8846,20 @@ zabbix_export:
         value_type: CHAR
         trends: '0'
         master_item:
-          key: ne.interfaces.state
+          key: ne.normalised[interfaces.link]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['duplex']; if(v===null||v===undefined){return 'unknown';} return v;}} throw 'Interface absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='interfaces'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)||typeof r.if_index!=='number'||r.if_index<1||Math.floor(r.if_index)!==r.if_index) throw 'Unsafe or ambiguous interface identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['duplex']; if(v===null||v===undefined){return 'unknown';} return v;}} throw 'Interface absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7187,8 +8878,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.hardware.snapshot
-      description: Fed from the complete hardware snapshot. A part is discovered while the device reports it present and readable.
+        key: ne.normalised[hardware]
+      description: Fed from complete hardware observations. A part is discovered while the device reports it present and readable. Processed only when the list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7200,6 +8891,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#HWUID}'
         path: $.uid
@@ -7218,19 +8911,22 @@ zabbix_export:
         trends: '0'
         valuemap:
           name: Network Explorer hardware state
+        description: The device's own verdict, stored when it changes.
         master_item:
-          key: ne.hardware.snapshot
+          key: ne.normalised[hardware]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='psu'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='psu'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7296,8 +8992,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.hardware.snapshot
-      description: Fed from the complete hardware snapshot. A part is discovered while the device reports it present and readable.
+        key: ne.normalised[hardware]
+      description: Fed from complete hardware observations. A part is discovered while the device reports it present and readable. Processed only when the list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7309,6 +9005,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#HWUID}'
         path: $.uid
@@ -7327,19 +9025,22 @@ zabbix_export:
         trends: '0'
         valuemap:
           name: Network Explorer hardware state
+        description: The device's own verdict, stored when it changes.
         master_item:
-          key: ne.hardware.snapshot
+          key: ne.normalised[hardware]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='fan'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='fan'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7403,15 +9104,16 @@ zabbix_export:
         delay: '0'
         history: 31d
         value_type: UNSIGNED
+        trends: '{$NE.TRENDS}'
         description: As the device reports it; the MIB gives no unit.
         master_item:
-          key: ne.hardware.snapshot
+          key: ne.normalised[hardware]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='fan'&&r.uid==='{#HWUID}'){var v=r['speed']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='fan'&&r.uid==='{#HWUID}'){var v=r['speed']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
@@ -7435,8 +9137,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.hardware.snapshot
-      description: Fed from the complete hardware snapshot. A part is discovered while the device reports it present and readable.
+        key: ne.normalised[hardware]
+      description: Fed from complete hardware observations. A part is discovered while the device reports it present and readable. Processed only when the list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7448,6 +9150,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#HWUID}'
         path: $.uid
@@ -7466,19 +9170,22 @@ zabbix_export:
         trends: '0'
         valuemap:
           name: Network Explorer hardware state
+        description: The device's own verdict, stored when it changes.
         master_item:
-          key: ne.hardware.snapshot
+          key: ne.normalised[hardware]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='temperature'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='temperature'&&r.uid==='{#HWUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"ok": 0, "warning": 1, "critical": 2, "shutdown": 3, "not_present": 4, "not_functioning": 5, "unavailable": 6, "unknown": 7}; v=m[v]===undefined?7:m[v]; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7542,16 +9249,17 @@ zabbix_export:
         delay: '0'
         history: 31d
         value_type: FLOAT
+        trends: '{$NE.TRENDS}'
         units: °C
         description: The device judges it against its own thresholds; see the state item.
         master_item:
-          key: ne.hardware.snapshot
+          key: ne.normalised[hardware]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='temperature'&&r.uid==='{#HWUID}'){var v=r['celsius']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='hardware'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var seen={}; for(var i=0;i<e.data.length;i++){var r=e.data[i];if(!r||typeof r.uid!=='string'||!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(r.uid)||Object.prototype.hasOwnProperty.call(seen,r.uid)) throw 'Unsafe or ambiguous hardware identity';seen[r.uid]=true;} var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='temperature'&&r.uid==='{#HWUID}'){var v=r['celsius']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
@@ -7575,8 +9283,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.poe.snapshot
-      description: Fed from the complete PoE snapshot. A stack slot without a unit is not discovered.
+        key: ne.normalised[poe]
+      description: Fed from complete PoE status observations. A stack slot without a unit is not discovered. Processed only when the list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7588,6 +9296,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#PSEUID}'
         path: $.uid
@@ -7607,18 +9317,20 @@ zabbix_export:
         valuemap:
           name: Network Explorer PoE PSE state
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"on": 0, "off": 1, "faulty": 2, "unknown": 3}; v=m[v]===undefined?3:m[v]; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"on": 0, "off": 1, "faulty": 2, "unknown": 3}; v=m[v]===undefined?3:m[v]; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7649,20 +9361,23 @@ zabbix_export:
         history: 31d
         value_type: FLOAT
         units: W
-        description: Nominal power of the PSE (pethMainPsePower).
+        description: Nominal power of the PSE (pethMainPsePower), stored when it changes.
+        trends: '0'
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['power_w']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['power_w']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7680,15 +9395,16 @@ zabbix_export:
         history: 31d
         value_type: FLOAT
         units: W
-        description: pethMainPseConsumptionPower as the device reports it. Some firmware reports the power allocated to its ports here rather than the power they draw (Cisco 350-class, for example).
+        description: pethMainPseConsumptionPower as the device reports it, every {$NE.POE.POWER.INTERVAL}. Some firmware reports the power allocated to its ports here rather than the power they draw (Cisco 350-class, for example).
+        trends: '{$NE.TRENDS}'
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe.power]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['consumption_w']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['consumption_w']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
@@ -7712,14 +9428,15 @@ zabbix_export:
         value_type: FLOAT
         units: '%'
         description: Consumption as a share of the budget, the figure the device compares with its usage threshold.
+        trends: '{$NE.TRENDS}'
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe.power]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['util_pct']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['util_pct']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
@@ -7755,20 +9472,23 @@ zabbix_export:
         history: 31d
         value_type: FLOAT
         units: '%'
-        description: The device's own usage alarm threshold (pethMainPseUsageThreshold).
+        description: The device's own usage alarm threshold (pethMainPseUsageThreshold), stored when it changes.
+        trends: '0'
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['usage_threshold_pct']; if(v===null||v===undefined){throw 'Not reported';} return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='pse'&&r.uid==='{#PSEUID}'){var v=r['usage_threshold_pct']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v*10)/10; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7787,8 +9507,8 @@ zabbix_export:
       enabled_lifetime_type: DISABLE_AFTER
       enabled_lifetime: 1d
       master_item:
-        key: ne.poe.snapshot
-      description: Fed from the complete PoE snapshot. {#IFUID} is the interface the port joins to, where the template can tell; otherwise it is empty and the port is named by unit and port.
+        key: ne.normalised[poe]
+      description: Fed from complete PoE status observations. {#IFUID} is the interface the port joins to, where the template can tell; otherwise it is empty and the port is named by unit and port. Processed only when the list changes, and every {$NE.HEARTBEAT}.
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -7800,6 +9520,8 @@ zabbix_export:
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       lld_macro_paths:
       - lld_macro: '{#POEUID}'
         path: $.uid
@@ -7820,20 +9542,22 @@ zabbix_export:
         trends: '0'
         valuemap:
           name: Network Explorer PoE port state
-        description: pethPsePortDetectionStatus, as the device reports it.
+        description: pethPsePortDetectionStatus, as the device reports it, stored when it changes.
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='port'&&r.uid==='{#POEUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"delivering": 0, "searching": 1, "disabled": 2, "fault": 3, "test": 4, "other_fault": 5, "unknown": 6}; v=m[v]===undefined?6:m[v]; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='port'&&r.uid==='{#POEUID}'){var v=r['state']; if(v===null||v===undefined){throw 'Not reported';}var m={"delivering": 0, "searching": 1, "disabled": 2, "fault": 3, "test": 4, "other_fault": 5, "unknown": 6}; v=m[v]===undefined?6:m[v]; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
           - ^__NE_DISCARD__$
           error_handler: DISCARD_VALUE
+        - type: DISCARD_UNCHANGED_HEARTBEAT
+          parameters: *id001
         tags:
         - tag: component
           value: network-explorer
@@ -7863,16 +9587,17 @@ zabbix_export:
         delay: '0'
         history: 31d
         value_type: FLOAT
+        trends: '{$NE.TRENDS}'
         units: W
-        description: Power the port delivers, from the vendor MIB (milliwatts).
+        description: Power the port delivers, from the vendor MIB, to 0.1 W, every {$NE.POE.POWER.INTERVAL}.
         master_item:
-          key: ne.poe.snapshot
+          key: ne.normalised[poe.power]
         preprocessing:
         - type: JAVASCRIPT
           parameters:
           - |-
             try { return (function (value) {
-            var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='port'&&r.uid==='{#POEUID}'){var v=r['power_mw']; if(v===null||v===undefined){throw 'Not reported';}v=v/1000; return v;}} throw 'Absent; retain last observed value';
+            var e=JSON.parse(value); if(e.schema_version!=='1.2'||e.dataset!=='poe'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(r.kind==='port'&&r.uid==='{#POEUID}'){var v=r['power_mw']; if(v===null||v===undefined){throw 'Not reported';}v=Math.round(v/100)/10; return v;}} throw 'Absent; retain last observed value';
             })(value); } catch (error) { return '__NE_DISCARD__'; }
         - type: NOT_MATCHES_REGEX
           parameters:
@@ -7903,6 +9628,9 @@ zabbix_export:
     - macro: '{$NE.HARDWARE.STALE}'
       value: 15m
       description: Maximum age of a complete hardware observation.
+    - macro: '{$NE.HEARTBEAT}'
+      value: 2h
+      description: An unchanged state, snapshot or attempt receipt is stored again at least this often; a change is stored at once. Lengthen it to write less; triggers on these items are re-checked only when a value is stored.
     - macro: '{$NE.HW.CPU.UTIL.FOR}'
       value: 15m
       description: How long CPU utilisation must stay high before alerting.
@@ -7918,56 +9646,71 @@ zabbix_export:
     - macro: '{$NE.IF.INVENTORY.STALE}'
       value: 3h
       description: Maximum age of a complete interfaces.inventory observation.
+    - macro: '{$NE.IF.LINK.INTERVAL}'
+      value: 15m
+      description: Polling interval for interfaces.link.
+    - macro: '{$NE.IF.LINK.STALE}'
+      value: 45m
+      description: Maximum age of a complete interfaces.link observation.
     - macro: '{$NE.IF.MONITOR}'
       value: '0'
       description: Set to 1 with an interface-name context to alert when that port goes down.
-    - macro: '{$NE.IF.SPEED.DEGRADED_FOR}'
-      value: 10m
-      description: How long a port must run below its expected speed before alerting.
     - macro: '{$NE.IF.STATE.INTERVAL}'
-      value: 1m
+      value: 150s
       description: Polling interval for interfaces.
     - macro: '{$NE.IF.STATE.STALE}'
-      value: 5m
+      value: 450s
       description: Maximum age of a complete interfaces observation.
     - macro: '{$NE.LAG.INTERVAL}'
-      value: 5m
+      value: 15m
       description: Polling interval for lag.
     - macro: '{$NE.LAG.STALE}'
-      value: 15m
+      value: 45m
       description: Maximum age of a complete lag observation.
     - macro: '{$NE.LLDP.INTERVAL}'
-      value: 5m
+      value: 15m
       description: Polling interval for lldp.
     - macro: '{$NE.LLDP.REDACT_REMOTE}'
       value: '0'
       description: 1 drops remote system and port descriptions from stored neighbour data.
     - macro: '{$NE.LLDP.STALE}'
-      value: 15m
+      value: 45m
       description: Maximum age of a complete lldp observation.
     - macro: '{$NE.POE.INTERVAL}'
       value: 5m
       description: Polling interval for poe.
+    - macro: '{$NE.POE.POWER.INTERVAL}'
+      value: 15m
+      description: Polling interval for poe.power.
+    - macro: '{$NE.POE.POWER.STALE}'
+      value: 45m
+      description: Maximum age of a complete poe.power observation.
     - macro: '{$NE.POE.STALE}'
       value: 15m
       description: Maximum age of a complete poe observation.
     - macro: '{$NE.PORT_CAPABILITY.INTERVAL}'
-      value: 15m
+      value: 6h
       description: Polling interval for port_capability.
     - macro: '{$NE.PORT_CAPABILITY.STALE}'
-      value: 45m
+      value: 18h
       description: Maximum age of a complete port_capability observation.
+    - macro: '{$NE.SNAPSHOT.HISTORY}'
+      value: 2d
+      description: How long JSON snapshots and attempt receipts are kept. The frontend reads the latest two; keep it well above {$NE.HEARTBEAT}.
     - macro: '{$NE.STP.INTERVAL}'
-      value: 2m
+      value: 5m
       description: Polling interval for stp.
     - macro: '{$NE.STP.STALE}'
-      value: 6m
+      value: 15m
       description: Maximum age of a complete stp observation.
+    - macro: '{$NE.TRENDS}'
+      value: 180d
+      description: How long hourly trends of readings are kept.
     - macro: '{$NE.VLAN.INTERVAL}'
-      value: 10m
+      value: 30m
       description: Polling interval for vlan.
     - macro: '{$NE.VLAN.STALE}'
-      value: 30m
+      value: 90m
       description: Maximum age of a complete vlan observation.
     valuemaps:
     - uuid: 2760ea115d56487bb426ee150c9b81dd

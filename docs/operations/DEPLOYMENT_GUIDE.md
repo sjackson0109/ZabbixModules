@@ -233,13 +233,35 @@ Each dataset, switch or Wi-Fi, is one bulk `walk[]` over several tables, which o
 
 ### 5.3 Load and buffer sizing
 
-**Switches.** Per switch, the template polls eight datasets at the template defaults: interface state every 1m, STP 2m, LLDP, LAG and PoE 5m, VLAN 10m, port capability 15m, interface inventory and device identity 1h. A vendor template adds hardware health every 5m. The PoE snapshot is about 350 bytes per PoE port (measured on the captured 48-port CBS350 stack and N1548P), and PoE discovery adds one or two items per PoE port and five per PSE unit. Snapshots are stored as text values of about 350–400 bytes per port each (measured on the lab's simulated 27- and 48-port switches), and per-port discovered items add roughly 3–5 items per port (151 and 235 items on those two lab hosts).
+**Switches: polling.** Each dataset is its own SNMP walk, polled as often as what it reads changes. Every interval is a macro on the template, so it can be changed per host or per template:
 
-For a proxy with many switches, check that `ProxyOfflineBuffer` and the proxy database have room for the extra text values during a link outage to the server. Intervals are macros (`{$NE.IF.STATE.INTERVAL}`, `{$NE.LLDP.INTERVAL}` and so on) and can be lengthened per host or per template.
+| Walk | Reads | Every (macro) |
+|---|---|---|
+| Interface status | link up/down, admin state, last change | 2.5 minutes (`{$NE.IF.STATE.INTERVAL}`, 150s) |
+| Interface link | negotiated speed and duplex | 15 minutes (`{$NE.IF.LINK.INTERVAL}`) |
+| Interface inventory | names, descriptions, type, MTU, MAC, stack position | 1 hour (`{$NE.IF.INVENTORY.INTERVAL}`) |
+| Device | identity, chassis, stack members, uptime | 1 hour (`{$NE.DEVICE.INTERVAL}`) |
+| Spanning tree | root, port roles and states | 5 minutes (`{$NE.STP.INTERVAL}`) |
+| LLDP, LAG | neighbours, bundles | 15 minutes (`{$NE.LLDP.INTERVAL}`, `{$NE.LAG.INTERVAL}`) |
+| VLAN | VLANs and membership | 30 minutes (`{$NE.VLAN.INTERVAL}`) |
+| Port capability | advertised speeds (MAU-MIB) | 6 hours (`{$NE.PORT_CAPABILITY.INTERVAL}`) |
+| PoE status | port detection, class, priority, faults; unit status, budget, threshold | 5 minutes (`{$NE.POE.INTERVAL}`) |
+| PoE power | unit consumption; watts per port where the vendor reports them | 15 minutes (`{$NE.POE.POWER.INTERVAL}`) |
+| Hardware health (vendor templates) | CPU, memory, temperatures, fans, power supplies | 5 minutes (`{$NE.HARDWARE.INTERVAL}`) |
 
-**Generic APs.** Per AP host, the generic template polls six small walks: AP state, radio state and SSIDs every 5m; device, AP inventory and radio inventory every 1h.
+Each dataset's staleness alert fires after three missed polls (`{$NE.<DATASET>.STALE}`).
 
-**Aruba clusters.** Per cluster host, the VC template polls seven datasets at the template defaults: AP state, radio state, SSIDs and clients every 5m; device, AP inventory and radio inventory every 1h. The capacity values are added hourly. Each is one text snapshot of the whole cluster, so the client snapshot is the largest and grows with the number of associated clients. Each optional AP host adds one RF neighbour walk every 15m. Intervals and history are macros on the template (`{$WE.<DATASET>.INTERVAL}`, `{$WE.<DATASET>.HISTORY}`, for example `{$WE.CLIENT.INTERVAL}`); the Capacity tab reads trends of the `we.capacity.*` items, kept for `{$WE.CAPACITY.TRENDS}` (365d).
+**Switches: what is stored.** A value that reports a state (port status, speed and duplex, hardware and PoE states, collection status, the spanning-tree root), each dataset's JSON snapshot and each attempt's receipt are stored only when they change, and again every `{$NE.HEARTBEAT}` (2h) while they do not. Zabbix drops the repeats where it does the preprocessing, on the proxy for a proxied host, so they reach neither the proxy's buffer nor the server's database. A change is stored at once, so alerts on it are not delayed; a trigger is re-checked only when a value is stored, so after changing an alert macro (for example `{$NE.IF.MONITOR}`) on a port that is already down, the alert follows within `{$NE.HEARTBEAT}`; so does the first alert on a port discovered after its state was stored. Lab-checked on Zabbix 7.0.20 and 7.4.3 through a proxy: with `{$NE.HEARTBEAT}` at 60s, unchanged values were stored again every minute, and at the 2h default not at all. Readings (CPU, memory, temperature, fan speed, PoE consumption and watts) are stored at every poll for their hourly trends, and so is each walk's *Last complete observation* item, whose Zabbix timestamp the frontend uses as the observation time: stored JSON carries no timestamps of its own. On a 48-port PoE switch this is about 12,000 stored values a day instead of about 325,000 in 2.2.0, and on a quiet switch about 1 MB of text a day instead of about 80 MB; each port that goes up or down adds one stored interface snapshot. These are estimates from the lab's measured sizes (about 370 bytes per port per interface snapshot, 350 bytes per PoE port).
+
+**Switches: retention.** JSON snapshots and receipts are kept for `{$NE.SNAPSHOT.HISTORY}` (2 days; the frontend reads the latest two), numeric values for 31 days, the *Last complete observation* items for 7 days, and trends of readings for `{$NE.TRENDS}` (180 days). If Administration → Housekeeping overrides the item history or trend period, the override applies instead; it never adds trends to an item that keeps none.
+
+**Proxy database.** By default a proxy writes every collected value to its database and deletes it once the server has it. Zabbix 7.0's memory buffer avoids that in normal running: with `ProxyBufferMode=hybrid`, `ProxyMemoryBufferSize` (for example 256M) and `ProxyMemoryBufferAge` (for example 900, no more than `ProxyOfflineBuffer` in seconds), the proxy writes to its database only while the server is unreachable or the buffer is full. On a PostgreSQL proxy this also ends the constant insert and delete churn, and the vacuuming it causes, on `proxy_history`. In Docker, check your proxy image's environment variable list for these settings. Make sure `ProxyOfflineBuffer` covers the link outages you expect.
+
+**Server database.** With per-item history, as these templates set it, Zabbix's housekeeper deletes expired rows itself; Zabbix drops whole partitions instead only on TimescaleDB with the history and trend periods overridden. The storage policy above cuts the rows it has to delete, on MySQL or PostgreSQL alike, by over 95% compared with 2.2.0.
+
+**Generic APs.** Per AP host, the generic template polls seven small walks: AP state and radio state every 5m, SSIDs and the AP's own LLDP every 15m, device, AP inventory and radio inventory every 1h. Snapshots, receipts and collection status are stored when they change and every `{$WE.HEARTBEAT}` (2h), as on switches.
+
+**Aruba clusters.** Per cluster host, the VC template polls seven datasets at the template defaults: AP state, radio state and clients every 5m, SSIDs every 15m, device, AP inventory and radio inventory every 1h. Radio state and clients change at almost every poll (channel utilisation, clients coming and going), so storing them on change saves little; the other snapshots are stored when they change and every `{$WE.HEARTBEAT}` (2h). The capacity values are added hourly. Each is one text snapshot of the whole cluster, so the client snapshot is the largest and grows with the number of associated clients. Each optional AP host adds one RF neighbour walk every 15m and its own LLDP every 15m. Intervals and history are macros on the template (`{$WE.<DATASET>.INTERVAL}`, `{$WE.<DATASET>.HISTORY}`, for example `{$WE.CLIENT.INTERVAL}`); the Capacity tab reads trends of the `we.capacity.*` items, kept for `{$WE.CAPACITY.TRENDS}` (180d), so its year view shows the last six months.
 
 **Large stacks and text size:** a single snapshot grows with the port count. At about 370 bytes per port, the interface snapshots of a stack with more than roughly 170 ports approach 64 KB. Zabbix text history is limited in size on some database backends (see "Item value types" in the Zabbix documentation for your version and database). If a value is truncated it is no longer valid JSON; Network Explorer then reports the dataset as invalid on the Data Quality widget rather than drawing wrong ports. This limit is an estimate from lab data and has not been tested against a real large stack; check the first large stack you enrol (section 6).
 
@@ -267,11 +289,12 @@ Interface inventory is polled hourly, so either wait for it or use **Execute now
 
 In **Monitoring → Latest data**, filter the host and the key `ne.`:
 
-- The `*.attempt` items (`ne.device.attempt`, `ne.interfaces.attempt`, `ne.interfaces.inventory.attempt`, `ne.lldp.attempt`, …) should hold envelopes with `"status":"ok"`. `unsupported` means the switch does not publish that MIB (for example no Q-BRIDGE-MIB means no VLAN overlay); the other datasets keep working.
+- The `*.attempt` items (`ne.device.attempt`, `ne.interfaces.attempt`, `ne.interfaces.inventory.attempt`, `ne.lldp.attempt`, …) should hold `"status":"ok"`; a complete success is kept as a receipt with its row count (`data_rows`), the rows being in the snapshot. `unsupported` means the switch does not publish that MIB (for example no Q-BRIDGE-MIB means no VLAN overlay); the other datasets keep working.
 - `failed` with a timeout means the SNMP timeout (5.2) is too low or UDP 161 is blocked from that proxy.
 - Interface discovery should have created per-port items with no items left *Not supported*.
 - `ne.poe.attempt` is `unsupported` on a switch without PoE, which raises nothing; on a PoE switch, PoE discovery creates an item per PoE port and per PSE unit.
 - If the SNMP interface turns red (unavailable), it is a credentials or reachability problem, not a Network Explorer one.
+- Items stored on change show in Latest data with the time they last changed or were re-stored, up to `{$NE.HEARTBEAT}` (2h) ago; that is expected. The *Last complete observation* items (`ne.collection.success[...]`) show when each walk last completed.
 
 ### 6.3 Check the frontend
 
@@ -292,7 +315,7 @@ When the pilot switches in every data centre look right, enrol the rest in batch
 Ports to alert on, and expected speeds, are set with per-interface macros:
 
 - `{$NE.IF.MONITOR:"Gi1/0/24"}=1` raises a trigger when that port goes down.
-- `{$NE.IF.EXPECTED_SPEED:"Gi1/0/23"}=1000000000` flags that port when it runs below 1 Gbit/s for longer than `{$NE.IF.SPEED.DEGRADED_FOR}` (10m). With `0`, the expected speed is derived from what both ends advertise.
+- `{$NE.IF.EXPECTED_SPEED:"Gi1/0/23"}=1000000000` flags that port when it runs below 1 Gbit/s at a link poll (every `{$NE.IF.LINK.INTERVAL}`, 15m). With `0`, the expected speed is derived from what both ends advertise.
 
 ## 7. Enrol Wi-Fi clusters and verify
 
@@ -437,6 +460,14 @@ Every other template keeps its UUIDs, so an import renames it in place. The acce
 4. Update anything that looks these templates up by name, such as API scripts or your own runbooks. Host links refer to the template itself, so they follow the rename.
 5. Do not import `network_explorer_snmp.yaml` or `wifi_explorer_snmp.yaml` from an earlier release again unless you are rolling back (8.2): they rename the templates back.
 
+2.3.0 also changes what is polled and stored (5.3). After the import:
+
+- Every walk keeps its item and history. New items appear for the interface link walk, PoE power and each walk's unstored normalised envelope (`ne.normalised[...]`, `we.normalised[...]` already existed).
+- History written by 2.2.0 stays readable: it carries its own timestamps, which the frontend uses as before. New values carry none, and the frontend takes their times from Zabbix.
+- The attempt items' history changes from whole envelopes to receipts, and their history and the snapshots' shortens to `{$NE.SNAPSHOT.HISTORY}` (2 days); the housekeeper removes older values in its own time.
+- Speed and duplex come from the link walk every 15 minutes. Until its first poll, the frontend shows them from the hourly inventory.
+- `{$NE.IF.SPEED.DEGRADED_FOR}` is no longer used: the speed alert fires at a link poll. Delete any host or template override of it.
+
 ### 8.6 Moving a switch from the Generic Switch to a vendor template
 
 A vendor template holds every item of the Generic Switch under the same keys, plus its own. Swap the templates without clearing, and the vendor template adopts the host's items and discovery rules by key, so they keep their history. Verified on Zabbix 7.0.20 and 7.4.3 labs for each vendor template: every item and discovery rule of a host on `ne__generic_switch` kept its ID after the swap, and the vendor template added its own. The lab hosts had no discovered ports; the rules that discover them keep their IDs.
@@ -447,7 +478,7 @@ A vendor template holds every item of the Generic Switch under the same keys, pl
    - **Many hosts:** Data collection → Hosts → select them → **Mass update** → Templates: first **Unlink** `ne__generic_switch` with **Clear when unlinking** unticked, then a second mass update to **Link** the vendor template. Do not use **Replace**: it also unlinks every other template on those hosts.
 
    Never tick *Clear when unlinking* and never use *Unlink and clear*: that deletes the items and their history.
-3. Delete the one item the swap leaves behind. The Generic Switch reads PoE through `ne.raw.poe` (*Raw SNMP walk: poe*); the Cisco, CBS220 and Dell N-Series templates read it through their own walk, so `ne.raw.poe` stays on the host as a plain item with nothing depending on it, and would keep polling. In the host's **Items**, filter the key `ne.raw.poe`, tick the item that has no template prefix, and click **Delete**. The Dell X-Series template keeps `ne.raw.poe`, so nothing is left behind. The walk stores no history, so nothing is lost.
+3. Delete the PoE walks the swap leaves behind. The Generic Switch reads PoE status through `ne.raw.poe` and power through `ne.raw.poe.power`. The Cisco Small Business and SG300 templates read both through their own walks (`ne.raw.poe.ifindex`, `ne.raw.poe.power.ciscosb`), and the CBS220 and Dell N-Series templates read status through `ne.raw.poe.ifindex`; a walk the vendor template does not use stays on the host as a plain item with nothing depending on it, and would keep polling. In the host's **Items**, filter the key `ne.raw.poe`, tick the items that have no template prefix, and click **Delete**. The Dell X-Series template uses the same two walks, so nothing is left behind. Raw walks store no history, so nothing is lost.
 4. The vendor template's disabled components (Port Capability, and Hardware Health on the CBS220) are disabled on the host too after the swap; enable them on a host whose firmware supports them.
 
 To move back, swap the other way in the same manner; the vendor template's own items (hardware health, its PoE walk) then stay behind as plain items, which you delete the same way, losing their history. The lab checked the forward move only.

@@ -16,6 +16,17 @@ const SOURCE = path.join(ROOT, 'templates', 'source');
 
 global.sha256 = (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex');
 
+// NE_TEST_NOW (milliseconds since the epoch) fixes the clock, so a test can replay the same device twice, a poll
+// interval apart, and compare what would be stored.
+if (process.env.NE_TEST_NOW) {
+  const fixed = Number(process.env.NE_TEST_NOW);
+  const RealDate = Date;
+  global.Date = class extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [fixed])); }
+    static now() { return fixed; }
+  };
+}
+
 // Network Explorer producers (run through NE.run), then Wi-Fi Explorer producers (run through WE.run).
 const MANIFESTS = [[path.join(SOURCE, 'datasets.json'), 'NE.run'], [path.join(SOURCE, 'wifi', 'datasets.json'), 'WE.run']];
 

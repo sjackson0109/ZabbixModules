@@ -39,7 +39,9 @@ EVIDENCE_ROOT = ROOT / "tests/fixtures/qualification"
 SWITCH_MANIFEST = ROOT / "templates/source/datasets.json"
 DEFAULT_TEMPLATE = "ne__generic_switch"
 # Each producer's name in a classification (the dataset, or dataset_variant where a dataset has two producers).
-PRODUCER_NAMES = {"interfaces": "interfaces_state", "interfaces.inventory": "interfaces_inventory"}
+# Datasets walked in more than one producer: interfaces (status, link and inventory) and PoE (status and power).
+PRODUCER_NAMES = {"interfaces": "interfaces_state", "interfaces.inventory": "interfaces_inventory",
+                  "interfaces.link": "interfaces_link", "poe.power": "poe_power"}
 CAPABILITIES = ("interfaces", "entity", "mau", "lldp", "vlan", "stp", "lag", "hardware", "poe")
 CAPABILITY_LABELS = {"interfaces": "Interfaces", "entity": "ENTITY", "mau": "MAU", "lldp": "LLDP",
                      "vlan": "VLAN", "stp": "STP", "lag": "LAG", "hardware": "Hardware", "poe": "PoE"}
@@ -280,16 +282,19 @@ def classify(walk: Path, template: str = DEFAULT_TEMPLATE) -> dict:
         else:
             datasets[name] = {"status": "not_walked", "rows": 0, "errors": [], "warnings": []}
     caps = {}
-    state, inventory = datasets["interfaces_state"], datasets["interfaces_inventory"]
-    worst = [capability_from(state), capability_from(inventory)]
-    caps["interfaces"] = next((s for s in ("failed", "unsupported", "partial", "empty") if s in worst), "ok")
+    def worst(names: tuple[str, ...]) -> str:
+        states = [capability_from(datasets[name]) for name in names if name in datasets]
+        return next((s for s in ("failed", "unsupported", "partial", "empty", "not_walked") if s in states), "ok")
+
+    caps["interfaces"] = worst(("interfaces_state", "interfaces_link", "interfaces_inventory"))
     placed = [row for row in (envelopes.get("interfaces_inventory") or {}).get("data") or []
               if row.get("member") is not None or row.get("slot") is not None]
     # ENTITY-MIB placement is only visible through the inventory rows it places.
     caps["entity"] = ("ok" if placed else "absent") if caps["interfaces"] in ("ok", "partial") else caps["interfaces"]
     caps["mau"] = capability_from(datasets["port_capability"])
-    for name in ("lldp", "vlan", "stp", "lag", "hardware", "poe"):
+    for name in ("lldp", "vlan", "stp", "lag", "hardware"):
         caps[name] = capability_from(datasets[name]) if name in datasets else "not_collected"
+    caps["poe"] = worst(("poe", "poe_power")) if "poe" in datasets else "not_collected"
     records = {oid: (tag, value) for oid, tag, value in read_snmprec(walk)}
     system = {"sys_object_id": records.get(SYS_OBJECT_ID, ("", ""))[1],
               "sys_descr": octets(*records.get(SYS_DESCR, ("4", "")))}

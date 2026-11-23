@@ -1020,13 +1020,16 @@ zabbix_export:
       history: '{$WE.RF.NEIGHBOUR.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Every attempt, including partial, failed and unsupported. A complete success is stored as a receipt without its rows, which are in the snapshot.
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success is stored as a receipt without its rows, which are in the snapshot. Times are Zabbix's own.
       master_item:
         key: we.normalised[rf_neighbour]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
-        - var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id001
+        - '{$WE.HEARTBEAT}'
       tags:
       - tag: component
         value: wifi-explorer
@@ -1042,7 +1045,7 @@ zabbix_export:
       history: '{$WE.RF.NEIGHBOUR.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
         key: we.normalised[rf_neighbour]
       preprocessing:
@@ -1050,12 +1053,14 @@ zabbix_export:
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='rf_neighbour'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='wifi-1.0'||e.dataset!=='rf_neighbour'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -1079,6 +1084,8 @@ zabbix_export:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id001
       tags:
       - tag: component
         value: wifi-explorer
@@ -1091,7 +1098,7 @@ zabbix_export:
       type: DEPENDENT
       key: we.collection.success[rf_neighbour]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
@@ -1151,15 +1158,15 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
-    - uuid: a4499bb93fc64db98be0a0011940a42b
-      name: 'Collection attempt: lldp'
+    - uuid: cff6014ac6b745399a539055277f7b55
+      name: 'Normalised envelope: lldp'
       type: DEPENDENT
-      key: ne.lldp.attempt
+      key: ne.normalised[lldp]
       delay: '0'
-      history: 7d
+      history: '0'
       value_type: TEXT
       trends: '0'
-      description: Canonical envelope for every attempt, including partial, failed and unsupported.
+      description: The canonical envelope of each attempt, passed to the items below; not stored.
       master_item:
         key: ne.raw.lldp
       preprocessing:
@@ -1741,28 +1748,55 @@ zabbix_export:
         value: lldp
       - tag: data_source
         value: native-snmp
+    - uuid: a4499bb93fc64db98be0a0011940a42b
+      name: 'Collection attempt: lldp'
+      type: DEPENDENT
+      key: ne.lldp.attempt
+      delay: '0'
+      history: '{$NE.SNAPSHOT.HISTORY}'
+      value_type: TEXT
+      trends: '0'
+      description: Each attempt's outcome, including partial, failed and unsupported, stored when it changes. A complete success keeps only its row count; the rows are in the snapshot. Times are Zabbix's own.
+      master_item:
+        key: ne.normalised[lldp]
+      preprocessing:
+      - type: JAVASCRIPT
+        parameters:
+        - var e=JSON.parse(value); var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: &id002
+        - '{$NE.HEARTBEAT}'
+      tags:
+      - tag: component
+        value: network-explorer
+      - tag: dataset
+        value: lldp
+      - tag: data_source
+        value: native-snmp
     - uuid: 938fed07703f478887954098d0136b88
       name: 'Last complete snapshot: lldp'
       type: DEPENDENT
       key: ne.lldp.snapshot
       delay: '0'
-      history: 7d
+      history: '{$NE.SNAPSHOT.HISTORY}'
       value_type: TEXT
       trends: '0'
-      description: Updated only by complete, successful observations.
+      description: 'Complete, successful observations only, stored when they change. Times are Zabbix''s own: the frontend takes the observation time from the last complete observation item.'
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - |-
           try { return (function (value) {
-          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; return value;
+          var e=JSON.parse(value); if(e.schema_version!=='1.1'||e.dataset!=='lldp'||e.status!=='ok'||e.complete!==true||!Array.isArray(e.data)) throw 'Incomplete or invalid snapshot; retain last success'; if(typeof e.observed_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(e.observed_at)||!isFinite(Date.parse(e.observed_at))) throw 'Invalid observation timestamp'; var t=Date.parse(e.observed_at||e.attempted_at); var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; for(var i=0;i<e.data.length;i++){var r=e.data[i]; delete r.observed_at;} return JSON.stringify(e);
           })(value); } catch (error) { return '__NE_DISCARD__'; }
       - type: NOT_MATCHES_REGEX
         parameters:
         - ^__NE_DISCARD__$
         error_handler: DISCARD_VALUE
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id002
       tags:
       - tag: component
         value: network-explorer
@@ -1781,11 +1815,13 @@ zabbix_export:
       valuemap:
         name: Network Explorer collection status
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
         - var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; if(m[s]===undefined) throw 'Unknown status'; return m[s];
+      - type: DISCARD_UNCHANGED_HEARTBEAT
+        parameters: *id002
       tags:
       - tag: component
         value: network-explorer
@@ -1798,12 +1834,12 @@ zabbix_export:
       type: DEPENDENT
       key: ne.collection.success[lldp]
       delay: '0'
-      history: 31d
+      history: 7d
       value_type: UNSIGNED
       trends: '0'
       units: unixtime
       master_item:
-        key: ne.lldp.attempt
+        key: ne.normalised[lldp]
       preprocessing:
       - type: JAVASCRIPT
         parameters:
@@ -1839,15 +1875,27 @@ zabbix_export:
     - tag: component
       value: wifi-explorer
     macros:
+    - macro: '{$NE.HEARTBEAT}'
+      value: 2h
+      description: An unchanged state, snapshot or attempt receipt is stored again at least this often; a change is stored at once. Lengthen it to write less; triggers on these items are re-checked only when a value is stored.
     - macro: '{$NE.LLDP.INTERVAL}'
-      value: 5m
+      value: 15m
       description: Polling interval for lldp.
     - macro: '{$NE.LLDP.REDACT_REMOTE}'
       value: '0'
       description: 1 drops remote system and port descriptions from stored neighbour data.
     - macro: '{$NE.LLDP.STALE}'
-      value: 15m
+      value: 45m
       description: Maximum age of a complete lldp observation.
+    - macro: '{$NE.SNAPSHOT.HISTORY}'
+      value: 2d
+      description: How long JSON snapshots and attempt receipts are kept. The frontend reads the latest two; keep it well above {$NE.HEARTBEAT}.
+    - macro: '{$NE.TRENDS}'
+      value: 180d
+      description: How long hourly trends of readings are kept.
+    - macro: '{$WE.HEARTBEAT}'
+      value: 2h
+      description: An unchanged snapshot, attempt receipt or collection status is stored again at least this often; a change is stored at once. Lengthen it to write less.
     - macro: '{$WE.RF.NEIGHBOUR.HISTORY}'
       value: 1d
       description: How long rf_neighbour snapshots and attempts are kept.

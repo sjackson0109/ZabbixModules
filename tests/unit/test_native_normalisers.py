@@ -70,8 +70,11 @@ def test_interface_identity_matches_the_python_collector():
 
 
 def test_reduced_speed_port_has_evidence_for_amber():
+    # Negotiated speed and duplex are read by the link walk; the status walk leaves them unknown.
+    link = rows(run("ne.raw.if.link", CORE), name="Gi1/0/23")[0]
+    assert (link["speed_bps"], link["duplex"]) == (100_000_000, "half")
     state = rows(run("ne.raw.if.state", CORE), name="Gi1/0/23")[0]
-    assert (state["speed_bps"], state["duplex"]) == (100_000_000, "half")
+    assert (state["speed_bps"], state["duplex"], state["oper_status"]) == (None, None, "up")
     capability = rows(run("ne.raw.if.capability", CORE), uid=uid("Gi1/0/23"))[0]
     assert capability["oper_speed_bps"] == 100_000_000 and capability["oper_duplex"] == "half"
     assert max(capability["partner_advertised_speeds_bps"]) == 1_000_000_000

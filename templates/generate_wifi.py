@@ -36,6 +36,17 @@ SWITCH_MANIFEST = SOURCE / "datasets.json"
 FAILED = "__NE_COLLECTION_FAILED__"
 SCHEMA = "wifi-1.0"
 NAMESPACE = _common.NAMESPACES["we"]
+# The same storage policy as the switch templates (generate_snmp.py): snapshots, attempt receipts and collection
+# statuses are stored when they change and every {$WE.HEARTBEAT}; capacity values are readings, stored every poll for
+# their trends. Stored JSON carries no timestamps: the frontend takes them from Zabbix (StoredEnvelope.php).
+HEARTBEAT = "{$WE.HEARTBEAT}"
+THROTTLE = {"type": "DISCARD_UNCHANGED_HEARTBEAT", "parameters": [HEARTBEAT]}
+HEARTBEAT_MACRO = {"macro": HEARTBEAT, "value": "2h",
+                   "description": "An unchanged snapshot, attempt receipt or collection status is stored again at least "
+                                  "this often; a change is stored at once. Lengthen it to write less."}
+# An AP's and the controller's uptime is stored as the minute it started, so the stored JSON stays the same.
+UPTIME = generate_snmp.STORAGE_ROWS["device"]
+STORAGE_ROWS = {"device": UPTIME, "ap_state": UPTIME}
 
 
 def uid(name: str) -> str:
@@ -70,14 +81,15 @@ def item_uid(scope: str | None, key: str) -> str:
 
 
 def dependent(key: str, name: str, dataset: str, master: str, script: str, *, value_type: str = "TEXT",
-              discard: bool = False, history: str = "7d", scope: str | None = None, **extra) -> dict:
+              discard: bool = False, history: str = "7d", scope: str | None = None, throttle: bool = False,
+              **extra) -> dict:
     result = {"uuid": item_uid(scope, key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0",
               "history": history, "value_type": value_type}
     if value_type in ("TEXT", "CHAR"):
         result["trends"] = "0"
     result.update(extra)
     result["master_item"] = {"key": master}
-    result["preprocessing"] = js(script, discard)
+    result["preprocessing"] = js(script, discard) + ([dict(THROTTLE)] if throttle else [])
     result["tags"] = tags(dataset)
     return result
 
@@ -99,8 +111,13 @@ def raw_item(entry: dict, scope: str | None) -> dict:
 
 # A complete, successful attempt is stored as a receipt: its rows are already in the snapshot item, so storing
 # them twice would double the dataset's history. Partial, failed and unsupported attempts are kept whole.
-RECEIPT = ("var e=JSON.parse(value); if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){"
-           "e.data_rows=e.data.length; e.data=[]; e.data_omitted=true;} return JSON.stringify(e);")
+def receipt(dataset: str) -> str:
+    return generate_snmp.receipt(dataset, STORAGE_ROWS)
+
+
+def stored(dataset: str) -> str:
+    """A complete observation in its stored form (no timestamps, stable rows)."""
+    return gate(dataset, generate_snmp.storage(dataset, STORAGE_ROWS) + "return JSON.stringify(e);")
 
 
 # Cluster-level numbers from each complete observation, stored as numeric items so that Zabbix keeps trends for
@@ -157,20 +174,25 @@ def producer_items(entry: dict, template: str, meta: dict) -> list[dict]:
              dependent(normalised, f"Normalised envelope: {dataset}", dataset, entry["raw_key"], compose(entry),
                        history="0", scope=scope,
                        description="The canonical envelope of each attempt, passed to the items below; not stored."),
-             dependent(attempt, f"Collection attempt: {dataset}", dataset, normalised, RECEIPT,
-                       history=history, scope=scope,
-                       description="Every attempt, including partial, failed and unsupported. A complete success is "
-                                   "stored as a receipt without its rows, which are in the snapshot.")]
+             dependent(attempt, f"Collection attempt: {dataset}", dataset, normalised, receipt(dataset),
+                       history=history, scope=scope, throttle=True,
+                       description="Each attempt's outcome, including partial, failed and unsupported, stored when it "
+                                   "changes. A complete success is stored as a receipt without its rows, which are in "
+                                   "the snapshot. Times are Zabbix's own.")]
     for key in entry["snapshot_keys"]:
-        items.append(dependent(key, f"Last complete snapshot: {dataset}", dataset, normalised, gate(dataset),
-                               discard=True, history=history, scope=scope,
-                               description="Updated only by complete, successful observations."))
+        items.append(dependent(key, f"Last complete snapshot: {dataset}", dataset, normalised, stored(dataset),
+                               discard=True, history=history, scope=scope, throttle=True,
+                               description="Complete, successful observations only, stored when they change. Times "
+                                           "are Zabbix's own: the frontend takes the observation time from the last "
+                                           "complete observation item."))
     status = dependent(f"we.collection.status[{dataset}]", f"Collection status: {dataset}", dataset, normalised,
                        COLLECTION_STATUS, value_type="UNSIGNED", history="31d", trends="0", scope=scope,
-                       valuemap={"name": STATUS_MAP})
+                       valuemap={"name": STATUS_MAP}, throttle=True)
+    # Stored at every complete observation: the staleness trigger's nodata() needs it, and its Zabbix timestamp is
+    # the observation time the frontend reports.
     success = dependent(f"we.collection.success[{dataset}]", f"Last complete observation: {dataset}", dataset,
                         normalised, gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
-                        value_type="UNSIGNED", discard=True, history="31d", trends="0", units="unixtime",
+                        value_type="UNSIGNED", discard=True, history="7d", trends="0", units="unixtime",
                         scope=scope)
     stale = stale_macro(entry)
     success["triggers"] = [{
@@ -252,7 +274,7 @@ def build(version: str) -> dict:
             "groups": [{"name": GROUP}],
             "items": [i for e in mine for i in producer_items(e, name, meta)],
             "tags": [{"tag": "component", "value": "wifi-explorer"}],
-            "macros": macros(mine, meta.get("macros", [])),
+            "macros": macros(mine, meta.get("macros", []) + [HEARTBEAT_MACRO]),
             "valuemaps": [{"uuid": uid(f"valuemap:{short}:status"), "name": STATUS_MAP,
                            "mappings": [{"value": str(i), "newvalue": s}
                                         for i, s in enumerate(("ok", "partial", "failed", "unsupported"))]}]}

@@ -1,5 +1,7 @@
 """PoE producers replayed on the anonymised captures under tests/fixtures/qualification, and the CISCO-ENVMON-MIB
-hardware producer on a synthetic walk, all validated against canonical schema 1.2."""
+hardware producer on a synthetic walk, all validated against canonical schema 1.2. PoE is walked twice: status
+(detection, class, priority, faults; unit status, budget, threshold) every 5 minutes, and power (unit consumption,
+per-port watts where the vendor reports them) every 15."""
 import json
 import re
 import shutil
@@ -64,8 +66,9 @@ def test_standard_tables_are_complete(validator, raw_key, label):
     assert all((p["power_class"] is not None) == (p["state"] == "delivering") for p in ports)
     for unit in units:
         if unit["state"] != "not_present":
-            assert unit["port_count"] > 0 and 0 < unit["power_w"] and unit["consumption_w"] <= unit["power_w"]
-            assert unit["usage_threshold_pct"] is not None
+            assert unit["port_count"] > 0 and 0 < unit["power_w"] and unit["usage_threshold_pct"] is not None
+        # Consumption is a reading, walked by the power producer.
+        assert unit["consumption_w"] is None and unit["util_pct"] is None
     assert sum(u["port_count"] for u in units) == len(ports)
     if raw_key == "ne.raw.poe":
         # RFC 3621 maps no port to an interface, so the generic producer never claims one.
@@ -76,9 +79,21 @@ def test_standard_tables_are_complete(validator, raw_key, label):
         assert envelope["warnings"] == []
 
 
+@pytest.mark.parametrize("label", POE_CAPTURES)
+def test_standard_power_walk_reports_consumption(validator, label):
+    envelope = run("ne.raw.poe.power", capture(label))
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["errors"]) == ("ok", [])
+    for unit in rows(envelope, "pse"):
+        if unit["state"] != "not_present":
+            assert 0 < unit["power_w"] and unit["consumption_w"] <= unit["power_w"] and unit["util_pct"] is not None
+    # The power walk lists the ports (enable and detection status) only so that per-port power can join them.
+    assert {p["uid"] for p in rows(envelope, "port")} == {p["uid"] for p in rows(run("ne.raw.poe", capture(label)), "port")}
+
+
 @pytest.mark.parametrize("label", CISCOSB)
 def test_cisco_small_business_reports_port_power(validator, label):
-    envelope = run("ne.raw.poe.ciscosb", capture(label))
+    envelope = run("ne.raw.poe.power.ciscosb", capture(label))
     validator.validate(envelope)
     assert (envelope["status"], envelope["warnings"]) == ("ok", [])
     ports = rows(envelope, "port")
@@ -95,14 +110,14 @@ def test_cisco_small_business_reports_port_power(validator, label):
 
 
 def test_350_class_consumption_is_the_allocated_power():
-    envelope = run("ne.raw.poe.ciscosb", capture("cisco-cbs350-24fp-4x-3.6.0.3"))
+    envelope = run("ne.raw.poe.power.ciscosb", capture("cisco-cbs350-24fp-4x-3.6.0.3"))
     (unit,) = [u for u in rows(envelope, "pse") if u["state"] != "not_present"]
     drawn = sum(p["power_mw"] for p in rows(envelope, "port")) / 1000
     assert unit["consumption_w"] == 249 and round(drawn) == 81
 
 
 def test_stack_slots_without_a_unit_are_not_present():
-    envelope = run("ne.raw.poe.ciscosb", capture("cisco-cbs350-24p-4x-3.6.0.3"))
+    envelope = run("ne.raw.poe.ifindex", capture("cisco-cbs350-24p-4x-3.6.0.3"))
     units = {u["uid"]: u for u in rows(envelope, "pse")}
     assert [u["state"] for u in units.values()] == ["on", "on", "not_present", "not_present"]
     assert units["pse-3"]["raw_state"] == 3 and units["pse-3"]["power_w"] is None  # the agent calls it faulty
@@ -110,7 +125,7 @@ def test_stack_slots_without_a_unit_are_not_present():
 
 
 def test_vendor_power_needs_the_vendor_table():
-    envelope = run("ne.raw.poe.ciscosb", capture("cisco-cbs220-24p-4g-2.0.2.15"))
+    envelope = run("ne.raw.poe.power.ciscosb", capture("cisco-cbs220-24p-4g-2.0.2.15"))
     assert envelope["status"] == "ok" and [w["code"] for w in envelope["warnings"]] == ["vendor_power_missing"]
     assert all(p["power_mw"] is None for p in rows(envelope, "port"))
 

@@ -30,6 +30,12 @@
         "status": "ok",
         "warnings": []
       },
+      "interfaces_link": {
+        "errors": [],
+        "rows": 192,
+        "status": "ok",
+        "warnings": []
+      },
       "interfaces_state": {
         "errors": [],
         "rows": 192,
@@ -49,6 +55,14 @@
         "warnings": []
       },
       "poe": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "poe_power": {
         "errors": [
           "unsupported"
         ],

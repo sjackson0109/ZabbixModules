@@ -21,6 +21,13 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Qualification: Hardware and PoE columns in the matrix. Evidence may name the switch template whose producers classify its walk (`template`; `qualify.py classify --template`), so vendor producers are judged on the devices they are for. A producer the template lacks is `not_collected`, and one whose subtree the capture never walked is `not_walked`; neither supports a state.
 
 ### Changed
+- Collection and storage, to cut SNMP traffic and database writes (deployment guide, section 5.3):
+  - Each switch dataset is polled as often as what it reads changes: interface status every 2.5 minutes (was 1), speed and duplex in a new link walk every 15 minutes, spanning tree every 5 (was 2), LLDP and LAG every 15 (was 5), VLAN every 30 (was 10), port capability every 6 hours (was 15 minutes), PoE status every 5 and PoE power, a new walk, every 15. Wi-Fi SSIDs every 15 minutes (was 5).
+  - States, JSON snapshots, attempt receipts and discovery lists are stored only when they change and every `{$NE.HEARTBEAT}` / `{$WE.HEARTBEAT}` (2h); Zabbix drops the repeats on the proxy. Readings are stored every poll. About 96% fewer stored values and 98% less text per switch.
+  - Stored JSON carries no timestamps: the frontend takes them from Zabbix (`StoredEnvelope.php`; canonical schema, "Stored form"). Switch attempt items keep receipts, as the Wi-Fi ones already did.
+  - Every walk feeds one unstored `ne.normalised[...]` item, from which discovery, states and readings are derived.
+  - Snapshots and receipts are kept `{$NE.SNAPSHOT.HISTORY}` (2d); trends of readings `{$NE.TRENDS}` (180d), and `{$WE.CAPACITY.TRENDS}` is 180d; states keep no trends.
+  - The below-expected-speed alert fires at a link poll; `{$NE.IF.SPEED.DEGRADED_FOR}` is retired.
 - **Breaking (installation):** every native template is its own file, named after it, in place of `network_explorer_snmp.yaml` and `wifi_explorer_snmp.yaml`, and is named after its product: `ne_` (Network Explorer, switches) or `we_` (Wi-Fi Explorer, access points), then its words in lowercase. The visible name is the product's name and the same words in Title Case. Each product's generic template has a double underscore, which sorts it and its file first.
   - `Network Explorer - Generic Switch` is now `ne__generic_switch`, still shown as Network Explorer - Generic Switch.
   - `Wi-Fi Explorer - Generic AP` is now `we__generic_access_point` (Wi-Fi Explorer - Generic Access Point).

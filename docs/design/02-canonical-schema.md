@@ -20,6 +20,12 @@ Every dataset is published per Zabbix host as one JSON envelope:
 | `warnings` | Optional, 1.1 only. Row-level problems, such as a duplicate interface name or an `ifNumber` mismatch: the row is skipped or keeps unknown fields, and the dataset stays `ok` and current. A walk with no identifiable interface at all is still an error. |
 | `data` | Rows for the dataset (below) |
 
+## Stored form (native templates, 2.3.0)
+
+Zabbix records when every value was collected, so the native templates store envelopes without the times it already has: no `attempted_at`, `observed_at` or `generation_id`, and `"timing": "zabbix"` to say so. Row times the device reports relative to its own uptime are stored as absolute times rounded to the minute: a device's `uptime_s` as `boot_at`, a spanning-tree bridge's `time_since_topology_change_s` as `topology_changed_at`, a port's `last_change` to the minute; LLDP rows drop their `observed_at`. Readings (hardware `util_*_pct`, `celsius`, `speed`, `free_bytes`) stay in numeric items. The stored JSON is then identical from poll to poll while the device does not change, so `Discard unchanged with heartbeat` keeps it to one value per change and per `{$NE.HEARTBEAT}`.
+
+The readers restore the canonical envelope before validating it ([`StoredEnvelope.php`](../../frontend/networkexplorer/include/Services/StoredEnvelope.php)): `attempted_at` and `observed_at` from the stored value's Zabbix clock or, for the newest complete one, from the clock of the walk's `ne.collection.success[<producer>]` item, which is stored at every complete observation; `uptime_s` and `time_since_topology_change_s` from the stored absolute times; an LLDP row's `observed_at` from its envelope's. Envelopes from the collector, the lab and earlier templates carry their own times and are read unchanged. The canonical schemas are unchanged.
+
 ## Freshness (spec §23)
 
 The frontend shows the five states the spec requires. Each is computed per dataset per host from the envelope and the Zabbix item state:

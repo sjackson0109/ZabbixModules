@@ -32,6 +32,14 @@
           "identity_ambiguous"
         ]
       },
+      "interfaces_link": {
+        "errors": [],
+        "rows": 74,
+        "status": "ok",
+        "warnings": [
+          "identity_ambiguous"
+        ]
+      },
       "interfaces_state": {
         "errors": [],
         "rows": 74,
@@ -53,6 +61,12 @@
         "warnings": []
       },
       "poe": {
+        "errors": [],
+        "rows": 25,
+        "status": "ok",
+        "warnings": []
+      },
+      "poe_power": {
         "errors": [],
         "rows": 25,
         "status": "ok",

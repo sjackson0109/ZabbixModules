@@ -21,7 +21,7 @@
         },
         {
           "macro": "{$WE.CAPACITY.TRENDS}",
-          "value": "365d",
+          "value": "180d",
           "description": "How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them."
         }
       ]
@@ -50,7 +50,7 @@
         },
         {
           "macro": "{$WE.CAPACITY.TRENDS}",
-          "value": "365d",
+          "value": "180d",
           "description": "How long hourly trends of the capacity values are kept; the Capacity tab's daily and monthly views read them."
         }
       ]
@@ -226,8 +226,8 @@
         "we.ssid.snapshot"
       ],
       "interval_macro": "{$WE.SSID.INTERVAL}",
-      "interval": "5m",
-      "stale": "15m",
+      "interval": "15m",
+      "stale": "45m",
       "history": "1d",
       "walk": [
         "1.3.6.1.2.1.1.3",
@@ -394,8 +394,8 @@
         "we.ssid.snapshot"
       ],
       "interval_macro": "{$WE.SSID.INTERVAL}",
-      "interval": "5m",
-      "stale": "15m",
+      "interval": "15m",
+      "stale": "45m",
       "history": "1d",
       "walk": [
         "1.3.6.1.2.1.1.3",

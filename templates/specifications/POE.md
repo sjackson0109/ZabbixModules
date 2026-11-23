@@ -16,11 +16,13 @@ The `poe` dataset (canonical schema 1.2, `schemas/envelope-1.2.schema.json`) rep
 
 ## Producers
 
-| Templates | Raw key | Sources | Captures |
+PoE is walked twice. Status (port detection, class, priority and fault counters; unit status, budget and threshold) is walked every `{$NE.POE.INTERVAL}` (5m) and feeds discovery and the alerts; power (unit consumption, and the watts each port delivers where the vendor reports them) every `{$NE.POE.POWER.INTERVAL}` (15m). The power walk also reads each port's enable and detection status, only to list the ports.
+
+| Templates | Raw keys (status, power) | Sources | Captures |
 |---|---|---|---|
-| `ne__generic_switch`, `ne_dell_x_series_switch` | `ne.raw.poe` | POWER-ETHERNET-MIB port and main PSE tables | Replayed on all 14 |
-| `ne_dell_n_series_switch`, `ne_cisco_cbs220_switch` | `ne.raw.poe.ifindex` | The same, joined to IF-MIB by ifIndex | N1548P 6.8.1.9 (48 ports), CBS220-24P-4G 2.0.2.15 (24 ports) |
-| `ne_cisco_small_business_switch`, `ne_cisco_sg300_switch` | `ne.raw.poe.ciscosb` | The same, plus CISCOSB-POE-MIB `rlPethPsePortOutputPower` and `rlPethPsePortOperPowerLimit` (milliwatts) | SG300-28PP, SG350-10MP, SG350-28P (2.5.7.85, 2.5.9.54), SG350X-48P, CBS350-8FP-2G, CBS350-8FP-E-2G, CBS350-24P-4X (two-unit stack), CBS350-24FP-4X, C1200-24P-4X, C1300-24P-4G (4.1.3.36, 4.1.7.17) |
+| `ne__generic_switch`, `ne_dell_x_series_switch` | `ne.raw.poe`, `ne.raw.poe.power` | POWER-ETHERNET-MIB port and main PSE tables | Replayed on all 14 |
+| `ne_dell_n_series_switch`, `ne_cisco_cbs220_switch` | `ne.raw.poe.ifindex`, `ne.raw.poe.power` | The same, status joined to IF-MIB by ifIndex | N1548P 6.8.1.9 (48 ports), CBS220-24P-4G 2.0.2.15 (24 ports) |
+| `ne_cisco_small_business_switch`, `ne_cisco_sg300_switch` | `ne.raw.poe.ifindex`, `ne.raw.poe.power.ciscosb` | The same, plus CISCOSB-POE-MIB `rlPethPsePortOutputPower` and `rlPethPsePortOperPowerLimit` (milliwatts) in the power walk | SG300-28PP, SG350-10MP, SG350-28P (2.5.7.85, 2.5.9.54), SG350X-48P, CBS350-8FP-2G, CBS350-8FP-E-2G, CBS350-24P-4X (two-unit stack), CBS350-24FP-4X, C1200-24P-4X, C1300-24P-4G (4.1.3.36, 4.1.7.17) |
 
 `rlPethPsePortTable` has a different layout on the SG300 1.4 from the 350-class firmware after column 9 (the SG300 has an integer where the 350 class has `rlPethPsePortTimeRangeName`), so the producer reads only columns 5 and 9, which agree on both. The per-port power is within 2% of the standard table's own `pethPsePortActualPower` (column 15) where a 350-class switch publishes that column (the two are sampled separately); it is not read, because RFC 3621 does not define it and the SG300, CBS220 and Dell do not publish it.
 
@@ -34,7 +36,7 @@ The `poe` dataset (canonical schema 1.2, `schemas/envelope-1.2.schema.json`) rep
 | `ne.poe.port.state[]` | Detection status (value map *Network Explorer PoE port state*) |
 | `ne.poe.port.power[]` | Power the port draws (W), only in templates with a vendor power source |
 
-Triggers: a PSE that reports `faulty` (high), a PSE whose use reaches the device's usage threshold (warning), and a port whose detection status is `fault` or `other_fault` (warning). The interval is `{$NE.POE.INTERVAL}` (5m); a complete observation older than `{$NE.POE.STALE}` (15m) raises the usual stale-collection warning.
+Triggers: a PSE that reports `faulty` (high), a PSE whose use reaches the device's usage threshold (warning), and a port whose detection status is `fault` or `other_fault` (warning). States, the budget and the threshold are stored when they change; consumption, use and per-port power are readings, stored every power walk (port power to 0.1 W) with `{$NE.TRENDS}` of trends. A complete observation older than `{$NE.POE.STALE}` (15m) or `{$NE.POE.POWER.STALE}` (45m) raises the usual stale-collection warning.
 
 ## Not yet evidenced
 

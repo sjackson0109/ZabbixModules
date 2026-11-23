@@ -1,6 +1,6 @@
 // IF-MIB / ifXTable / EtherLike-MIB walk -> canonical "interfaces" rows.
-// Used by both the inventory walk (all columns) and the fast state walk
-// (status and speed columns only); columns absent from a walk become null.
+// Used by the inventory walk (all columns), the status walk (status columns)
+// and the link walk (speed and duplex); columns absent from a walk become null.
 
 var IF_ADMIN = {1: 'up', 2: 'down', 3: 'testing'};
 var IF_OPER = {1: 'up', 2: 'down', 3: 'testing', 4: 'unknown', 5: 'dormant', 6: 'not_present', 7: 'lower_layer_down'};
@@ -61,6 +61,8 @@ function normaliseInterfaces(walk, env) {
             parents[pair[1]] = parents.hasOwnProperty(pair[1]) ? null : pair[0];
         }
     }
+    // The link walk (speed and duplex) carries no status columns; only a walk that asked for them can lack them.
+    var statusWalked = NE.has(walk, NE.IF.admin) || NE.has(walk, NE.IF.oper);
     var rows = [], indexes = [];
     for (key in uids) {
         if (uids.hasOwnProperty(key) && /^[0-9]+$/.test(key)) { indexes.push(parseInt(key, 10)); }
@@ -71,7 +73,7 @@ function normaliseInterfaces(walk, env) {
         if (uid === null) { continue; }
         var admin = NE.int(t.admin[k] || null), oper = NE.int(t.oper[k] || null);
         var type = NE.int(t.type[k] || null);
-        if (!t.descr[k] || !IF_ADMIN[admin] || !IF_OPER[oper]) {
+        if (!t.descr[k] || statusWalked && (!IF_ADMIN[admin] || !IF_OPER[oper])) {
             NE.warning(env, 'missing_interface_fields', 'An interface lacks ifDescr, ifAdminStatus or ifOperStatus; those fields are unknown.');
         }
         var high = NE.int(t.highSpeed[k] || null), speed = NE.int(t.speed[k] || null), bps = null;

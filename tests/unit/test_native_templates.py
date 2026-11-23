@@ -59,6 +59,8 @@ def apply(steps: list[dict], value: str) -> str | None:
             if re.search(step["parameters"][0], value):
                 assert step["error_handler"] == "DISCARD_VALUE"
                 return None
+        elif step["type"] == "DISCARD_UNCHANGED_HEARTBEAT":
+            assert step["parameters"] == ["{$NE.HEARTBEAT}"]  # needs the previous value; tests/unit/test_storage_policy.py
         else:
             raise AssertionError(step["type"])
     return value
@@ -73,13 +75,20 @@ def owner(raw_key: str) -> dict:
     return next(t for t in templates().values() if any(i["key"] == raw_key for i in t["items"]))
 
 
-def attempt(raw_key: str, fixture: str | Path) -> str:
+def observe(raw_key: str, fixture: str | Path, template: str | None = None) -> str:
+    """A walk's unstored canonical envelope, as the template's ne.normalised[<producer>] item produces it."""
     path = fixture if isinstance(fixture, Path) else FIXTURES / fixture
     walk = subprocess.run(["node", str(ROOT / "tests/js/run_normaliser.cjs"), raw_key, str(path), "--walk-only"],
                           text=True, capture_output=True, check=True).stdout.rstrip("\n")
-    key = entry_for(raw_key)["attempt_key"]
-    item = next(i for i in owner(raw_key)["items"] if i["key"] == key)
+    key = GEN.normalised_key(entry_for(raw_key))
+    holder = templates()[template] if template else owner(raw_key)
+    item = next(i for i in holder["items"] if i["key"] == key)
     return apply(item["preprocessing"], walk)
+
+
+def stored(envelope: str) -> dict:
+    """What a snapshot item keeps of a complete envelope: the same rows, no timestamps (StoredEnvelope.php)."""
+    return {k: v for k, v in json.loads(envelope).items() if k not in ("attempted_at", "observed_at", "generation_id")}
 
 
 def generic_producer(entry: dict) -> bool:
@@ -200,17 +209,23 @@ def test_no_credentials_or_secret_macros_in_templates():
 def test_attempt_scripts_emit_the_same_envelope_as_the_node_runner():
     if shutil.which("node") is None:
         pytest.skip("Node is needed")
+    items = {i["key"]: i for i in all_items()}
     for entry in filter(generic_producer, GEN.manifest()):
-        envelope = json.loads(attempt(entry["raw_key"], "sw-core-01.snmprec"))
+        normalised = observe(entry["raw_key"], "sw-core-01.snmprec")
+        envelope = json.loads(normalised)
         assert envelope["status"] == "ok", (entry["raw_key"], envelope["errors"])
         assert envelope["dataset"] == entry["dataset"]
+        # The attempt item keeps a receipt: the outcome and row count, no rows and no timestamps.
+        receipt = json.loads(apply(items[entry["attempt_key"]]["preprocessing"], normalised))
+        assert receipt["data"] == [] and receipt["data_rows"] == len(envelope["data"]), entry["raw_key"]
+        assert receipt["timing"] == "zabbix" and "attempted_at" not in receipt
 
 
 def test_failed_collection_records_failed_attempt_and_discards_snapshot():
     entry = GEN.manifest()[1]
     items = {i["key"]: i for i in all_items()}
-    envelope = apply(items[entry["attempt_key"]]["preprocessing"], GEN.FAILED)
-    assert json.loads(envelope)["status"] == "failed"
+    envelope = apply(items[GEN.normalised_key(entry)]["preprocessing"], GEN.FAILED)
+    assert json.loads(apply(items[entry["attempt_key"]]["preprocessing"], envelope))["status"] == "failed"
     assert apply(items[entry["snapshot_keys"][0]]["preprocessing"], envelope) is None
     assert apply(items["ne.collection.success[interfaces]"]["preprocessing"], envelope) is None
     assert apply(items["ne.collection.status[interfaces]"]["preprocessing"], envelope) == "2"
@@ -218,19 +233,33 @@ def test_failed_collection_records_failed_attempt_and_discards_snapshot():
 
 def test_complete_snapshot_passes_gate_and_feeds_discovery_and_scalars():
     items = {i["key"]: i for i in all_items()}
-    inventory = attempt("ne.raw.if.inventory", "sw-core-01.snmprec")
-    assert apply(items["ne.interfaces.inventory"]["preprocessing"], inventory) == inventory
+    inventory = observe("ne.raw.if.inventory", "sw-core-01.snmprec")
+    kept = json.loads(apply(items["ne.interfaces.inventory"]["preprocessing"], inventory))
+    assert kept.pop("timing") == "zabbix"
+    # Rows are kept as observed, except that a port's last change, worked out from the device's uptime, is rounded
+    # to the minute so that it reads the same at every poll.
+    from datetime import datetime
+    when = lambda text: datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()  # noqa: E731
+    for row, original in zip(kept["data"], stored(inventory)["data"], strict=True):
+        changed, exact = row.pop("last_change"), original.pop("last_change")
+        assert row == original
+        if exact is not None:
+            assert changed.endswith(":00Z") and abs(when(changed) - when(exact)) <= 30
     lld = json.loads(apply(items["ne.interfaces.discovery"]["preprocessing"], inventory))
     gi23 = next(r for r in lld if r["name"] == "Gi1/0/23")
     assert gi23["physical"] == 1
-    state = attempt("ne.raw.if.state", "sw-core-01.snmprec")
+    state = observe("ne.raw.if.state", "sw-core-01.snmprec")
+    link = observe("ne.raw.if.link", "sw-core-01.snmprec")
     speed = items["ne.if.speed[{#IFUID}]"]["preprocessing"]
     oper = items["ne.if.oper[{#IFUID}]"]["preprocessing"]
     sub = lambda steps: [dict(s, parameters=[p.replace("{#IFUID}", gi23["uid"]) for p in s["parameters"]]) for s in steps]  # noqa: E731
-    assert apply(sub(speed), state) == "100000000"
+    # Status from the status walk, speed from the link walk.
+    assert apply(sub(speed), link) == "100000000"
     assert apply(sub(oper), state) == "1"
+    assert items["ne.if.speed[{#IFUID}]"]["master_item"]["key"] == "ne.normalised[interfaces.link]"
+    assert items["ne.if.oper[{#IFUID}]"]["master_item"]["key"] == "ne.normalised[interfaces]"
     absent = [dict(s, parameters=[p.replace("{#IFUID}", "if-absent") for p in s["parameters"]]) for s in speed]
-    assert apply(absent, state) is None
+    assert apply(absent, link) is None
 
 
 def test_unsupported_dataset_does_not_raise_stale_trigger():
@@ -387,8 +416,11 @@ def test_hardware_snapshot_feeds_discovery_and_scalars(raw_key, label, fans, cpu
     template = hardware_template(raw_key)
     items = {i["key"]: i for i in template["items"]}
     rules = {r["key"]: r for r in template["discovery_rules"]}
-    envelope = attempt(raw_key, CAPTURES / label / "capture.snmprec")
-    assert apply(items["ne.hardware.snapshot"]["preprocessing"], envelope) == envelope
+    envelope = observe(raw_key, CAPTURES / label / "capture.snmprec")
+    kept = json.loads(apply(items["ne.hardware.snapshot"]["preprocessing"], envelope))
+    # The stored snapshot keeps states and thresholds; readings are numeric items only.
+    assert len(kept["data"]) == len(json.loads(envelope)["data"])
+    assert all(r.get(f) is None for r in kept["data"] for f in ("util_5m_pct", "celsius", "speed"))
     assert apply(items["ne.hw.cpu.util[5m]"]["preprocessing"], envelope) == cpu5m
     found = json.loads(apply(rules["ne.hw.fan.discovery"]["preprocessing"], envelope))
     assert len(found) == fans
@@ -407,28 +439,31 @@ def test_hardware_snapshot_feeds_discovery_and_scalars(raw_key, label, fans, cpu
 def test_hardware_discovery_skips_unreadable_sensors_and_missing_parts():
     template = hardware_template("ne.raw.hw.ciscosb.v1")
     rules = {r["key"]: r for r in template["discovery_rules"]}
-    envelope = attempt("ne.raw.hw.ciscosb.v1", CAPTURES / "cisco-sg300-28pp-1.4.11.5" / "capture.snmprec")
+    envelope = observe("ne.raw.hw.ciscosb.v1", CAPTURES / "cisco-sg300-28pp-1.4.11.5" / "capture.snmprec")
     assert json.loads(apply(rules["ne.hw.temp.discovery"]["preprocessing"], envelope)) == []
     assert [f["name"] for f in json.loads(apply(rules["ne.hw.fan.discovery"]["preprocessing"], envelope))] == ["fan1_unit1"]
     assert "ne.hw.memory.util" not in {i["key"] for i in template["items"]}  # no memory source on this family
 
 
-@pytest.mark.parametrize("raw_key, label, delivering, power", [
-    ("ne.raw.poe.ciscosb", "cisco-cbs350-24p-4x-3.6.0.3", 3, True),
-    ("ne.raw.poe.ifindex", "dell-n1548p-6.8.1.9", 24, False),
-    ("ne.raw.poe", "cisco-cbs220-24p-4g-2.0.2.15", 6, False),
+@pytest.mark.parametrize("name, raw_key, power_key, label, delivering, power", [
+    ("ne_cisco_small_business_switch", "ne.raw.poe.ifindex", "ne.raw.poe.power.ciscosb", "cisco-cbs350-24p-4x-3.6.0.3",
+     3, True),
+    ("ne_dell_n_series_switch", "ne.raw.poe.ifindex", "ne.raw.poe.power", "dell-n1548p-6.8.1.9", 24, False),
+    ("ne__generic_switch", "ne.raw.poe", "ne.raw.poe.power", "cisco-cbs220-24p-4g-2.0.2.15", 6, False),
 ])
-def test_poe_snapshot_feeds_discovery(raw_key, label, delivering, power):
-    template = owner(raw_key)
+def test_poe_snapshot_feeds_discovery(name, raw_key, power_key, label, delivering, power):
+    template = templates()[name]
     items = {i["key"]: i for i in template["items"]}
     rules = {r["key"]: r for r in template["discovery_rules"]}
-    envelope = attempt(raw_key, CAPTURES / label / "capture.snmprec")
-    assert apply(items["ne.poe.snapshot"]["preprocessing"], envelope) == envelope
+    envelope = observe(raw_key, CAPTURES / label / "capture.snmprec", name)
+    readings = observe(power_key, CAPTURES / label / "capture.snmprec", name)
+    kept = json.loads(apply(items["ne.poe.snapshot"]["preprocessing"], envelope))
+    assert kept.pop("timing") == "zabbix" and kept == stored(envelope)
     units = json.loads(apply(rules["ne.poe.pse.discovery"]["preprocessing"], envelope))
     # A stack slot without a unit is never discovered (the CBS350 agent lists four groups for two units).
     assert [u["uid"] for u in units] == (["pse-1", "pse-2"] if "cbs350" in label else ["pse-1"])
     pse = {p["key"]: p for p in rules["ne.poe.pse.discovery"]["item_prototypes"]}
-    used = float(apply(substitute(pse["ne.poe.pse.util[{#PSEUID}]"]["preprocessing"], "{#PSEUID}", "pse-1"), envelope))
+    used = float(apply(substitute(pse["ne.poe.pse.util[{#PSEUID}]"]["preprocessing"], "{#PSEUID}", "pse-1"), readings))
     assert 0 < used < 100
     assert apply(substitute(pse["ne.poe.pse.state[{#PSEUID}]"]["preprocessing"], "{#PSEUID}", "pse-1"), envelope) == "0"
     ports = json.loads(apply(rules["ne.poe.port.discovery"]["preprocessing"], envelope))
@@ -440,8 +475,8 @@ def test_poe_snapshot_feeds_discovery(raw_key, label, delivering, power):
     assert ("ne.poe.port.power[{#POEUID}]" in prototypes) == power
     if power:
         watts = [float(apply(substitute(prototypes["ne.poe.port.power[{#POEUID}]"]["preprocessing"], "{#POEUID}",
-                                        p["uid"]), envelope)) for p in ports]
-        assert watts[0] == 5.476 and sum(1 for w in watts if w > 0) == delivering  # milliwatts shown as watts
+                                        p["uid"]), readings)) for p in ports]
+        assert watts[0] == 5.5 and sum(1 for w in watts if w > 0) == delivering  # 5476 mW, to 0.1 W
 
 
 def test_poe_triggers_use_the_devices_own_verdicts_and_threshold():
@@ -461,6 +496,6 @@ def test_poe_triggers_use_the_devices_own_verdicts_and_threshold():
 def test_hardware_gate_rejects_unsafe_identity():
     template = hardware_template("ne.raw.hw.ciscosb")
     rules = {r["key"]: r for r in template["discovery_rules"]}
-    envelope = json.loads(attempt("ne.raw.hw.ciscosb", CAPTURES / "cisco-sg350x-48p-2.5.9.54" / "capture.snmprec"))
+    envelope = json.loads(observe("ne.raw.hw.ciscosb", CAPTURES / "cisco-sg350x-48p-2.5.9.54" / "capture.snmprec"))
     envelope["data"][-1]["uid"] = "fan-1\"]"
     assert apply(rules["ne.hw.fan.discovery"]["preprocessing"], json.dumps(envelope)) is None

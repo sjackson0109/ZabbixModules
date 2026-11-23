@@ -180,7 +180,7 @@ def test_macros_appear_only_where_zabbix_should_expand_them():
     normaliser names its own redaction switch, as it does on a switch."""
     export = rendered("7.4")
     expected = {"we.normalised[client]": ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"],
-                "ne.lldp.attempt": ["{$NE.LLDP.REDACT_REMOTE}"]}
+                "ne.normalised[lldp]": ["{$NE.LLDP.REDACT_REMOTE}"]}
     for template in export["templates"]:
         for item in template["items"]:
             for step in item.get("preprocessing", []):
@@ -206,11 +206,15 @@ def test_complete_attempts_are_stored_as_receipts(validator):
          + step + "})(value));"], input=json.dumps(envelope), check=True, capture_output=True, text=True).stdout)
     complete = run("we.raw.aruba.client", VC)
     stored = receipt(complete)
-    validator.validate(stored)
+    # Stored without the times Zabbix already records; the frontend restores them (StoredEnvelope.php).
+    assert stored.pop("timing") == "zabbix" and not {"attempted_at", "observed_at", "generation_id"} & set(stored)
+    times = {k: complete[k] for k in ("attempted_at", "observed_at", "generation_id")}
+    validator.validate(dict(stored, **times))
     assert stored["data"] == [] and stored["data_omitted"] is True and stored["data_rows"] == len(complete["data"]) > 0
-    assert stored["observed_at"] == complete["observed_at"] and stored["warnings"] == complete["warnings"]
+    assert stored["warnings"] == complete["warnings"]
     failed = dict(complete, status="failed", complete=False, observed_at=None, data=[])
-    assert receipt(failed) == failed, "a failed attempt is stored as it is"
+    kept = receipt(failed)
+    assert kept.pop("timing") == "zabbix" and kept == {k: v for k, v in failed.items() if k not in times},         "a failed attempt is stored as it is, without its times"
 
 
 @needs_node
@@ -264,7 +268,7 @@ def test_template_keys_and_uuids_are_unique():
     component a per-AP template embeds, the same keys a switch carries, read the same way by the frontend."""
     export = rendered("7.4")
     metas = {m["template"]: m for m in GEN.manifest()["templates"].values()}
-    lldp = {"ne.raw.lldp", "ne.lldp.attempt", "ne.lldp.snapshot", "ne.collection.status[lldp]",
+    lldp = {"ne.raw.lldp", "ne.normalised[lldp]", "ne.lldp.attempt", "ne.lldp.snapshot", "ne.collection.status[lldp]",
             "ne.collection.success[lldp]"}
     uuids = []
     for template in export["templates"]:

@@ -36,8 +36,7 @@ VIEWER = "ne-lab-viewer"
 SITES = {name: "lab-west" if name == "sw-dist-01" else "lab-east" for name in SWITCHES}
 # Demonstrates both interface triggers: Gi1/0/24 is monitored, Gi1/0/23 should run at 1G but runs at 100M.
 CORE_MACROS = [{"macro": "{$NE.IF.MONITOR:\"Gi1/0/24\"}", "value": "1"},
-               {"macro": "{$NE.IF.EXPECTED_SPEED:\"Gi1/0/23\"}", "value": "1000000000"},
-               {"macro": "{$NE.IF.SPEED.DEGRADED_FOR}", "value": "1m"}]
+               {"macro": "{$NE.IF.EXPECTED_SPEED:\"Gi1/0/23\"}", "value": "1000000000"}]
 
 
 def import_templates(config: dict, token: str) -> None:

@@ -47,15 +47,17 @@ Key points:
 
 ## Per-dataset contents
 
+Every master feeds one unstored `ne.normalised[<producer>]` item, the attempt's canonical envelope; the snapshot, the attempt receipt, the collection status, discovery and the scalars are all derived from it. States, snapshots, receipts and discovery lists are stored when they change and every `{$NE.HEARTBEAT}`; readings every poll (deployment guide 5.3, canonical schema "Stored form").
+
 | Template | Masters (interval macro) | Canonical items | LLD and scalars | Triggers (all macro-tunable) |
 |---|---|---|---|---|
 | Base | `ne.raw.system` (1h) | `ne.device.snapshot` | — | collection failing; device rebooted (uptime reset) |
-| Interfaces | `ne.raw.if.inventory` (1h), `ne.raw.if.state` (60s), optional `ne.raw.if.counters` (60s) | `ne.interfaces.inventory`, `ne.interfaces.state` | Interface LLD from inventory: `ne.if.oper/admin/speed/duplex[{#IFUID}]`, traffic and errors per port | unexpected down (only where `{$NE.IF.MONITOR:"<name>"}`=1 or an LLDP peer is a bridge); sustained speed or duplex degradation; error-rate |
-| Port Capability | `ne.raw.if.capability` (15m) | `ne.port_capability.snapshot` | — | — |
-| LLDP | `ne.raw.lldp` (5m) | `ne.lldp.snapshot` | — | neighbour lost on an uplink (optional) |
-| VLAN | `ne.raw.vlan` (10m) | `ne.vlan.snapshot` | None by default. No VLAN × port items (avoids item explosion). | VLAN collection failing |
-| STP | `ne.raw.stp` (2m) | `ne.stp.snapshot` | Per instance: root bridge ID, topology-change count | root bridge changed; topology changes above rate |
-| LAG | `ne.raw.lag` (5m) | `ne.lag.snapshot` | Per LAG: selected member count | member not distributing (when LACP state is exposed) |
+| Interfaces | `ne.raw.if.inventory` (1h), `ne.raw.if.state` (150s: status), `ne.raw.if.link` (15m: speed, duplex), optional `ne.raw.if.counters` (60s) | `ne.interfaces.inventory`, `ne.interfaces.state`, `ne.interfaces.link` | Interface LLD from inventory: `ne.if.oper/admin/speed/duplex[{#IFUID}]`, traffic and errors per port | unexpected down (only where `{$NE.IF.MONITOR:"<name>"}`=1 or an LLDP peer is a bridge); sustained speed or duplex degradation; error-rate |
+| Port Capability | `ne.raw.if.capability` (6h) | `ne.port_capability.snapshot` | — | — |
+| LLDP | `ne.raw.lldp` (15m) | `ne.lldp.snapshot` | — | neighbour lost on an uplink (optional) |
+| VLAN | `ne.raw.vlan` (30m) | `ne.vlan.snapshot` | None by default. No VLAN × port items (avoids item explosion). | VLAN collection failing |
+| STP | `ne.raw.stp` (5m) | `ne.stp.snapshot` | Per instance: root bridge ID, topology-change count | root bridge changed; topology changes above rate |
+| LAG | `ne.raw.lag` (15m) | `ne.lag.snapshot` | Per LAG: selected member count | member not distributing (when LACP state is exposed) |
 | Host dashboards | — | — | Template dashboards: Overview, Connectivity, VLAN, STP, Diagnostics | — |
 
 Cross-host findings, such as a VLAN missing on one end of a trunk or a duplex mismatch between two monitored devices, are computed by the frontend at read time and shown in the Findings widget. They are not native triggers, because a template item cannot read another host. If alerting on them is needed later, it becomes a separate, permission-reviewed design.

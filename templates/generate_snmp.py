@@ -72,6 +72,62 @@ LATER_COMPONENTS = ("PoE",)
 HW_PARTS = (("psu", "ne.hw.psu", "power supply"), ("fan", "ne.hw.fan", "fan"),
             ("temperature", "ne.hw.temp", "temperature sensor"))
 
+# Storage policy. Every walk's canonical envelope goes to one unstored item, ne.normalised[<producer>]; everything
+# stored is derived from it. A value that reports a state, a stored snapshot or an attempt receipt is written only
+# when it changes, and again every {$NE.HEARTBEAT} while it does not; Zabbix discards the repeats where it does the
+# preprocessing (on the proxy, for a proxied host), so they never reach a buffer or the database. Readings (CPU,
+# temperature, PoE watts) are stored every poll, since dropping repeats would skew their hourly trends. The time
+# each value was sampled is Zabbix's own: stored JSON carries no timestamps (see storage()).
+HEARTBEAT = "{$NE.HEARTBEAT}"
+SNAPSHOT_HISTORY = "{$NE.SNAPSHOT.HISTORY}"
+TRENDS = "{$NE.TRENDS}"
+THROTTLE = {"type": "DISCARD_UNCHANGED_HEARTBEAT", "parameters": [HEARTBEAT]}
+STORAGE_MACROS = [
+    {"macro": HEARTBEAT, "value": "2h",
+     "description": "An unchanged state, snapshot or attempt receipt is stored again at least this often; a change is "
+                    "stored at once. Lengthen it to write less; triggers on these items are re-checked only when a "
+                    "value is stored."},
+    {"macro": SNAPSHOT_HISTORY, "value": "2d",
+     "description": "How long JSON snapshots and attempt receipts are kept. The frontend reads the latest two; keep it "
+                    "well above {$NE.HEARTBEAT}."},
+    {"macro": TRENDS, "value": "180d", "description": "How long hourly trends of readings are kept."},
+]
+# Row fields that would change on every poll, made stable for storage. Times the device reports relative to its own
+# uptime (a port's last change, the device's uptime, the last spanning-tree change) are stored as absolute times
+# rounded to the minute, which the frontend turns back into the canonical fields; readings are left to numeric items.
+STORAGE_ROWS = {
+    "interfaces": "if(r.last_change){r.last_change=m(Date.parse(r.last_change));}",
+    "device": "if(r.hasOwnProperty('uptime_s')){r.boot_at=r.uptime_s===null?null:m(t-r.uptime_s*1000);"
+              "delete r.uptime_s;}",
+    "stp": "if(r.hasOwnProperty('time_since_topology_change_s')){var s=r.time_since_topology_change_s;"
+           "r.topology_changed_at=s===null?null:m(t-s*1000);delete r.time_since_topology_change_s;}",
+    "lldp": "delete r.observed_at;",
+    "hardware": "var g=['util_1s_pct','util_5s_pct','util_1m_pct','util_5m_pct','util_pct','speed','celsius'];"
+                "for(var j=0;j<g.length;j++){if(r.hasOwnProperty(g[j])){r[g[j]]=null;}} delete r.free_bytes;",
+}
+
+
+def storage(dataset: str, rows: dict = STORAGE_ROWS) -> str:
+    """JavaScript that turns the envelope `e` into its stored form: no attempted_at, observed_at or generation_id (the
+    reader takes them from Zabbix's value timestamps), "timing":"zabbix" to say so, and stable rows."""
+    body = rows.get(dataset, "")
+    return ("var t=Date.parse(e.observed_at||e.attempted_at); "
+            "var m=function(x){return new Date(Math.round(x/60000)*60000).toISOString().replace('.000Z','Z');}; "
+            "delete e.generation_id; delete e.attempted_at; delete e.observed_at; e.timing='zabbix'; "
+            + (f"for(var i=0;i<e.data.length;i++){{var r=e.data[i]; {body}}} " if body else ""))
+
+
+def receipt(dataset: str, rows: dict = STORAGE_ROWS) -> str:
+    """Every attempt in its stored form. A complete success keeps no rows (they are in the snapshot), only their count;
+    partial, failed and unsupported attempts are kept whole."""
+    return ("var e=JSON.parse(value); " + storage(dataset, rows) +
+            "if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; "
+            "e.data_omitted=true;} return JSON.stringify(e);")
+
+
+def normalised_key(entry: dict) -> str:
+    return f"ne.normalised[{producer(entry)}]"
+
 
 _scope = ""
 
@@ -112,16 +168,35 @@ def tags(dataset: str) -> list[dict]:
 
 
 def dependent(key: str, name: str, dataset: str, master: str, script: str, *, value_type: str = "TEXT",
-              discard: bool = False, history: str = "7d", **extra) -> dict:
+              discard: bool = False, history: str = "7d", throttle: bool = False, **extra) -> dict:
+    """A dependent item. throttle stores it only on change and every {$NE.HEARTBEAT}: for states, snapshots and
+    receipts, never for readings."""
     result = {"uuid": uid("item:" + key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0",
               "history": history, "value_type": value_type}
     if value_type in ("TEXT", "CHAR"):
         result["trends"] = "0"
     result.update(extra)
     result["master_item"] = {"key": master}
-    result["preprocessing"] = js(script, discard)
+    result["preprocessing"] = js(script, discard) + ([dict(THROTTLE)] if throttle else [])
     result["tags"] = tags(dataset)
     return result
+
+
+def row_field(dataset: str, match: str, field: str, convert: str = "") -> str:
+    """One field of the first row of a complete observation that matches. A missing row or a null value throws, so
+    the item keeps its last value instead of storing a guess."""
+    return gate(dataset, "var a=e.data; for(var i=0;i<a.length;i++){var r=a[i]; if(" + match + "){var v=r['" + field
+                + "']; if(v===null||v===undefined){throw 'Not reported';}" + convert + " return v;}} "
+                "throw 'Absent; retain last observed value';")
+
+
+def interface_field(field: str, unknown: str | None, convert: str = "") -> str:
+    """One interface's field from a complete interface observation. A null fact returns `unknown` (so the item stays
+    supported) or throws when `unknown` is None; an absent interface always throws so its last value is kept."""
+    missing = "return " + unknown + ";" if unknown is not None else "throw 'Unknown scalar';"
+    return gate("interfaces", "var a=e.data; for(var i=0;i<a.length;i++){if(a[i].uid==='{#IFUID}'){var v=a[i]['"
+                + field + "']; if(v===null||v===undefined){" + missing + "}" + convert
+                + " return v;}} throw 'Interface absent; retain last observed value';")
 
 
 def gate(dataset: str, then: str = "return value;") -> str:
@@ -143,19 +218,31 @@ def raw_item(entry: dict) -> dict:
 
 def producer_items(entry: dict, template: str) -> list[dict]:
     dataset, name = entry["dataset"], producer(entry)
-    attempt = entry["attempt_key"]
+    attempt, normalised = entry["attempt_key"], normalised_key(entry)
     items = [raw_item(entry),
-             dependent(attempt, f"Collection attempt: {name}", dataset, entry["raw_key"], compose(entry),
-                       description="Canonical envelope for every attempt, including partial, failed and unsupported.")]
+             dependent(normalised, f"Normalised envelope: {name}", dataset, entry["raw_key"], compose(entry),
+                       history="0", description="The canonical envelope of each attempt, passed to the items below; "
+                                                "not stored."),
+             dependent(attempt, f"Collection attempt: {name}", dataset, normalised, receipt(dataset),
+                       history=SNAPSHOT_HISTORY, throttle=True,
+                       description="Each attempt's outcome, including partial, failed and unsupported, stored when it "
+                                   "changes. A complete success keeps only its row count; the rows are in the "
+                                   "snapshot. Times are Zabbix's own.")]
     for key in entry["snapshot_keys"]:
-        items.append(dependent(key, f"Last complete snapshot: {name}", dataset, attempt, gate(dataset), discard=True,
-                               description="Updated only by complete, successful observations."))
-    status = dependent(f"ne.collection.status[{name}]", f"Collection status: {name}", dataset, attempt,
-                       COLLECTION_STATUS,
-                       value_type="UNSIGNED", history="31d", trends="0", valuemap={"name": STATUS_MAP})
-    success = dependent(f"ne.collection.success[{name}]", f"Last complete observation: {name}", dataset, attempt,
+        items.append(dependent(key, f"Last complete snapshot: {name}", dataset, normalised,
+                               gate(dataset, storage(dataset) + "return JSON.stringify(e);"), discard=True,
+                               history=SNAPSHOT_HISTORY, throttle=True,
+                               description="Complete, successful observations only, stored when they change. Times "
+                                           "are Zabbix's own: the frontend takes the observation time from the last "
+                                           "complete observation item."))
+    status = dependent(f"ne.collection.status[{name}]", f"Collection status: {name}", dataset, normalised,
+                       COLLECTION_STATUS, value_type="UNSIGNED", history="31d", trends="0",
+                       valuemap={"name": STATUS_MAP}, throttle=True)
+    # Stored at every complete observation: the staleness trigger's nodata() needs it, and its Zabbix timestamp is
+    # the observation time the frontend reports.
+    success = dependent(f"ne.collection.success[{name}]", f"Last complete observation: {name}", dataset, normalised,
                         gate(dataset, "return Math.floor(Date.parse(e.observed_at)/1000);"),
-                        value_type="UNSIGNED", discard=True, history="31d", trends="0", units="unixtime")
+                        value_type="UNSIGNED", discard=True, history="7d", trends="0", units="unixtime")
     stale = stale_macro(entry)
     success["triggers"] = [{
         "uuid": uid("trigger:stale:" + name),
@@ -170,24 +257,25 @@ def producer_items(entry: dict, template: str) -> list[dict]:
 
 def interface_discovery(template: str) -> dict:
     # An unknown fact is a value (so the item stays supported); only an absent interface is discarded.
+    # Status comes from the status walk, speed and duplex from the link walk; each is a state, stored on change.
     prototypes = []
-    for field, key, label, value_type, unknown, convert in (
-        ("oper_status", "ne.if.oper", "operational status", "UNSIGNED", "4", IF_STATUS_CONVERT),
-        ("admin_status", "ne.if.admin", "administrative status", "UNSIGNED", "4", IF_STATUS_CONVERT),
-        ("speed_bps", "ne.if.speed", "negotiated speed (0 = unknown)", "UNSIGNED", "0", ""),
-        ("duplex", "ne.if.duplex", "duplex", "CHAR", "'unknown'", ""),
+    for field, key, label, value_type, unknown, convert, master in (
+        ("oper_status", "ne.if.oper", "operational status", "UNSIGNED", "4", IF_STATUS_CONVERT, "interfaces"),
+        ("admin_status", "ne.if.admin", "administrative status", "UNSIGNED", "4", IF_STATUS_CONVERT, "interfaces"),
+        ("speed_bps", "ne.if.speed", "negotiated speed (0 = unknown)", "UNSIGNED", "0", "", "interfaces.link"),
+        ("duplex", "ne.if.duplex", "duplex", "CHAR", "'unknown'", "", "interfaces.link"),
     ):
         if field.endswith("status"):
             # Enumerations: trends of a status code are meaningless.
             extra = {"trends": "0", "valuemap": {"name": IF_STATUS_MAP}}
         elif field == "speed_bps":
-            # Speed keeps the default trends on purpose: long-term min/max/avg of negotiated speed is useful history.
-            extra = {"units": "bps"}
+            # A negotiated speed is a state stored on change, not a reading: hourly trends of it would be gaps.
+            extra = {"trends": "0", "units": "bps"}
         else:
             extra = {}  # CHAR: dependent() already disables trends.
-        prototype = dependent(key + "[{#IFUID}]", "{#IFNAME}: " + label, "interfaces", "ne.interfaces.state",
-                              interface_scalar(field, unknown, convert), value_type=value_type, discard=True,
-                              history="31d", **extra)
+        prototype = dependent(key + "[{#IFUID}]", "{#IFNAME}: " + label, "interfaces", f"ne.normalised[{master}]",
+                              interface_field(field, unknown, convert), value_type=value_type, discard=True,
+                              history="31d", throttle=True, **extra)
         prototype["tags"].append({"tag": "interface", "value": "{#IFNAME}"})
         prototypes.append(prototype)
     oper, admin, speed = (f"/{template}/{k}[{{#IFUID}}]" for k in ("ne.if.oper", "ne.if.admin", "ne.if.speed"))
@@ -197,34 +285,30 @@ def interface_discovery(template: str) -> dict:
         "name": "Network Explorer: {#IFNAME} is down", "priority": "AVERAGE",
         "description": "Raised only for ports an operator marks with {$NE.IF.MONITOR:\"<ifName>\"}=1.",
         "tags": tags("interfaces")}]
+    # Speed is stored only when it changes, so a time window would hold one value and fire at once; the link walk's
+    # own interval ({$NE.IF.LINK.INTERVAL}) is the settling time instead.
     prototypes[2]["trigger_prototypes"] = [{
         "uuid": uid("trigger:if-speed"),
         "expression": f'{{$NE.IF.EXPECTED_SPEED:"{{#IFNAME}}"}}>0 and last({oper})=1 and '
-                      f'min({speed},{{$NE.IF.SPEED.DEGRADED_FOR}})>0 and max({speed},{{$NE.IF.SPEED.DEGRADED_FOR}})<{{$NE.IF.EXPECTED_SPEED:"{{#IFNAME}}"}}',
+                      f'last({speed})>0 and last({speed})<{{$NE.IF.EXPECTED_SPEED:"{{#IFNAME}}"}}',
         "name": "Network Explorer: {#IFNAME} below expected speed", "priority": "WARNING",
-        "description": "Uses the explicit per-port override only. Derived expectations are shown by the frontend.",
+        "description": "Uses the explicit per-port override only. Derived expectations are shown by the frontend. "
+                       "Speed is read every {$NE.IF.LINK.INTERVAL}.",
         "tags": tags("interfaces")}]
     return {"uuid": uid("lld:interfaces"), "name": "Interface discovery", "type": "DEPENDENT",
             "key": "ne.interfaces.discovery", "delay": "0", "lifetime": "7d",
             "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d",
-            "master_item": {"key": "ne.interfaces.inventory"},
-            "description": "Fed from the complete inventory snapshot, so a partial walk never removes ports.",
+            "master_item": {"key": "ne.normalised[interfaces.inventory]"},
+            "description": "Fed from complete inventory observations, so a partial walk never removes ports. "
+                           "Processed only when the port list changes, and every {$NE.HEARTBEAT}.",
             "preprocessing": js(gate("interfaces", "return JSON.stringify(e.data.map(function(r){return "
                                       "{uid:r.uid,name:r.name||r.description||r.uid,if_index:r.if_index,"
-                                      "physical:r.physical===true?1:0};}));"), True),
+                                      "physical:r.physical===true?1:0};}));"), True) + [dict(THROTTLE)],
             "lld_macro_paths": [{"lld_macro": "{#IFUID}", "path": "$.uid"},
                                 {"lld_macro": "{#IFNAME}", "path": "$.name"},
                                 {"lld_macro": "{#IFINDEX}", "path": "$.if_index"},
                                 {"lld_macro": "{#IFPHYSICAL}", "path": "$.physical"}],
             "item_prototypes": prototypes}
-
-
-def snapshot_field(match: str, field: str, convert: str = "") -> str:
-    """One field of the first snapshot row that matches. A missing row or a null value throws, so the item keeps its
-    last value instead of storing a guess."""
-    return ("var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){var r=a[i]; if(" + match + "){var v=r['" + field
-            + "']; if(v===null||v===undefined){throw 'Not reported';}" + convert + " return v;}} "
-            "throw 'Absent; retain last observed value';")
 
 
 def hardware_state_triggers(item_key: str, label: str, name: str, scope: str) -> list[dict]:
@@ -248,30 +332,33 @@ def hardware_state_triggers(item_key: str, label: str, name: str, scope: str) ->
 
 def hardware_scalars(entry: dict, template: str) -> list[dict]:
     provides, items = entry["provides"], []
-    snapshot = "ne.hardware.snapshot"
+    source = normalised_key(entry)
     if "global" in provides:
-        item = dependent("ne.hw.global.state", "Hardware: overall status", "hardware", snapshot,
-                         snapshot_field("r.kind==='global'", "state", HW_STATE_CONVERT), value_type="UNSIGNED",
-                         discard=True, history="31d", trends="0", valuemap={"name": HW_STATE_MAP},
-                         description="The device's own summary of its hardware health.")
+        item = dependent("ne.hw.global.state", "Hardware: overall status", "hardware", source,
+                         row_field("hardware", "r.kind==='global'", "state", HW_STATE_CONVERT), value_type="UNSIGNED",
+                         discard=True, history="31d", trends="0", valuemap={"name": HW_STATE_MAP}, throttle=True,
+                         description="The device's own summary of its hardware health, stored when it changes.")
         item["triggers"] = hardware_state_triggers(f"/{template}/ne.hw.global.state", "device", "overall status",
                                                    "global")[:2]
         items.append(item)
     if "cpu" in provides:
         for window in ("1m", "5m"):
             items.append(dependent(f"ne.hw.cpu.util[{window}]", f"Hardware: CPU utilisation, {window} average",
-                                   "hardware", snapshot, snapshot_field("r.kind==='cpu'", f"util_{window}_pct"),
-                                   value_type="FLOAT", discard=True, history="31d", units="%",
-                                   description="As the device averages it. No value while measurement is off."))
+                                   "hardware", source, row_field("hardware", "r.kind==='cpu'", f"util_{window}_pct",
+                                                                 "v=Math.round(v*10)/10;"),
+                                   value_type="FLOAT", discard=True, history="31d", trends=TRENDS, units="%",
+                                   description="As the device averages it, to 0.1%. No value while measurement is "
+                                               "off."))
         cpu = f"/{template}/ne.hw.cpu.util[5m]"
         items[-1]["triggers"] = [{
             "uuid": uid("trigger:hw:cpu"), "expression": f"min({cpu},{{$NE.HW.CPU.UTIL.FOR}})>{{$NE.HW.CPU.UTIL.MAX}}",
             "name": "Network Explorer: CPU utilisation above {$NE.HW.CPU.UTIL.MAX}% for {$NE.HW.CPU.UTIL.FOR}",
             "priority": "WARNING", "tags": tags("hardware")}]
     if "memory" in provides:
-        memory = dependent("ne.hw.memory.util", "Hardware: memory utilisation", "hardware", snapshot,
-                           snapshot_field("r.kind==='memory'", "util_pct"), value_type="FLOAT", discard=True,
-                           history="31d", units="%")
+        memory = dependent("ne.hw.memory.util", "Hardware: memory utilisation", "hardware", source,
+                           row_field("hardware", "r.kind==='memory'", "util_pct", "v=Math.round(v*10)/10;"),
+                           value_type="FLOAT", discard=True, history="31d", trends=TRENDS, units="%",
+                           description="To 0.1%.")
         util = f"/{template}/ne.hw.memory.util"
         memory["triggers"] = [{
             "uuid": uid("trigger:hw:memory"),
@@ -283,27 +370,28 @@ def hardware_scalars(entry: dict, template: str) -> list[dict]:
 
 
 def hardware_discovery(entry: dict, template: str) -> list[dict]:
-    rules = []
+    rules, source = [], normalised_key(entry)
     for kind, stem, label in HW_PARTS:
         if kind not in entry["provides"]:
             continue
         match = f"r.kind==='{kind}'&&r.uid==='{{#HWUID}}'"
         state = dependent(f"{stem}.state[{{#HWUID}}]", f"{label.capitalize()} {{#HWNAME}}: state", "hardware",
-                          "ne.hardware.snapshot", snapshot_field(match, "state", HW_STATE_CONVERT),
+                          source, row_field("hardware", match, "state", HW_STATE_CONVERT),
                           value_type="UNSIGNED", discard=True, history="31d", trends="0",
-                          valuemap={"name": HW_STATE_MAP})
+                          valuemap={"name": HW_STATE_MAP}, throttle=True,
+                          description="The device's own verdict, stored when it changes.")
         state["trigger_prototypes"] = hardware_state_triggers(f"/{template}/{stem}.state[{{#HWUID}}]", label,
                                                               "{#HWNAME}", kind)
         prototypes = [state]
         if kind == "fan" and "fan_speed" in entry["provides"]:
             prototypes.append(dependent(f"{stem}.speed[{{#HWUID}}]", "Fan {#HWNAME}: speed", "hardware",
-                                        "ne.hardware.snapshot", snapshot_field(match, "speed"), value_type="UNSIGNED",
-                                        discard=True, history="31d",
+                                        source, row_field("hardware", match, "speed"), value_type="UNSIGNED",
+                                        discard=True, history="31d", trends=TRENDS,
                                         description="As the device reports it; the MIB gives no unit."))
         if kind == "temperature":
             prototypes.append(dependent(f"{stem}.value[{{#HWUID}}]", "Temperature sensor {#HWNAME}: temperature",
-                                        "hardware", "ne.hardware.snapshot", snapshot_field(match, "celsius"),
-                                        value_type="FLOAT", discard=True, history="31d", units="°C",
+                                        "hardware", source, row_field("hardware", match, "celsius"),
+                                        value_type="FLOAT", discard=True, history="31d", trends=TRENDS, units="°C",
                                         description="The device judges it against its own thresholds; see the "
                                                     "state item."))
         for prototype in prototypes:
@@ -315,10 +403,11 @@ def hardware_discovery(entry: dict, template: str) -> list[dict]:
         rules.append({"uuid": uid(f"lld:hardware:{kind}"), "name": f"Hardware discovery: {label}s", "type": "DEPENDENT",
                       "key": f"{stem}.discovery", "delay": "0", "lifetime": "7d",
                       "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d",
-                      "master_item": {"key": "ne.hardware.snapshot"},
-                      "description": "Fed from the complete hardware snapshot. A part is discovered while the device "
-                                     "reports it present and readable.",
-                      "preprocessing": js(gate("hardware", rows), True),
+                      "master_item": {"key": source},
+                      "description": "Fed from complete hardware observations. A part is discovered while the device "
+                                     "reports it present and readable. Processed only when the list changes, and "
+                                     "every {$NE.HEARTBEAT}.",
+                      "preprocessing": js(gate("hardware", rows), True) + [dict(THROTTLE)],
                       "lld_macro_paths": [{"lld_macro": "{#HWUID}", "path": "$.uid"},
                                           {"lld_macro": "{#HWNAME}", "path": "$.name"},
                                           {"lld_macro": "{#HWUNIT}", "path": "$.unit"}],
@@ -326,30 +415,37 @@ def hardware_discovery(entry: dict, template: str) -> list[dict]:
     return rules
 
 
-def poe_discovery(entry: dict, template: str) -> list[dict]:
-    """PSE units and PoE ports, each discovered from the complete snapshot. Faults are the device's own verdict; the
-    usage alert uses the device's own threshold (pethMainPseUsageThreshold), never one of ours."""
-    snapshot = "ne.poe.snapshot"
+def poe_discovery(entries: list[dict], template: str) -> list[dict]:
+    """PSE units and PoE ports, discovered from complete status observations. States, the budget and the threshold
+    come from the status walk and are stored when they change; consumption, the share of the budget used and per-port
+    power come from the power walk and are readings. Faults are the device's own verdict; the usage alert uses the
+    device's own threshold (pethMainPseUsageThreshold), never one of ours."""
+    (status_entry,) = [e for e in entries if not e.get("variant")]
+    (power_entry,) = [e for e in entries if e.get("variant") == "power"]
+    status, power = normalised_key(status_entry), normalised_key(power_entry)
     pse = "r.kind==='pse'&&r.uid==='{#PSEUID}'"
-    state = dependent("ne.poe.pse.state[{#PSEUID}]", "PoE {#PSENAME}: PSE status", "poe", snapshot,
-                      snapshot_field(pse, "state", state_convert(POE_PSE_STATE)), value_type="UNSIGNED", discard=True,
-                      history="31d", trends="0", valuemap={"name": POE_PSE_STATE_MAP})
+    state = dependent("ne.poe.pse.state[{#PSEUID}]", "PoE {#PSENAME}: PSE status", "poe", status,
+                      row_field("poe", pse, "state", state_convert(POE_PSE_STATE)), value_type="UNSIGNED",
+                      discard=True, history="31d", trends="0", valuemap={"name": POE_PSE_STATE_MAP}, throttle=True)
     state["trigger_prototypes"] = [{
         "uuid": uid("trigger:poe:pse:faulty"), "expression": f"last(/{template}/ne.poe.pse.state[{{#PSEUID}}])=2",
         "name": "Network Explorer: PoE {#PSENAME} reports a fault", "priority": "HIGH",
         "description": "pethMainPseOperStatus is faulty, as the device reports it.", "tags": tags("poe")}]
-    readings = [dependent(f"ne.poe.pse.{key}[{{#PSEUID}}]", f"PoE {{#PSENAME}}: {label}", "poe", snapshot,
-                          snapshot_field(pse, field), value_type="FLOAT", discard=True, history="31d", units=units,
-                          description=description)
-                for key, label, field, units, description in (
-                    ("power", "power budget", "power_w", "W", "Nominal power of the PSE (pethMainPsePower)."),
-                    ("consumption", "power consumption", "consumption_w", "W",
-                     "pethMainPseConsumptionPower as the device reports it. Some firmware reports the power "
-                     "allocated to its ports here rather than the power they draw (Cisco 350-class, for example)."),
-                    ("util", "budget used", "util_pct", "%", "Consumption as a share of the budget, the figure the "
-                                                             "device compares with its usage threshold."),
-                    ("threshold", "usage threshold", "usage_threshold_pct", "%",
-                     "The device's own usage alarm threshold (pethMainPseUsageThreshold)."))]
+    readings = [dependent(f"ne.poe.pse.{key}[{{#PSEUID}}]", f"PoE {{#PSENAME}}: {label}", "poe", source,
+                          row_field("poe", pse, field, "v=Math.round(v*10)/10;"), value_type="FLOAT", discard=True,
+                          history="31d", units=units, description=description,
+                          **({"trends": TRENDS} if reading else {"trends": "0", "throttle": True}))
+                for key, label, field, units, source, reading, description in (
+                    ("power", "power budget", "power_w", "W", status, False,
+                     "Nominal power of the PSE (pethMainPsePower), stored when it changes."),
+                    ("consumption", "power consumption", "consumption_w", "W", power, True,
+                     "pethMainPseConsumptionPower as the device reports it, every {$NE.POE.POWER.INTERVAL}. Some "
+                     "firmware reports the power allocated to its ports here rather than the power they draw (Cisco "
+                     "350-class, for example)."),
+                    ("util", "budget used", "util_pct", "%", power, True,
+                     "Consumption as a share of the budget, the figure the device compares with its usage threshold."),
+                    ("threshold", "usage threshold", "usage_threshold_pct", "%", status, False,
+                     "The device's own usage alarm threshold (pethMainPseUsageThreshold), stored when it changes."))]
     util, threshold = (f"/{template}/ne.poe.pse.{k}[{{#PSEUID}}]" for k in ("util", "threshold"))
     readings[2]["trigger_prototypes"] = [{
         "uuid": uid("trigger:poe:pse:usage"), "expression": f"last({util})>=last({threshold})",
@@ -359,10 +455,11 @@ def poe_discovery(entry: dict, template: str) -> list[dict]:
     pse_prototypes = [state, *readings]
 
     port = "r.kind==='port'&&r.uid==='{#POEUID}'"
-    port_state = dependent("ne.poe.port.state[{#POEUID}]", "PoE port {#POENAME}: status", "poe", snapshot,
-                           snapshot_field(port, "state", state_convert(POE_PORT_STATE)), value_type="UNSIGNED",
+    port_state = dependent("ne.poe.port.state[{#POEUID}]", "PoE port {#POENAME}: status", "poe", status,
+                           row_field("poe", port, "state", state_convert(POE_PORT_STATE)), value_type="UNSIGNED",
                            discard=True, history="31d", trends="0", valuemap={"name": POE_PORT_STATE_MAP},
-                           description="pethPsePortDetectionStatus, as the device reports it.")
+                           throttle=True,
+                           description="pethPsePortDetectionStatus, as the device reports it, stored when it changes.")
     port_state["trigger_prototypes"] = [{
         "uuid": uid("trigger:poe:port:fault"),
         "expression": f"last(/{template}/ne.poe.port.state[{{#POEUID}}])=3 or "
@@ -371,43 +468,47 @@ def poe_discovery(entry: dict, template: str) -> list[dict]:
         "description": "The port's detection status is fault or another fault, as the device reports it.",
         "tags": tags("poe")}]
     port_prototypes = [port_state]
-    if "port_power" in entry["provides"]:
-        port_prototypes.append(dependent("ne.poe.port.power[{#POEUID}]", "PoE port {#POENAME}: power", "poe", snapshot,
-                                         snapshot_field(port, "power_mw", "v=v/1000;"), value_type="FLOAT",
-                                         discard=True, history="31d", units="W",
-                                         description="Power the port delivers, from the vendor MIB (milliwatts)."))
+    if "port_power" in power_entry["provides"]:
+        port_prototypes.append(dependent("ne.poe.port.power[{#POEUID}]", "PoE port {#POENAME}: power", "poe", power,
+                                         row_field("poe", port, "power_mw", "v=Math.round(v/100)/10;"),
+                                         value_type="FLOAT", discard=True, history="31d", trends=TRENDS, units="W",
+                                         description="Power the port delivers, from the vendor MIB, to 0.1 W, every "
+                                                     "{$NE.POE.POWER.INTERVAL}."))
     for prototype in pse_prototypes:
         prototype["tags"].append({"tag": "poe", "value": "{#PSENAME}"})
     for prototype in port_prototypes:
         prototype["tags"].append({"tag": "poe", "value": "{#POENAME}"})
     rule = lambda key, name, rows, macros, prototypes, description: {
         "uuid": uid("lld:" + key), "name": name, "type": "DEPENDENT", "key": key, "delay": "0", "lifetime": "7d",
-        "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d", "master_item": {"key": snapshot},
-        "description": description, "preprocessing": js(gate("poe", rows), True),
+        "enabled_lifetime_type": "DISABLE_AFTER", "enabled_lifetime": "1d", "master_item": {"key": status},
+        "description": description + " Processed only when the list changes, and every {$NE.HEARTBEAT}.",
+        "preprocessing": js(gate("poe", rows), True) + [dict(THROTTLE)],
         "lld_macro_paths": [{"lld_macro": m, "path": p} for m, p in macros], "item_prototypes": prototypes}
     return [
         rule("ne.poe.pse.discovery", "PoE discovery: PSE units",
              "return JSON.stringify(e.data.filter(function(r){return r.kind==='pse'&&r.state!=='not_present';})"
              ".map(function(r){return {uid:r.uid,name:r.name,unit:r.unit===null?'':String(r.unit)};}));",
              (("{#PSEUID}", "$.uid"), ("{#PSENAME}", "$.name"), ("{#PSEUNIT}", "$.unit")), pse_prototypes,
-             "Fed from the complete PoE snapshot. A stack slot without a unit is not discovered."),
+             "Fed from complete PoE status observations. A stack slot without a unit is not discovered."),
         rule("ne.poe.port.discovery", "PoE discovery: ports",
              "return JSON.stringify(e.data.filter(function(r){return r.kind==='port';}).map(function(r){return "
              "{uid:r.uid,name:r.name,unit:r.unit===null?'':String(r.unit),ifuid:r.interface_uid||''};}));",
              (("{#POEUID}", "$.uid"), ("{#POENAME}", "$.name"), ("{#POEUNIT}", "$.unit"), ("{#IFUID}", "$.ifuid")),
              port_prototypes,
-             "Fed from the complete PoE snapshot. {#IFUID} is the interface the port joins to, where the template "
+             "Fed from complete PoE status observations. {#IFUID} is the interface the port joins to, where the template "
              "can tell; otherwise it is empty and the port is named by unit and port."),
     ]
 
 
 def extras(short: str, template: str, mine: list[dict]) -> list[dict]:
-    """Scalars a native trigger needs, read from the complete snapshot."""
+    """Scalars a native trigger needs, read from complete observations."""
     if short == "Hardware Health":
         return [item for entry in mine for item in hardware_scalars(entry, template)]
     if short == "Base":
-        item = dependent("ne.device.uptime", "Device uptime", "device", "ne.device.snapshot",
-                         "var d=JSON.parse(value).data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; return d.uptime_s;",
+        # Uptime changes at every poll, so it is stored every poll (hourly); the restart trigger needs consecutive values.
+        item = dependent("ne.device.uptime", "Device uptime", "device", normalised_key(mine[0]),
+                         gate("device", "var d=e.data[0]; if(!d||d.uptime_s===null) throw 'Unknown uptime'; "
+                                        "return d.uptime_s;"),
                          value_type="UNSIGNED", discard=True, history="31d", trends="0", units="uptime")
         uptime = f"/{template}/ne.device.uptime"
         # A sysUpTime wrap also drops uptime below 600 s; only a previous value well below the wrap point (by more
@@ -419,14 +520,20 @@ def extras(short: str, template: str, mine: list[dict]) -> list[dict]:
                              "manual_close": "YES", "tags": tags("device")}]
         return [item]
     if short == "STP":
-        bridge = "var a=JSON.parse(value).data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){var v=a[i]['%s']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';"
-        root = dependent("ne.stp.root_bridge", "STP root bridge (instance 0)", "stp", "ne.stp.snapshot",
-                         bridge % "root_bridge_id", value_type="CHAR", discard=True, history="31d")
+        bridge = ("var a=e.data; for(var i=0;i<a.length;i++){if(a[i].kind==='bridge'&&a[i].instance===0){"
+                  "var v=a[i]['%s']; if(v===null) throw 'Unknown'; return v;}} throw 'No instance 0';")
+        source = normalised_key(mine[0])
+        # Both are stored only when they change: a stored root bridge is a new root (change()=1), and the heartbeat
+        # value that follows, being equal, resolves it.
+        root = dependent("ne.stp.root_bridge", "STP root bridge (instance 0)", "stp", source,
+                         gate("stp", bridge % "root_bridge_id"), value_type="CHAR", discard=True, history="31d",
+                         throttle=True)
         root["triggers"] = [{"uuid": uid("trigger:stp-root"), "expression": f"change(/{template}/ne.stp.root_bridge)=1",
                              "name": "Network Explorer: STP root bridge changed", "priority": "WARNING",
                              "manual_close": "YES", "tags": tags("stp")}]
-        changes = dependent("ne.stp.topology_changes", "STP topology changes (instance 0)", "stp", "ne.stp.snapshot",
-                            bridge % "topology_changes", value_type="UNSIGNED", discard=True, history="31d")
+        changes = dependent("ne.stp.topology_changes", "STP topology changes (instance 0)", "stp", source,
+                            gate("stp", bridge % "topology_changes"), value_type="UNSIGNED", discard=True,
+                            history="31d", trends="0", throttle=True)
         return [root, changes]
     return []
 
@@ -442,9 +549,7 @@ def macros(entries: list[dict], short: str) -> list[dict]:
         result += [{"macro": "{$NE.IF.MONITOR}", "value": "0",
                     "description": "Set to 1 with an interface-name context to alert when that port goes down."},
                    {"macro": "{$NE.IF.EXPECTED_SPEED}", "value": "0",
-                    "description": "Expected speed in bit/s, with an interface-name context. 0 derives it from capability."},
-                   {"macro": "{$NE.IF.SPEED.DEGRADED_FOR}", "value": "10m",
-                    "description": "How long a port must run below its expected speed before alerting."}]
+                    "description": "Expected speed in bit/s, with an interface-name context. 0 derives it from capability."}]
     if short == "LLDP":
         result.append({"macro": "{$NE.LLDP.REDACT_REMOTE}", "value": "0",
                        "description": "1 drops remote system and port descriptions from stored neighbour data."})
@@ -496,7 +601,7 @@ def build(version: str) -> dict:
             if short == "Hardware Health":
                 rules += [rule for e in mine for rule in hardware_discovery(e, name)]
             if short == "PoE":
-                rules += [rule for e in mine for rule in poe_discovery(e, name)]
+                rules += poe_discovery(mine, name)
             if short in profile.get("disabled", []):
                 # Shipped but switched off: the operator can enable it on a host whose firmware supports it.
                 for obj in own + rules:
@@ -519,7 +624,7 @@ def build(version: str) -> dict:
         if discovery:
             template["discovery_rules"] = discovery
         template["tags"] = [{"tag": "component", "value": "network-explorer"}]
-        template["macros"] = sorted(macro_list, key=lambda m: m["macro"])
+        template["macros"] = sorted(macro_list + [dict(m) for m in STORAGE_MACROS], key=lambda m: m["macro"])
         template["valuemaps"] = list(maps.values())
         if profile.get("dashboard"):
             template["dashboards"] = [host_dashboard()]
@@ -545,7 +650,7 @@ def embedded(template: str, scope: str, components: list[str]) -> dict:
             items += [i for e in mine for i in producer_items(e, template)] + extras(short, template, mine)
             macro_list += macros(mine, short)
             maps += valuemaps(short)
-        return {"items": items, "macros": macro_list, "valuemaps": maps}
+        return {"items": items, "macros": macro_list + [dict(m) for m in STORAGE_MACROS], "valuemaps": maps}
     finally:
         _scope = ""
 
