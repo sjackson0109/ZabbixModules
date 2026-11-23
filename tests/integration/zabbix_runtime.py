@@ -142,7 +142,7 @@ NATIVE_DASHBOARDS = {**{f"{t}.yaml": [(t, "Network Explorer")] for t in SWITCH_T
                      **{f"{t}.yaml": [(t, dashboard)] for t, dashboard in (
                          ("we__generic_access_point", "Wi-Fi Explorer"),
                          ("we_aruba_instant_virtual_controller", "Wi-Fi Explorer"),
-                         ("we_aruba_instant_access_point", None), ("we_lldp_for_access_points", None))}}
+                         ("we_aruba_instant_access_point", None))}}
 
 
 def native_template_checks(config: dict, api, result: dict) -> None:

@@ -15,7 +15,7 @@ Wi-Fi Explorer does not have its own trust model. It reuses Network Explorer's, 
 | Scope | `NetworkScope::validTagValue()` and the `site` host tag | Site scope for Wi-Fi owners. |
 | Templates | The walk → attempt → gated snapshot item pattern and its stale triggers | `templates/generate_wifi.py`. |
 
-Network Explorer's switch, VLAN and STP interpretation is not duplicated (principle 6). Uplinks, VLAN paths and impact (Phases C–E) read Network Explorer's own model of the site through `NetworkService::buildScope()`, and AP-side LLDP comes from Network Explorer's LLDP producer linked to the AP host, resolved with Network Explorer's `IdentityResolver`.
+Network Explorer's switch, VLAN and STP interpretation is not duplicated (principle 6). Uplinks, VLAN paths and impact (Phases C–E) read Network Explorer's own model of the site through `NetworkService::buildScope()`, and AP-side LLDP comes from Network Explorer's LLDP producer embedded in the AP host's per-AP template, resolved with Network Explorer's `IdentityResolver`.
 
 ## Acquisition owners (sections 20 and 21)
 
@@ -135,7 +135,7 @@ A viewer only sees the floors, intent and events of the sites they can see, and 
 - Per expected AP, broadcasting is **inferred**: the SSID is enabled on the AP's cluster (current data), the AP is up, and a radio is up in an expected band. Instant zones can restrict an SSID to some APs and are not visible over SNMP.
 - `UplinkService` finds each AP's switch port from two independent sides:
   - switch side: a switch's LLDP neighbour whose chassis ID (MAC subtype) is the AP's MAC, or whose management address is the AP's address; a system name alone never identifies an AP;
-  - AP side: the AP host's own LLDP (Network Explorer's LLDP producer, linked to the AP host), resolved by Network Explorer's `IdentityResolver` with the same domain rules.
+  - AP side: the AP host's own LLDP (Network Explorer's LLDP producer, embedded in the per-AP template), resolved by Network Explorer's `IdentityResolver` with the same domain rules.
 - States: *confirmed* (both sides agree), *switch only*, *AP only*, *conflicting* (they disagree: warning), *ambiguous* (several ports) and *unresolved* (info, only for APs that are up). The uplink carries the port's link state, VLAN membership and freshness from Network Explorer.
 - Uplinks need a site (Network Explorer's model of that site) and are read only for the views that use them.
 

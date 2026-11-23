@@ -21,10 +21,10 @@ from _common import (COLLECTION_STATUS, GROUPS, IF_STATUS, IF_STATUS_CONVERT, IF
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "source"
 MANIFEST = SOURCE / "datasets.json"
-# One template per device type, listed under "templates" in the manifest, each exported to its own file named after
-# it (the naming rule is in _common.py): ne_<vendor>_<series>_switch for vendor switches, ne__generic_switch for the
-# generic default, and we_lldp_for_access_points for access points, which sits with Wi-Fi Explorer. Each holds every
-# item it needs; the dataset components are generator building blocks only and are never exported on their own.
+# One template per switch type, listed under "templates" in the manifest, each exported to its own file named after
+# it (the naming rule is in _common.py): ne_<vendor>_<series>_switch for vendor switches and ne__generic_switch for the
+# generic default. Each holds every item it needs; the dataset components are generator building blocks only and are
+# never exported on their own. The per-AP Wi-Fi templates embed the LLDP component through embedded().
 PROFILES = json.loads(read_text(MANIFEST))["templates"]
 # Earlier releases exported every switch template in this one file.
 LEGACY_EXPORTS = ("network_explorer_snmp.yaml",)
@@ -527,6 +527,27 @@ def build(version: str) -> dict:
     _scope = ""
     groups = [_common.group(prefix) for prefix in dict.fromkeys(_common.product(t["template"]) for t in templates)]
     return {"zabbix_export": {"version": version, "template_groups": groups, "templates": templates}}
+
+
+def embedded(template: str, scope: str, components: list[str]) -> dict:
+    """Network Explorer components for a template that another generator builds: generate_wifi.py adds LLDP to the
+    per-AP templates, so an AP's own LLDP confirms its uplink. UUIDs are scoped by `scope`, the host template's own
+    UUID name, so they never coincide with a switch template's. Components with discovery rules are not embedded."""
+    global _scope
+    entries = manifest()
+    _scope = scope + ":"
+    try:
+        items, macro_list, maps = [], [], []
+        for short in components:
+            assert short not in ("Interfaces", "Hardware Health", "PoE"), (template, short, "has discovery rules")
+            mine = producers({"template": template}, short, entries)
+            assert mine, (template, short)
+            items += [i for e in mine for i in producer_items(e, template)] + extras(short, template, mine)
+            macro_list += macros(mine, short)
+            maps += valuemaps(short)
+        return {"items": items, "macros": macro_list, "valuemaps": maps}
+    finally:
+        _scope = ""
 
 
 def render(version: str) -> dict[str, str]:

@@ -1,12 +1,13 @@
 {
-  "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs. The Generic AP producers read standard MIBs only; the Aruba Instant producers are the first vendor templates. Each template's uuid_name is its name up to 2.2.0, from which its UUIDs derive, so importing over that release renames it in place.",
+  "comment": "Single source for the Wi-Fi Explorer native SNMP producers: templates/generate_wifi.py and the Node tests both read this file. Each producer's script list is composed in order, exactly as Zabbix runs it. Every walk includes sysUpTime (the agent check) and the ownership gate it needs. The Generic AP producers read standard MIBs only; the Aruba Instant producers are the first vendor templates. Each template's uuid_name is its name up to 2.2.0, from which its UUIDs derive, so importing over that release renames it in place. network_explorer lists the Network Explorer components a per-AP template embeds (templates/generate_snmp.py embedded()): LLDP, so an AP's own LLDP confirms its uplink. It replaces the separate LLDP for access points template of 2.2.0.",
   "templates": {
     "Generic AP": {
       "template": "we__generic_access_point",
       "name": "Wi-Fi Explorer - Generic Access Point",
       "uuid_name": "Wi-Fi Explorer - Generic AP",
       "uuid_scope": "Wi-Fi Explorer - Generic AP",
-      "description": "Any access point that implements the standard MIBs: SNMPv2-MIB, IF-MIB, the IEEE 802.11 MIB (IEEE802dot11-MIB), ENTITY-MIB, HOST-RESOURCES-MIB and IP-MIB. Link it to one host per AP, at the AP's own address; vendor templates complement it with what no standard MIB carries (associated clients, measured channel utilisation, noise floor, RF neighbours, cluster rosters). An agent without the IEEE 802.11 MIB reports every dataset as unsupported (not_wifi_ap) rather than an empty AP. Never link it beside a vendor Wi-Fi template that already lists the same AP.",
+      "description": "Any access point that implements the standard MIBs: SNMPv2-MIB, IF-MIB, the IEEE 802.11 MIB (IEEE802dot11-MIB), ENTITY-MIB, HOST-RESOURCES-MIB and IP-MIB. Link it to one host per AP, at the AP's own address; vendor templates complement it with what no standard MIB carries (associated clients, measured channel utilisation, noise floor, RF neighbours, cluster rosters). An agent without the IEEE 802.11 MIB reports every dataset as unsupported (not_wifi_ap) rather than an empty AP. It also collects the AP's own LLDP neighbours (Network Explorer's LLDP dataset, ne.lldp.* keys), so Wi-Fi Explorer can confirm the AP's uplink from the AP side; an AP without LLDP-MIB reports that dataset unsupported. Never link it beside a vendor Wi-Fi template that already lists the same AP, nor beside the LLDP for access points template of 2.2.0, which it replaces.",
+      "network_explorer": ["LLDP"],
       "capacity": [
         "we.capacity.aps.up",
         "we.capacity.aps.down",
@@ -58,7 +59,8 @@
       "template": "we_aruba_instant_access_point",
       "name": "Wi-Fi Explorer - Aruba Instant Access Point",
       "uuid_name": "Wi-Fi Explorer - Aruba Instant AP by SNMP",
-      "description": "One Aruba Instant AP's own RF view from AI-AP-MIB: the neighbouring and interfering access points this AP detects (aiInterferAccessPointTable). Link it to a host per AP, pointed at that AP's own address (not the virtual controller address). Detections keep the AP's own classification; Wi-Fi Explorer never calls a detection malicious."
+      "description": "One Aruba Instant AP's own RF view from AI-AP-MIB: the neighbouring and interfering access points this AP detects (aiInterferAccessPointTable). Link it to a host per AP, pointed at that AP's own address (not the virtual controller address). Detections keep the AP's own classification; Wi-Fi Explorer never calls a detection malicious. It also collects the AP's own LLDP neighbours (Network Explorer's LLDP dataset, ne.lldp.* keys), so Wi-Fi Explorer can confirm the AP's uplink from the AP side. Never link it beside the LLDP for access points template of 2.2.0, which it replaces.",
+      "network_explorer": ["LLDP"]
     }
   },
   "datasets": [

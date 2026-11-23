@@ -19,6 +19,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _common  # noqa: E402
+import generate_snmp  # noqa: E402
 from _common import COLLECTION_STATUS, GROUPS, STATUS_MAP, VERSION, js, read_text, widget  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
@@ -30,7 +31,7 @@ MANIFEST = SOURCE / "wifi" / "datasets.json"
 GROUP = GROUPS["we"]
 # Earlier releases exported every Wi-Fi template in this one file.
 LEGACY_EXPORTS = ("wifi_explorer_snmp.yaml",)
-# The switch generator builds we_lldp_for_access_points (Network Explorer's LLDP dataset, for access points).
+# The switch generator's manifest; its components also supply the LLDP that per-AP templates embed.
 SWITCH_MANIFEST = SOURCE / "datasets.json"
 FAILED = "__NE_COLLECTION_FAILED__"
 SCHEMA = "wifi-1.0"
@@ -255,6 +256,18 @@ def build(version: str) -> dict:
             "valuemaps": [{"uuid": uid(f"valuemap:{short}:status"), "name": STATUS_MAP,
                            "mappings": [{"value": str(i), "newvalue": s}
                                         for i, s in enumerate(("ok", "partial", "failed", "unsupported"))]}]}
+        if meta.get("network_explorer"):
+            # Network Explorer's own items (ne.* keys, as on a switch, so the frontend reads them the same way),
+            # sharing this template's value map of the same name.
+            parts = generate_snmp.embedded(name, owner, meta["network_explorer"])
+            template["items"] += parts["items"]
+            template["macros"] = sorted(template["macros"] + parts["macros"], key=lambda m: m["macro"])
+            maps = {m["name"]: m for m in template["valuemaps"]}
+            for m in parts["valuemaps"]:
+                if m["name"] in maps:
+                    assert m["mappings"] == maps[m["name"]]["mappings"], m["name"]
+                else:
+                    template["valuemaps"].append(m)
         if short in DASHBOARDS:
             template["dashboards"] = [DASHBOARDS[short](name, owner)]
         templates.append(template)

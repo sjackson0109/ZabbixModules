@@ -106,7 +106,6 @@ def test_generated_exports_are_current(version):
 
 def test_generic_template_carries_the_host_dashboard():
     templates = {t["template"]: t for t in GEN.build("7.4")["zabbix_export"]["templates"]}
-    assert "dashboards" not in templates["we_lldp_for_access_points"]
     dashboards = templates[GEN.PROFILE]["dashboards"]
     assert len(dashboards) == 1
     kinds = {w["type"] for page in dashboards[0]["pages"] for w in page["widgets"]}
@@ -154,10 +153,23 @@ def test_one_flat_template_per_device_type_owns_every_dataset():
             assert key in keys
     assert [r["key"] for r in generic["discovery_rules"]] == ["ne.interfaces.discovery", "ne.poe.pse.discovery",
                                                               "ne.poe.port.discovery"]
-    # A narrower template holds exactly its own datasets.
-    lldp = exported["we_lldp_for_access_points"]
-    lldp_keys = {i["key"] for i in generic["items"] if {"tag": "dataset", "value": "lldp"} in i["tags"]}
-    assert {i["key"] for i in lldp["items"]} == lldp_keys
+    # The per-AP Wi-Fi templates embed the LLDP component, item for item, under their own UUIDs.
+    lldp = [i for i in generic["items"] if {"tag": "dataset", "value": "lldp"} in i["tags"]]
+    def comparable(items, template):
+        items = json.loads(json.dumps(items).replace(f"/{template}/", "/TEMPLATE/"))
+        for item in items:
+            item.pop("uuid")
+            for trigger in item.get("triggers", []):
+                trigger.pop("uuid")
+        return items
+    switch_uuids = {i["uuid"] for t in exported.values() for i in t["items"]}
+    wifi = {t["template"]: t for t in WIFI.build("7.0")["zabbix_export"]["templates"]}
+    for name in ("we__generic_access_point", "we_aruba_instant_access_point"):
+        embedded = [i for i in wifi[name]["items"] if i["key"].startswith("ne.")]
+        assert comparable(embedded, name) == comparable(lldp, GEN.PROFILE), name
+        assert not {i["uuid"] for i in embedded} & switch_uuids, name
+    assert not [i for i in wifi["we_aruba_instant_virtual_controller"]["items"] if i["key"].startswith("ne.")], \
+        "the virtual controller's address floats between APs, so its LLDP would describe whichever AP holds it"
 
 
 def test_raw_walks_are_not_stored_and_turn_errors_into_failed_attempts():

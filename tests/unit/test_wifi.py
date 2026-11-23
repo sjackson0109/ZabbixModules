@@ -176,8 +176,11 @@ def test_templates_carry_no_credentials_token_or_per_client_items():
 
 def test_macros_appear_only_where_zabbix_should_expand_them():
     """Zabbix expands user macros anywhere in a JavaScript step, comments and strings included. Only the client
-    normaliser's call may name the client macros, so the secret key can never reach a stored value."""
+    normaliser's call may name the client macros, so the secret key can never reach a stored value. The embedded LLDP
+    normaliser names its own redaction switch, as it does on a switch."""
     export = rendered("7.4")
+    expected = {"we.normalised[client]": ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"],
+                "ne.lldp.attempt": ["{$NE.LLDP.REDACT_REMOTE}"]}
     for template in export["templates"]:
         for item in template["items"]:
             for step in item.get("preprocessing", []):
@@ -185,8 +188,7 @@ def test_macros_appear_only_where_zabbix_should_expand_them():
                     continue
                 script = step["parameters"][0]
                 found = sorted(set(re.findall(r"\{\$[A-Z0-9_.]+\}", script)))
-                expected = ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"] if item["key"] == "we.normalised[client]" else []
-                assert found == expected, (item["key"], found)
+                assert found == expected.get(item["key"], []), (item["key"], found)
 
 
 @needs_node
@@ -258,8 +260,12 @@ def test_cluster_template_carries_a_host_dashboard_of_builtin_widgets():
 
 def test_template_keys_and_uuids_are_unique():
     """UUIDs are unique across the export; keys within each template, since every vendor template feeds the same
-    canonical keys (they are never linked to the same host)."""
+    canonical keys (they are never linked to the same host). Wi-Fi keys are we.*; the only ne.* keys are the LLDP
+    component a per-AP template embeds, the same keys a switch carries, read the same way by the frontend."""
     export = rendered("7.4")
+    metas = {m["template"]: m for m in GEN.manifest()["templates"].values()}
+    lldp = {"ne.raw.lldp", "ne.lldp.attempt", "ne.lldp.snapshot", "ne.collection.status[lldp]",
+            "ne.collection.success[lldp]"}
     uuids = []
     for template in export["templates"]:
         uuids.append(template["uuid"])
@@ -270,8 +276,11 @@ def test_template_keys_and_uuids_are_unique():
             uuids += [t["uuid"] for t in item.get("triggers", [])]
         uuids += [d["uuid"] for d in template.get("dashboards", [])]
         assert len(keys) == len(set(keys)), template["template"]
-        assert all(k.startswith("we.") for k in keys), "Wi-Fi keys never collide with Network Explorer's ne.* keys"
+        embedded = lldp if metas[template["template"]].get("network_explorer") == ["LLDP"] else set()
+        assert {k for k in keys if not k.startswith("we.")} == embedded, template["template"]
     assert len(uuids) == len(set(uuids))
+    assert [m["template"] for m in metas.values() if m.get("network_explorer")] == [
+        "we__generic_access_point", "we_aruba_instant_access_point"], "every per-AP template confirms its uplink"
 
 
 def test_aruba_instant_uuids_are_unchanged_by_the_generic_template():
@@ -427,7 +436,9 @@ def test_generic_template_is_named_like_the_generic_switch_and_reads_standard_mi
     assert list(templates)[0] == GENERIC_NAME, "the generic template comes first, vendor templates complement it"
     walks = [i["snmp_oid"] for i in template["items"] if i["type"] == "SNMP_AGENT"]
     oids = [oid for walk in walks for oid in walk[len("walk["):-1].split(",")]
-    assert oids and all(oid.startswith(("1.3.6.1.2.1.", "1.2.840.10036.")) for oid in oids), "no enterprise MIB"
+    # MIB-2, the IEEE 802.11 MIB and, for the embedded LLDP, LLDP-MIB (IEEE 802.1AB).
+    assert oids and all(oid.startswith(("1.3.6.1.2.1.", "1.2.840.10036.", "1.0.8802.1.1.2.")) for oid in oids), \
+        "no enterprise MIB"
     datasets = {e["dataset"] for e in GEN.manifest()["datasets"] if e["template"] == "Generic AP"}
     assert datasets == {"device", "ap_inventory", "ap_state", "radio_inventory", "radio_state", "ssid"}
     keys = {i["key"] for i in template["items"]}

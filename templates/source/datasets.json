@@ -9,13 +9,6 @@
       "description": "Link this one template to a switch that has an SNMP interface. It collects every standard-MIB dataset; datasets the device lacks report unsupported without affecting the others. Its host dashboard (Ports, Topology, Findings) needs the Network Explorer widget modules enabled; until then its widgets show as inaccessible."
     },
     {
-      "template": "we_lldp_for_access_points", "name": "Wi-Fi Explorer - LLDP for Access Points",
-      "scope": "Network Explorer - LLDP for access points",
-      "comment": "For access points, so named we_ and placed in the Wi-Fi Explorer template group, though it collects Network Explorer's LLDP dataset. scope keeps the UUIDs of its name up to 2.2.0, so importing over it renames the template in place.",
-      "components": ["LLDP"],
-      "description": "Link to a Wi-Fi access point's own host (not a switch) so Wi-Fi Explorer can confirm the AP's uplink from the AP side. It collects LLDP only. Never link it beside the Generic Switch template: both own the same keys."
-    },
-    {
       "template": "ne_cisco_small_business_switch", "name": "Network Explorer - Cisco Small Business Switch",
       "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability"], "dashboard": true,

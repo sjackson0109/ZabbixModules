@@ -25,9 +25,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
   - `Network Explorer - Generic Switch` is now `ne__generic_switch`, still shown as Network Explorer - Generic Switch.
   - `Wi-Fi Explorer - Generic AP` is now `we__generic_access_point` (Wi-Fi Explorer - Generic Access Point).
   - `Wi-Fi Explorer - Aruba Instant VC by SNMP` is now `we_aruba_instant_virtual_controller` (Wi-Fi Explorer - Aruba Instant Virtual Controller), and `Wi-Fi Explorer - Aruba Instant AP by SNMP` is now `we_aruba_instant_access_point` (Wi-Fi Explorer - Aruba Instant Access Point).
-  - `Network Explorer - LLDP for access points` is now `we_lldp_for_access_points` (Wi-Fi Explorer - LLDP for Access Points), in the `Templates/Wi-Fi Explorer` group, because it is linked to access points.
+  - `Network Explorer - LLDP for access points` is retired. Its LLDP items are now part of `we__generic_access_point` and `we_aruba_instant_access_point`, so an access point's host needs one template to confirm its uplink. On a host linked to it, unlink it without clearing before importing, and its items keep their history (deployment guide, section 8.5).
 
-  Every template keeps its UUIDs, so importing its file over 2.2.0 renames it in place with its host links, items, history and host dashboard (deployment guide, section 8.5). Item keys are unchanged.
+  Every other template keeps its UUIDs, so importing its file over 2.2.0 renames it in place with its host links, items, history and host dashboard (deployment guide, section 8.5). Item keys are unchanged.
 
 ### Fixed
 - LAG: a port that reports its own ifIndex as its attached aggregator (every unbundled port on Cisco Small Business and Dell X-Series) is an individual port. It was reported as `lag_aggregator_unresolved`, which kept the LAG dataset partial and raised the stale-LAG trigger on those switches.

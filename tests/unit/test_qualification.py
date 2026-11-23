@@ -85,7 +85,7 @@ def test_evidence_replays_its_own_templates_producers():
     assert (vendor["capabilities"]["hardware"], vendor["capabilities"]["poe"]) == ("ok", "ok")
     assert qualify.classify(walk)["capabilities"]["hardware"] == "not_collected"
     with pytest.raises(qualify.UsageError):
-        qualify.classify(walk, "we_lldp_for_access_points")
+        qualify.classify(walk, "we__generic_access_point")
 
 
 @needs_node
