@@ -145,7 +145,7 @@ ENVMON = "1.3.6.1.4.1.9.9.13.1"
 
 
 def test_envmon_rows_carry_the_devices_own_states(validator, tmp_path):
-    # Synthetic: built from CISCO-ENVMON-MIB, not from a device; no capture has walked it yet.
+    # Synthetic: built from CISCO-ENVMON-MIB, not from a device; the one capture that walked it answered no-such-object.
     path = walk(tmp_path, [
         f"{ENVMON}.3.1.2.1|4|Board", f"{ENVMON}.3.1.3.1|66|41", f"{ENVMON}.3.1.4.1|2|75", f"{ENVMON}.3.1.6.1|2|1",
         f"{ENVMON}.3.1.7.1|2|41",
@@ -164,6 +164,7 @@ def test_envmon_rows_carry_the_devices_own_states(validator, tmp_path):
 
 
 def test_envmon_absent_is_unsupported(validator):
+    # The CBS220 capture walked 1.3.6.1.4.1.9.9.13 and the switch answered no-such-object.
     envelope = run("ne.raw.hw.envmon", capture("cisco-cbs220-24p-4g-2.0.2.15"))
     validator.validate(envelope)
     assert envelope["status"] == "unsupported"

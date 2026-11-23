@@ -147,14 +147,14 @@
         "vlan": "Captured-walk tested",
         "stp": "Captured-walk tested",
         "lag": "Partially qualified",
-        "hardware": "Unqualified",
+        "hardware": "Unsupported",
         "poe": "Captured-walk tested"
       },
-      "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. LLDP-MIB exposes only configuration, statistics and local-system scalars: no port or remote tables. MAU-MIB is not implemented, so port capability is unsupported. Hardware health is unqualified: the capture did not walk CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series, so the template ships it disabled.",
+      "limitations": "Every unbundled port reports its own ifIndex as dot3adAggPortAttachedAggID, which the LAG normaliser reads as an individual port; no port was in a bundle when captured, so bundle membership is untested. LLDP-MIB exposes only configuration, statistics and local-system scalars: no port or remote tables. MAU-MIB is not implemented, so port capability is unsupported. Hardware health is unsupported: the switch answers CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series, with no-such-object, and has no ENTITY-SENSOR, HOST-RESOURCES or UCD tables either; the template ships its ENVMON producer disabled.",
       "evidence": [
         "cisco-cbs220-24p-4g-2.0.2.15"
       ],
-      "qualified_on": "2026-11-20"
+      "qualified_on": "2026-11-23"
     },
     {
       "vendor": "Cisco",

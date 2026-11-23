@@ -9,7 +9,7 @@ Every template is named after its product, `ne_` (Network Explorer, switches) or
 | Template (technical name) | Visible name | For |
 |---|---|---|
 | `ne__generic_switch` | Network Explorer - Generic Switch | Any switch with an SNMP interface: device, interfaces, port capability, LLDP, VLAN, STP, LAG and PoE from standard MIBs. |
-| `ne_cisco_cbs220_switch` | Network Explorer - Cisco CBS220 Switch | Cisco Business 220 (Realtek-based firmware, no CISCOSB MIBs): the generic datasets with PoE ports joined to their interfaces, plus hardware health from CISCO-ENVMON-MIB, shipped disabled until a capture shows it. |
+| `ne_cisco_cbs220_switch` | Network Explorer - Cisco CBS220 Switch | Cisco Business 220 (Realtek-based firmware, no CISCOSB MIBs): the generic datasets with PoE ports joined to their interfaces, plus hardware health from CISCO-ENVMON-MIB, shipped disabled because firmware 2.0.2.15 does not answer it. |
 | `ne_cisco_sg300_switch` | Network Explorer - Cisco SG300 Switch | SG300 on firmware 1.4: the generic datasets plus hardware health from the CISCOSB MIBs, with the older 14-column environment table, and per-port PoE power. |
 | `ne_cisco_small_business_switch` | Network Explorer - Cisco Small Business Switch | SG350, SG350X, SG350XG, CBS350, C1200 and C1300: the generic datasets plus hardware health from the CISCOSB MIBs (24-column environment table) and per-port PoE power. |
 | `ne_dell_n_series_switch` | Network Explorer - Dell N Series Switch | Dell N-Series on DNOS 6: the generic datasets plus hardware health from DNOS-SWITCHING, DNOS-BOXSERVICES and Dell-Vendor MIBs, with PoE ports joined to their interfaces. |

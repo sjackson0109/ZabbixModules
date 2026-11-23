@@ -338,8 +338,9 @@ def test_shared_value_maps_keep_their_released_uuids():
         assert maps[GEN.STATUS_MAP] == uuid_hex, name
 
 
-def test_cbs220_hardware_ships_disabled_until_a_capture_shows_it():
-    # CISCO-ENVMON-MIB is listed in Cisco's data sheet, but no capture has walked it (HARDWARE.md).
+def test_cbs220_hardware_ships_disabled():
+    # CISCO-ENVMON-MIB is listed in Cisco's data sheet, but the CBS220 capture answers it with no-such-object; the
+    # producer stays, disabled, for firmware that answers it (HARDWARE.md).
     profile = next(p for p in GEN.PROFILES if p["template"] == "ne_cisco_cbs220_switch")
     assert profile["disabled"] == ["Port Capability", "Hardware Health"]
     template = templates()["ne_cisco_cbs220_switch"]

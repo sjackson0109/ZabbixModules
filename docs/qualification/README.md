@@ -39,7 +39,7 @@ The earlier vocabulary is **superseded**, but its intent carries over:
 - `partial`, `unsupported` or `failed`: as the normaliser reported.
 - `absent`: ENTITY only, for interfaces collected with no member or slot placement.
 - `not_collected`: the template has no producer for it (Hardware on the generic template). It supports no state.
-- `not_walked`: the capture's manifest lists no walked subtree that the producer reads (the CBS220 capture predates its CISCO-ENVMON-MIB producer). A capture that walked a subtree the agent lacks (`no-such-object`) is walked, and shows `unsupported`. `not_walked` supports no state: capture the subtree first.
+- `not_walked`: the capture's manifest lists no walked subtree that the producer reads (a capture taken before its template gained that producer). A capture that walked a subtree the agent lacks (`no-such-object`) is walked, and shows `unsupported`. `not_walked` supports no state: capture the subtree first.
 
 The stored classification must equal a fresh replay; a pytest re-runs every committed walk. If a normaliser change alters a classification, the affected matrix states are reviewed in the same PR.
 

@@ -29,10 +29,10 @@
     },
     {
       "template": "ne_cisco_cbs220_switch", "name": "Network Explorer - Cisco CBS220 Switch",
-      "comment": "The CBS220 runs Realtek-based firmware (its private OIDs sit under enterprise 27282), not the 350-class CISCOSB MIBs, so it has its own template. Hardware Health reads CISCO-ENVMON-MIB, which Cisco's data sheet lists; no capture has walked it yet, so it ships disabled.",
+      "comment": "The CBS220 runs Realtek-based firmware (its private OIDs sit under enterprise 27282), not the 350-class CISCOSB MIBs, so it has its own template. Hardware Health reads CISCO-ENVMON-MIB, which Cisco's data sheet lists, but the CBS220-24P-4G on 2.0.2.15 answers it with no-such-object, so it ships disabled: a frame of reference for firmware that does answer it.",
       "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
       "disabled": ["Port Capability", "Hardware Health"], "dashboard": true,
-      "description": "Link this one template, instead of the Generic Switch, to a Cisco Business 220 (CBS220) smart switch. It collects everything the Generic Switch does, with its PoE ports named after their interfaces. Hardware health (temperature, fans and power supplies from CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series) is included but disabled until a capture shows the switch answers it; enable it on a host to try it. Port capability is included but disabled, because the CBS220 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco Business 220 (CBS220) smart switch. It collects everything the Generic Switch does, with its PoE ports named after their interfaces. Hardware health (temperature, fans and power supplies from CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series) is included but disabled: firmware 2.0.2.15 does not answer that MIB. Enable it only on a switch whose firmware does. Port capability is included but disabled, because the CBS220 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
     },
     {
       "template": "ne_dell_n_series_switch", "name": "Network Explorer - Dell N Series Switch",

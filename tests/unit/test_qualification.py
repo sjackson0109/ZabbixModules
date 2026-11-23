@@ -89,10 +89,17 @@ def test_evidence_replays_its_own_templates_producers():
 
 
 @needs_node
-def test_a_subtree_the_capture_never_walked_is_not_walked_not_unsupported():
-    # The CBS220 capture predates its template and never walked CISCO-ENVMON-MIB: that shows nothing either way.
-    caps = qualify.classify(CAPTURES / "cisco-cbs220-24p-4g-2.0.2.15" / "capture.snmprec",
-                            "ne_cisco_cbs220_switch")["capabilities"]
+def test_a_subtree_the_capture_never_walked_is_not_walked_not_unsupported(tmp_path):
+    # The CBS220 capture walked CISCO-ENVMON-MIB and the switch answered no-such-object: unsupported. The same walk
+    # with that subtree missing from its manifest, as in the first CBS220 capture, shows nothing either way.
+    source = CAPTURES / "cisco-cbs220-24p-4g-2.0.2.15"
+    caps = qualify.classify(source / "capture.snmprec", "ne_cisco_cbs220_switch")["capabilities"]
+    assert (caps["hardware"], caps["poe"], caps["mau"]) == ("unsupported", "ok", "unsupported")
+    shutil.copy(source / "capture.snmprec", tmp_path / "capture.snmprec")
+    manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+    manifest["subtrees"] = [s for s in manifest["subtrees"] if s["oid"] != "1.3.6.1.4.1.9.9.13"]
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    caps = qualify.classify(tmp_path / "capture.snmprec", "ne_cisco_cbs220_switch")["capabilities"]
     assert (caps["hardware"], caps["poe"], caps["mau"]) == ("not_walked", "ok", "unsupported")
     entry = row(hardware="Unsupported")
     entry["evidence"] = ["c"]
