@@ -4,6 +4,16 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-11-24
+
+### Fixed
+- A switch with many interfaces, such as a Dell N4064 (192 interfaces, 128 of them port-channels), reported its interface dataset `Failed` with `invalid_json`, and its Ports page drew no port grid: the 68 KB interface inventory snapshot was over Zabbix's 65,535-byte text limit, so the stored JSON was cut short. Stored snapshot rows are now packed (deployment guide, section 5.3; canonical schema, "Packed rows"), about half the size: that switch's largest snapshot is 31.5 KB. Upgrade the frontend modules first (they read both forms), then the templates: 2.3.0 frontend modules read packed snapshots as invalid.
+
+### Changed
+- A dataset too large to store whole, even packed, is a failed attempt with the error code `snapshot_too_large`, never a value cut short; its last complete snapshot is kept and its staleness alert fires.
+- The topology warns when drawn switches have no `ne.domain` host tag, which is why it shows no links between them.
+- The scope summary counts only LAGs with member ports; Dell switches list every port-channel they could configure (128 on an N4064).
+
 ## [2.3.0] - 2026-11-24
 
 ### Added

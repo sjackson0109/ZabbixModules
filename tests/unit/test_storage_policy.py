@@ -88,7 +88,7 @@ def test_an_unchanged_device_stores_identical_json(tmp_path, capture, template, 
         a, b = steps(items[key], first), steps(items[key], second)
         assert a.get("throttle") == "{$NE.HEARTBEAT}", key
         assert "value" in a and a["value"] == b["value"], (key, "a repeat would be stored")
-        stored = json.loads(a["value"])
+        stored = GEN.unpacked(json.loads(a["value"]))
         assert stored["timing"] == "zabbix"
         assert not {"attempted_at", "observed_at", "generation_id"} & set(stored), key
         for row in stored["data"]:
@@ -171,3 +171,87 @@ def test_wifi_templates_follow_the_same_policy():
                 assert item["preprocessing"][-1] == throttle, (name, key)
             if key.startswith(("we.capacity.", "we.collection.success[")):
                 assert throttle not in item["preprocessing"], (name, key)
+
+
+# The largest captured switch. Before 2.3.1 its interface inventory snapshot was 68 KB, more than Zabbix keeps of a
+# text value, so the stored JSON was cut short and the frontend reported the dataset as invalid.
+LARGE = CAPTURES / "dell-n4064-6.5.4.23" / "capture.snmprec"
+LARGE_KEYS = ("ne.raw.system", "ne.raw.if.state", "ne.raw.if.link", "ne.raw.if.inventory", "ne.raw.lldp",
+              "ne.raw.vlan", "ne.raw.lag", "ne.raw.hw.dnos6")
+
+
+def utf8(text: str) -> int:
+    return len(text.encode("utf-8"))
+
+
+def packed_size(envelope: dict) -> int:
+    """NE.pack's size of a canonical envelope: runs of rows with the same fields as blocks."""
+    blocks = []
+    for row in envelope["data"]:
+        if not blocks or blocks[-1]["columns"] != list(row):
+            blocks.append({"columns": list(row), "rows": []})
+        blocks[-1]["rows"].append(list(row.values()))
+    packed = {k: v for k, v in envelope.items() if k != "data"} | ({"blocks": blocks} if blocks else {"data": []})
+    return utf8(json.dumps(packed, separators=(",", ":"), ensure_ascii=False))
+
+
+@needs_node
+@pytest.mark.parametrize("raw_key", LARGE_KEYS)
+def test_a_large_switch_stores_every_snapshot_whole_and_packed(raw_key):
+    entry = next(e for e in GEN.manifest() if e["raw_key"] == raw_key)
+    items = {i["key"]: i for i in templates(GEN.build)["ne_dell_n_series_switch"]["items"]}
+    canonical = normalise(raw_key, LARGE, T0)
+    envelope = json.loads(canonical)
+    assert envelope["status"] == "ok" and envelope["data"], raw_key
+    # The stored form before packing: what 2.3.0 stored, cut short when it was over the limit.
+    whole = [{"type": "JAVASCRIPT", "parameters": [GEN.gate(entry["dataset"],
+                                                            GEN.storage(entry["dataset"]) + "return JSON.stringify(e);")]}]
+    for key in entry["snapshot_keys"]:
+        value = steps(items[key], canonical)["value"]
+        stored = json.loads(value)
+        assert utf8(value) <= GEN.TEXT_LIMIT and "data" not in stored and stored["blocks"], key
+        # Packing is lossless: the same rows in the same order, every field and value kept.
+        assert GEN.unpacked(stored) == json.loads(steps({"preprocessing": whole}, canonical)["value"]), key
+        # NE.run's limit, which leaves room for the stored form's row times, holds for this device.
+        assert utf8(value) <= packed_size(envelope) + 2048, key
+
+
+def larger(capture: Path, target: Path, copies: int) -> Path:
+    """The same switch with `copies` more of every interface, each under its own ifIndex and name."""
+    tables = ("1.3.6.1.2.1.2.2.1.", "1.3.6.1.2.1.31.1.1.1.")
+    names = ("1.3.6.1.2.1.2.2.1.2.", "1.3.6.1.2.1.31.1.1.1.1.")
+    lines = []
+    for line in capture.read_text(encoding="utf-8").splitlines():
+        lines.append(line)
+        oid, tag, value = line.split("|", 2)
+        table = next((t for t in tables if oid.startswith(t)), None)
+        if table is None:
+            continue
+        column, index = oid[len(table):].split(".", 1)
+        for k in range(1, copies + 1):
+            copy = value
+            if oid.startswith(names):
+                copy = (bytes.fromhex(value) + f"-{k}".encode()).hex() if tag == "4x" else f"{value}-{k}"
+            lines.append(f"{table}{column}.{int(index) + 100000 * k}|{tag}|{copy}")
+    lines.sort(key=lambda text: [int(arc) for arc in text.split("|", 1)[0].split(".")])
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
+
+
+@needs_node
+def test_an_observation_too_large_to_store_is_a_failed_attempt_and_is_not_stored(tmp_path):
+    walk = larger(LARGE, tmp_path / "larger.snmprec", 3)
+    items = {i["key"]: i for i in templates(GEN.build)["ne_dell_n_series_switch"]["items"]}
+    canonical = normalise("ne.raw.if.inventory", walk, T0)
+    envelope = json.loads(canonical)
+    assert (envelope["status"], envelope["complete"], envelope["observed_at"], envelope["data"]) == \
+        ("failed", False, None, [])
+    assert [e["code"] for e in envelope["errors"]] == ["snapshot_too_large"]
+    assert "768 rows" in envelope["errors"][0]["message"]
+    # The last complete snapshot is kept, the attempt says why, and the dataset counts as failed, so its staleness
+    # alert fires as for any other failure.
+    assert steps(items["ne.interfaces.inventory"], canonical).get("discarded") is True
+    receipt = json.loads(steps(items["ne.interfaces.inventory.attempt"], canonical)["value"])
+    assert receipt["status"] == "failed" and receipt["errors"][0]["code"] == "snapshot_too_large"
+    assert steps(items["ne.collection.status[interfaces.inventory]"], canonical)["value"] == "2"
+    assert steps(items["ne.collection.success[interfaces.inventory]"], canonical).get("discarded") is True

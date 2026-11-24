@@ -7,9 +7,14 @@ var NE = {};
 NE.SCHEMA = '1.1';
 // Datasets added in schema 1.2 declare it; the 1.1 datasets are unchanged, so their consumers are too.
 NE.SCHEMAS = {hardware: '1.2', poe: '1.2'};
-NE.VERSION = '2.3.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+NE.VERSION = '2.3.1';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
 NE.FAILED = '__NE_COLLECTION_FAILED__';
 NE.UPTIME = '1.3.6.1.2.1.1.3.0';
+// Zabbix stores at most 65,535 bytes of one text value and cuts the rest, which leaves invalid JSON. The stored form
+// of an envelope drops its three times but writes a few row times out in full (a spanning-tree instance's last
+// topology change), so an observation must leave this much room below the limit.
+NE.TEXT_LIMIT = 65535;
+NE.STORED_RESERVE = 2048;
 
 NE.IF = {
     number: '1.3.6.1.2.1.2.1.0',
@@ -376,6 +381,51 @@ NE.envelope = function (dataset, adapter) {
     };
 };
 
+// The envelope as it is stored: each run of consecutive rows with the same fields becomes a block of the field names,
+// once ("columns"), and one array of values per row ("rows"), so a field name is not repeated on every row. Row order
+// is kept. The item scripts pack the same way (templates/generate_snmp.py PACK); the frontend unpacks
+// (StoredEnvelope::rehydrate).
+NE.pack = function (env) {
+    var out = {}, key;
+    for (key in env) {
+        if (Object.prototype.hasOwnProperty.call(env, key)) { out[key] = env[key]; }
+    }
+    var rows = env.data;
+    if (!Array.isArray(rows) || !rows.length) { return out; }
+    var blocks = [], block = null, i, j;
+    for (i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        if (!row || typeof row !== 'object' || Array.isArray(row)) { return out; }
+        var columns = Object.keys(row), shape = JSON.stringify(columns);
+        if (block === null || block.shape !== shape) {
+            block = {shape: shape, columns: columns, rows: []};
+            blocks.push(block);
+        }
+        var values = [];
+        for (j = 0; j < columns.length; j++) {
+            values.push(row[columns[j]] === undefined ? null : row[columns[j]]);
+        }
+        block.rows.push(values);
+    }
+    delete out.data;
+    out.blocks = [];
+    for (i = 0; i < blocks.length; i++) { out.blocks.push({columns: blocks[i].columns, rows: blocks[i].rows}); }
+    return out;
+};
+
+// UTF-8 length of a string, as Zabbix measures a stored value.
+NE.utf8Length = function (text) {
+    var n = 0;
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charCodeAt(i);
+        if (c < 0x80) { n += 1; }
+        else if (c < 0x800) { n += 2; }
+        else if (c >= 0xD800 && c < 0xDC00 && i + 1 < text.length) { n += 4; i++; }
+        else { n += 3; }
+    }
+    return n;
+};
+
 // Runs a dataset normaliser and sets status/completeness consistently.
 //   normalise(walk, env) returns rows, or throws {unsupported: reason}.
 //   Any error recorded on env makes the result partial.
@@ -419,6 +469,19 @@ NE.run = function (dataset, adapter, value, normalise) {
         env.status = 'ok';
         env.complete = true;
         env.capability = {state: 'supported', reason: null};
+    }
+    // Too large to store whole: a failed attempt that says so, never a snapshot Zabbix would cut short. The last
+    // complete snapshot is kept and the dataset's staleness alert fires as for any other failure.
+    if (NE.utf8Length(JSON.stringify(NE.pack(env))) > NE.TEXT_LIMIT - NE.STORED_RESERVE) {
+        var count = env.data.length;
+        env.status = 'failed';
+        env.complete = false;
+        env.observed_at = null;
+        env.data = [];
+        env.capability = {state: 'supported', reason: null};
+        env.warnings = [];
+        env.errors = [{code: 'snapshot_too_large', message: 'The observation (' + count + ' rows) is larger than '
+            + 'Zabbix can store in one text value (' + NE.TEXT_LIMIT + ' bytes); nothing was stored.'}];
     }
     return env;
 };

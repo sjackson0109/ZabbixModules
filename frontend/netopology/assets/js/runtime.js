@@ -539,8 +539,9 @@
     return { ...result, complete: true, root: current };
   }
   /**
-   * One line of counts for the scope: drawn switches, observed links between them, LAGs, findings by severity,
-   * stale or failed datasets and unresolved neighbour observations. Only permitted, returned objects are counted.
+   * One line of counts for the scope: drawn switches, observed links between them, LAGs with members, findings by
+   * severity, stale or failed datasets and unresolved neighbour observations. Only permitted, returned objects are
+   * counted. A LAG with no member ports is not counted: some switches list every aggregator they could configure.
    */
   function scopeSummary(payload) {
     const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -551,7 +552,7 @@
       count(asRows(payload.hosts).length, 'switch', 'switches'),
       count(edges.filter(e => e.source != null && e.target != null).length, 'link')
     ];
-    const lags = asRows(payload.lags).length;
+    const lags = asRows(payload.lags).filter(lag => asRows(lag.members).length > 0).length;
     if (lags) parts.push(count(lags, 'LAG'));
     const severities = new Map();
     for (const finding of findings) severities.set(text(finding.severity), (severities.get(text(finding.severity)) ?? 0) + 1);
@@ -1857,6 +1858,22 @@
     if (!hosts.length) {
       notice(root, 'No permitted hosts with network observations are available.');
       return { selectHost() {} };
+    }
+    // Without a matching domain no LLDP neighbour can be matched, so the drawing would show no links at all.
+    const undomained = hosts.filter(h => id(h.domain).trim() === '').length;
+    if (undomained) {
+      const subject =
+        undomained < hosts.length
+          ? `${undomained} of ${hosts.length} switches ${undomained === 1 ? 'has' : 'have'} no`
+          : hosts.length === 1
+            ? 'This switch has no'
+            : 'None of these switches has an';
+      notice(
+        root,
+        `${subject} ne.domain host tag. LLDP neighbours are matched only between switches with the same ne.domain ` +
+          `value, so ${undomained === 1 ? 'its' : 'their'} links cannot be drawn. Add the tag to each switch host.`,
+        'warning'
+      );
     }
     const changed = () => options.onChange?.(state);
     const toolbar = el('div', undefined, 'ne-toolbar'),

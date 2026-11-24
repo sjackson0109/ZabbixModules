@@ -117,12 +117,47 @@ def storage(dataset: str, rows: dict = STORAGE_ROWS) -> str:
             + (f"for(var i=0;i<e.data.length;i++){{var r=e.data[i]; {body}}} " if body else ""))
 
 
+# Zabbix keeps at most this many bytes of a text value and cuts the rest, which leaves invalid JSON in the database.
+TEXT_LIMIT = 65535
+# Stored rows are packed: each run of consecutive rows with the same fields is a block of the field names, once
+# ("columns"), and an array of values per row ("rows"). About half the size, since the field names otherwise repeat
+# on every row; row order is kept. The same rule as NE.pack in templates/source/js/lib.js, which NE.run uses to fail
+# an observation too large to store; the frontend restores "data" (StoredEnvelope::rehydrate).
+PACK = ("var d=e.data; if(Array.isArray(d)&&d.length){var q=[],g=null,u=true; for(var i=0;i<d.length;i++){var r=d[i]; "
+        "if(!r||typeof r!=='object'||Array.isArray(r)){u=false;break;} var c=Object.keys(r),h=JSON.stringify(c); "
+        "if(g===null||g.h!==h){g={h:h,columns:c,rows:[]}; q.push(g);} var v=[]; "
+        "for(var j=0;j<c.length;j++){v.push(r[c[j]]);} g.rows.push(v);} "
+        "if(u){for(var i=0;i<q.length;i++){delete q[i].h;} delete e.data; e.blocks=q;}} ")
+# The UTF-8 length of a string, as Zabbix measures a stored value.
+BYTES = ("var b=function(s){var n=0; for(var k=0;k<s.length;k++){var x=s.charCodeAt(k); if(x<128){n+=1;} "
+         "else if(x<2048){n+=2;} else if(x>=55296&&x<56320&&k+1<s.length){n+=4;k++;} else{n+=3;}} return n;}; ")
+
+
+def unpacked(envelope: dict) -> dict:
+    """A stored envelope with its blocks turned back into "data", as the frontend does (StoredEnvelope::unpack)."""
+    if "blocks" not in envelope:
+        return envelope
+    result = {k: v for k, v in envelope.items() if k != "blocks"}
+    result["data"] = [dict(zip(block["columns"], row, strict=True)) for block in envelope["blocks"] for row in block["rows"]]
+    return result
+
+
+def stored(dataset: str, rows: dict = STORAGE_ROWS) -> str:
+    """A complete observation `e` in its stored form, packed. One that would still exceed Zabbix's text limit is never
+    stored cut short: the script throws, so the snapshot item keeps its last complete value."""
+    return (storage(dataset, rows) + PACK + BYTES + "var s=JSON.stringify(e); "
+            f"if(b(s)>{TEXT_LIMIT}){{throw 'Too large to store whole; retain last success';}} return s;")
+
+
 def receipt(dataset: str, rows: dict = STORAGE_ROWS) -> str:
     """Every attempt in its stored form. A complete success keeps no rows (they are in the snapshot), only their count;
-    partial, failed and unsupported attempts are kept whole."""
+    partial, failed and unsupported attempts are kept whole, packed, unless that would exceed the text limit."""
+    omit = "e.data_rows=n; e.data=[]; e.data_omitted=true;"
     return ("var e=JSON.parse(value); " + storage(dataset, rows) +
-            "if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){e.data_rows=e.data.length; e.data=[]; "
-            "e.data_omitted=true;} return JSON.stringify(e);")
+            "var n=Array.isArray(e.data)?e.data.length:0; "
+            f"if(e.status==='ok'&&e.complete===true&&Array.isArray(e.data)){{{omit}}} " + PACK + BYTES +
+            f"var s=JSON.stringify(e); if(b(s)>{TEXT_LIMIT}){{delete e.blocks; {omit} "
+            "s=JSON.stringify(e);} return s;")
 
 
 def normalised_key(entry: dict) -> str:
@@ -230,7 +265,7 @@ def producer_items(entry: dict, template: str) -> list[dict]:
                                    "snapshot. Times are Zabbix's own.")]
     for key in entry["snapshot_keys"]:
         items.append(dependent(key, f"Last complete snapshot: {name}", dataset, normalised,
-                               gate(dataset, storage(dataset) + "return JSON.stringify(e);"), discard=True,
+                               gate(dataset, stored(dataset)), discard=True,
                                history=SNAPSHOT_HISTORY, throttle=True,
                                description="Complete, successful observations only, stored when they change. Times "
                                            "are Zabbix's own: the frontend takes the observation time from the last "
