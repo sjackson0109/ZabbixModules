@@ -56,11 +56,18 @@ NE.parseWalk = function (text) {
         if (!m) { pos = eol + 1; continue; }
         var oid = m[1], type = m[2] || 'STRING', start = pos + m[0].length, value;
         if (text.charAt(start) === '"') {
+            // Up to the closing quote; a backslash takes the next character as it is. Whole runs are copied at once:
+            // Duktape copies a string on every concatenation, so one character at a time is quadratic.
             var i = start + 1, out = '';
-            while (i < len && text.charAt(i) !== '"') {
-                if (text.charAt(i) === '\\' && i + 1 < len) { i++; }
-                out += text.charAt(i);
-                i++;
+            while (i < len) {
+                var close = text.indexOf('"', i);
+                if (close < 0) { close = len; }
+                var run = text.substring(i, close), slash = run.indexOf('\\');
+                if (slash < 0) { out += run; i = close; break; }
+                out += run.substring(0, slash);
+                i += slash;
+                if (i + 1 < len) { out += text.charAt(i + 1); i += 2; }
+                else { out += '\\'; i += 1; }
             }
             value = out;
             eol = text.indexOf('\n', i);
@@ -73,11 +80,15 @@ NE.parseWalk = function (text) {
                 var next = text.indexOf('\n', eol + 1);
                 if (next < 0) { next = len; }
                 var more = text.substring(eol + 1, next);
-                if (more === '' || head.test(more)) { break; }
+                // Only a line with ' = ' can start the next entry; hex continuation lines never have one.
+                if (more === '' || more.indexOf(' = ') >= 0 && head.test(more)) { break; }
                 value += ' ' + more;
                 eol = next;
             }
-            value = value.replace(/\s+$/, '');
+            // Trailing whitespace, as /\s+$/ would remove it, without running a regular expression over the value.
+            var end = value.length;
+            while (end > 0 && NE.isSpace(value.charCodeAt(end - 1))) { end--; }
+            if (end < value.length) { value = value.substring(0, end); }
         }
         if (/^No (Such|more) /.test(value)) { type = 'MISSING'; }
         if (!rows.hasOwnProperty(oid)) { order.push(oid); }
@@ -164,12 +175,7 @@ NE.bytes = function (entry) {
     if (!entry) { return null; }
     var v = entry.value, out = [], parts, i;
     if (entry.type === 'Hex-STRING' || entry.type === 'BITS') {
-        parts = v.split(/\s+/);
-        for (i = 0; i < parts.length; i++) {
-            if (!/^[0-9A-Fa-f]{2}$/.test(parts[i])) { break; }
-            out.push(parseInt(parts[i], 16));
-        }
-        return out;
+        return NE.hexOctets(v);
     }
     // A MacAddress display hint prints "0:1b:2c:..." as a STRING.
     if (/^[0-9A-Fa-f]{1,2}([:-][0-9A-Fa-f]{1,2}){5,}$/.test(v)) {
@@ -179,6 +185,52 @@ NE.bytes = function (entry) {
     }
     // Zabbix prints octets that are valid UTF-8 as a STRING.
     return NE.utf8Encode(v);
+};
+
+// The octets of a Hex-STRING: whitespace-separated pairs of hex digits, up to the first token that is not exactly
+// one pair; a value that starts with whitespace has none. The same result as splitting on /\s+/ and testing each
+// token, in one pass with no regular expression or function call per octet: Duktape is slow per character, port
+// bitmaps hold hundreds of octets and a VLAN walk holds hundreds of bitmaps.
+NE.hexOctets = function (v) {
+    var out = [], n = v.length, i = 0, c, d, e, hi, lo;
+    while (i < n) {
+        c = v.charCodeAt(i);
+        if (c === 32 || c === 10 || c === 13 || c === 9 || (c < 48 || c > 102) && NE.isSpace(c)) {
+            if (i === 0) { return out; }
+            i++;
+            continue;
+        }
+        d = i + 1 < n ? v.charCodeAt(i + 1) : -1;
+        e = i + 2 < n ? v.charCodeAt(i + 2) : 32;
+        hi = c >= 48 && c <= 57 ? c - 48 : (c >= 65 && c <= 70 ? c - 55 : (c >= 97 && c <= 102 ? c - 87 : -1));
+        lo = d >= 48 && d <= 57 ? d - 48 : (d >= 65 && d <= 70 ? d - 55 : (d >= 97 && d <= 102 ? d - 87 : -1));
+        if (hi < 0 || lo < 0 || !(e === 32 || e === 10 || e === 13 || e === 9 || NE.isSpace(e))) { break; }
+        out.push(hi * 16 + lo);
+        i += 2;
+    }
+    return out;
+};
+
+// Bits set in a Hex-STRING or BITS value, as NE.bitsSet(NE.bytes(entry), offset), without decoding the zero octets
+// after the last set bit (most of a port bitmap): native searches find the token holding the last non-zero digit.
+NE.HEX_NONZERO = '123456789ABCDEFabcdef';
+NE.hexBits = function (entry, offset) {
+    if (!entry) { return []; }
+    if (entry.type !== 'Hex-STRING' && entry.type !== 'BITS') { return NE.bitsSet(NE.bytes(entry), offset); }
+    var v = entry.value, end = -1, k, at;
+    for (k = 0; k < NE.HEX_NONZERO.length; k++) {
+        at = v.lastIndexOf(NE.HEX_NONZERO.charAt(k));
+        if (at > end) { end = at; }
+    }
+    if (end < 0) { return []; }
+    while (end + 1 < v.length && !NE.isSpace(v.charCodeAt(end + 1))) { end++; }
+    return NE.bitsSet(NE.hexOctets(v.substring(0, end + 1)), offset);
+};
+
+// ECMAScript's \s: white space and line terminators.
+NE.isSpace = function (c) {
+    return c === 32 || c >= 9 && c <= 13 || c === 0xa0 || c === 0x1680 || c >= 0x2000 && c <= 0x200a
+        || c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000 || c === 0xfeff;
 };
 
 NE.hex = function (bytes) {
@@ -209,6 +261,8 @@ NE.bitsSet = function (bytes, offset) {
     var out = [], i, b;
     if (!bytes) { return out; }
     for (i = 0; i < bytes.length; i++) {
+        // Most octets of a port bitmap are zero.
+        if (!bytes[i]) { continue; }
         for (b = 0; b < 8; b++) {
             if (bytes[i] & (0x80 >> b)) { out.push(i * 8 + b + (offset || 0)); }
         }

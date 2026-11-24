@@ -8,6 +8,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ### Fixed
 - A switch with many interfaces, such as a Dell N4064 (192 interfaces, 128 of them port-channels), reported its interface dataset `Failed` with `invalid_json`, and its Ports page drew no port grid: the 68 KB interface inventory snapshot was over Zabbix's 65,535-byte text limit, so the stored JSON was cut short. Stored snapshot rows are now packed (deployment guide, section 5.3; canonical schema, "Packed rows"), about half the size: that switch's largest snapshot is 31.5 KB. Upgrade the frontend modules first (they read both forms), then the templates: 2.3.0 frontend modules read packed snapshots as invalid.
+- On the same Dell N4064, the VLAN walk's JavaScript ran past Zabbix's 10-second script limit, so its VLAN items were not supported with `RangeError: execution timeout`. The walk parser and the port-bitmap decoding are rewritten to do less work per character in Duktape: that normaliser now runs in about a third of the time (0.13 s to 0.04 s in Duktape on the captured walk), with identical output on every captured and synthetic walk.
 
 ### Changed
 - A dataset too large to store whole, even packed, is a failed attempt with the error code `snapshot_too_large`, never a value cut short; its last complete snapshot is kept and its staleness alert fires.
