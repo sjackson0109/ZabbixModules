@@ -15,16 +15,19 @@ Status: **proposed, for review** (spec §19, §22, §40.4). Every OID below is a
 | Master item key | Dataset | Default interval (macro) | Feeds |
 |---|---|---|---|
 | `ne.raw.system` | device | 1h (`{$NE.DEVICE.INTERVAL}`) | `ne.device.snapshot`, uptime heartbeat |
-| `ne.raw.if.state` | interface state | 60s (`{$NE.IF.STATE.INTERVAL}`) | `ne.interfaces.state`, per-port scalars |
+| `ne.raw.if.state` | interface status (up/down, admin state, last change) | 150s (`{$NE.IF.STATE.INTERVAL}`) | `ne.interfaces.state`, port status scalars |
+| `ne.raw.if.link` | interface speed and duplex | 15m (`{$NE.IF.LINK.INTERVAL}`) | `ne.interfaces.link`, port speed and duplex scalars |
 | `ne.raw.if.inventory` | interface inventory | 1h (`{$NE.IF.INVENTORY.INTERVAL}`) | `ne.interfaces.inventory`, interface LLD |
-| `ne.raw.if.capability` | port capability (expected speed) | 15m (`{$NE.IF.CAPABILITY.INTERVAL}`) | `ne.interfaces.capability` |
-| `ne.raw.lldp` | LLDP | 5m (`{$NE.LLDP.INTERVAL}`) | `ne.lldp.snapshot` |
-| `ne.raw.vlan` | VLAN | 10m (`{$NE.VLAN.INTERVAL}`) | `ne.vlan.snapshot` |
-| `ne.raw.stp` | STP | 2m (`{$NE.STP.INTERVAL}`) | `ne.stp.snapshot` |
-| `ne.raw.lag` | LAG | 5m (`{$NE.LAG.INTERVAL}`) | `ne.lag.snapshot` |
+| `ne.raw.if.capability` | port capability (expected speed) | 6h (`{$NE.PORT_CAPABILITY.INTERVAL}`) | `ne.port_capability.snapshot` |
+| `ne.raw.lldp` | LLDP | 15m (`{$NE.LLDP.INTERVAL}`) | `ne.lldp.snapshot` |
+| `ne.raw.vlan` | VLAN | 30m (`{$NE.VLAN.INTERVAL}`) | `ne.vlan.snapshot` |
+| `ne.raw.stp` | STP | 5m (`{$NE.STP.INTERVAL}`) | `ne.stp.snapshot` |
+| `ne.raw.lag` | LAG | 15m (`{$NE.LAG.INTERVAL}`) | `ne.lag.snapshot` |
+| `ne.raw.poe`, `ne.raw.poe.ifindex` | PoE status | 5m (`{$NE.POE.INTERVAL}`) | `ne.poe.snapshot`, PoE LLD and states |
+| `ne.raw.poe.power`, `ne.raw.poe.power.ciscosb` | PoE power | 15m (`{$NE.POE.POWER.INTERVAL}`) | consumption and per-port power readings |
 | `ne.raw.if.counters` | traffic and errors (optional) | 60s | per-port rate items; reuse existing items where present |
 
-Raw master items keep history for 0 days (or 1 day while debugging). Canonical snapshots keep 7 days. Scalars keep 30 days of history and 365 days of trends.
+Each raw walk feeds one unstored `ne.normalised[<producer>]` item, the canonical envelope of the attempt, from which everything stored is derived. Raw walks and normalised envelopes keep no history. Snapshots and attempt receipts are stored when they change and every `{$NE.HEARTBEAT}` (2h), and kept for `{$NE.SNAPSHOT.HISTORY}` (2d); states are stored the same way and kept 31 days without trends; readings are stored every poll, kept 31 days, with `{$NE.TRENDS}` (180d) of trends. See the deployment guide, section 5.3.
 
 ## Device — `ne.raw.system`
 

@@ -72,7 +72,7 @@ Each needs a capability, security and retention contract, and real-device eviden
 
 - **STP instances.** An instance selector (CIST, MSTI n, or PVST VLAN n) listing only instances actually collected. VLAN-to-instance mapping is never assumed. Today the UI shows instance 0 / CIST.
 - **CDP.** Another neighbour-evidence producer feeding the same canonical topology, not a second engine. Agreeing LLDP and CDP observations keep source attribution and raise confidence only when justified; disagreement keeps both and raises a finding. Needs vendor qualification.
-- **PoE and optics.** From POWER-ETHERNET-MIB, ENTITY-SENSOR-MIB and vendor extensions: PoE state, power and class; optical TX/RX power, temperature, voltage, bias current, transceiver identity. Unqualified sensor-index joins are never presented as authoritative.
+- **PoE in the frontend, and optics.** PoE is collected since 2.3.0 (POWER-ETHERNET-MIB and vendor extensions: PSE budget, consumption and status, per-port detection state, class and, where the vendor MIB has it, power; [POE.md](../../templates/specifications/POE.md)), with Zabbix items and triggers but no frontend view yet. The Port Panel and Wi-Fi Explorer's failure impact (does an AP also lose power) are the next readers. Optics, from ENTITY-SENSOR-MIB and vendor extensions: optical TX/RX power, temperature, voltage, bias current, transceiver identity. Unqualified sensor-index joins are never presented as authoritative.
 - **Endpoints (MAC/FDB/ARP).** Kept separate from switch-to-switch infrastructure topology; a learned MAC is not proof of a physical link.
 - **Layer 3.** Not advertised until routing evidence (addressing, ARP/ND, routes, OSPF, BGP, VRFs) has its own canonical contracts. Never inferred from management subnets.
 

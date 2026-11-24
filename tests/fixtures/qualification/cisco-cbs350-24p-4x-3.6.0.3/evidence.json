@@ -1,0 +1,108 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "ok",
+      "hardware": "ok",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "unsupported",
+      "poe": "ok",
+      "stp": "ok",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "hardware": {
+        "errors": [],
+        "rows": 17,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 231,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_link": {
+        "errors": [],
+        "rows": 231,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 231,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 8,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 5,
+        "status": "ok",
+        "warnings": []
+      },
+      "poe": {
+        "errors": [],
+        "rows": 52,
+        "status": "ok",
+        "warnings": []
+      },
+      "poe_power": {
+        "errors": [],
+        "rows": 52,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [],
+        "rows": 217,
+        "status": "ok",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 226,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-2",
+    "system": {
+      "sys_descr": "CBS350-24P-4X 24-Port Gigabit PoE Stackable Managed Switch with 10G Uplinks",
+      "sys_object_id": "1.3.6.1.4.1.9.6.1.1006.24.5"
+    },
+    "template": "ne_cisco_small_business_switch"
+  },
+  "description": "Cisco CBS350-24P-4X, 52 ports, two-unit stack, firmware 3.6.0.3. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
+  "device": {
+    "family": "Business 350",
+    "firmware": "3.6.0.3",
+    "model": "CBS350-24P-4X",
+    "vendor": "Cisco"
+  },
+  "id": "cisco-cbs350-24p-4x-3.6.0.3",
+  "kind": "captured",
+  "template": "ne_cisco_small_business_switch",
+  "walk": "capture.snmprec"
+}

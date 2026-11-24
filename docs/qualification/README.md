@@ -8,7 +8,7 @@ Network Explorer reports observed evidence, and its support claims follow the sa
 
 ## States
 
-Each matrix cell holds one state for one capability: Interfaces, ENTITY, MAU, LLDP, VLAN, STP or LAG.
+Each matrix cell holds one state for one capability: Interfaces, ENTITY, MAU, LLDP, VLAN, STP, LAG, Hardware or PoE. Hardware and PoE are judged through the vendor template that collects them (below).
 
 | State | Meaning | Evidence it needs |
 |---|---|---|
@@ -32,33 +32,44 @@ The earlier vocabulary is **superseded**, but its intent carries over:
 
 ## Classification
 
-`qualify.py classify <walk.snmprec>` replays a walk through every native template normaliser, exactly as Zabbix composes them (`tests/js/run_normaliser.cjs`). It records only stable facts for each dataset: its status, row count and error codes. From those it derives one value per capability:
+`qualify.py classify [--template <name>] <walk.snmprec>` replays a walk through every producer of one switch template, exactly as Zabbix composes them (`tests/js/run_normaliser.cjs`). The template is the generic `ne__generic_switch` unless the evidence names another in its `template` field, so a vendor template's own producers (hardware, PoE with vendor columns) are judged on the walks of the devices they are for. It records the template and only stable facts for each dataset: its status, row count and error codes. From those it derives one value per capability:
 
 - `ok`: rows present.
 - `empty`: collected, but nothing observed (for example no LLDP neighbours or no LAG). This cannot qualify or disqualify a capability.
 - `partial`, `unsupported` or `failed`: as the normaliser reported.
 - `absent`: ENTITY only, for interfaces collected with no member or slot placement.
+- `not_collected`: the template has no producer for it (Hardware on the generic template). It supports no state.
+- `not_walked`: the capture's manifest lists no walked subtree that the producer reads (a capture taken before its template gained that producer). A capture that walked a subtree the agent lacks (`no-such-object`) is walked, and shows `unsupported`. `not_walked` supports no state: capture the subtree first.
 
 The stored classification must equal a fresh replay; a pytest re-runs every committed walk. If a normaliser change alters a classification, the affected matrix states are reviewed in the same PR.
 
 ## Evidence workflow
 
 1. **Capture.** Run `tools/inventory/capture_walk.py --sanitise --sanitise-serials --sanitise-aliases` against one representative device per vendor, model and firmware ([inventory README](../../tools/inventory/README.md)). Keep `--sanitise-map` private, and use the same map for every device in one estate so that neighbours still match.
-2. **Review by hand.** Read the `.snmprec` file before it leaves the estate. The sanitiser does not change:
-   - free-text descriptions (sysDescr, ifDescr, LLDP descriptions);
-   - IPv6 addresses;
-   - MAC addresses;
-   - addresses in other indexes.
+2. **Anonymise.** This repository is public, so evidence carries no real asset details and nothing that would help an attack on the estate it came from. Run every walk of one estate through the same private map:
 
-   Edit customer names and addresses out of descriptions by hand. If a value is needed to reproduce a behaviour, replace it consistently rather than deleting it.
-3. **Create the evidence directory.** Make `tests/fixtures/qualification/<id>/`, where `<id>` is lower case, for example `cisco-cbs350-24t-3.4.0.17`. Put three files in it:
-   - `capture.snmprec`: the walk;
-   - `manifest.json`: unchanged from `capture_walk.py`;
+   ```sh
+   python3 tools/qualification/anonymise.py --map <private-map.json> [--config <private-config.json>] \
+     --out-dir <staging-dir> <label>.snmprec [<label>.snmprec ...]
+   ```
+
+   It replaces, consistently across walks and without breaking joins between tables:
+   - every MAC address, with a locally administered `02:00:xx:xx:xx:xx` address (interface MACs, LLDP chassis and port IDs, STP bridge IDs, LAG system IDs, MACs written as text);
+   - host names in vendor tables, vendor and LLDP-MED serial numbers, asset tags and service tags;
+   - VLAN names (`VLANnnnn` from the VLAN ID) and PoE port labels;
+   - what neighbours say about themselves over LLDP: system and port descriptions, locally assigned chassis and port IDs, LLDP-MED inventory, organisation-defined TLV text;
+   - uptime: `sysUpTime` becomes 7 days, and every timestamp and LLDP/Q-BRIDGE time mark keeps its age up to 7 days.
+
+   It drops the end-device MAC tables (`dot1qTpFdbTable`, `dot1dTpFdbTable`) and the manifest's `net_snmp_version`, and records what it did under `anonymised` in the manifest. The optional config holds estate-specific rules, such as site-name patterns and reviewed version strings to mask; like the map, it is private.
+3. **Review by hand.** Read the anonymised `.snmprec` file before it leaves the estate. Neither tool changes IPv6 addresses, addresses in other indexes, or IPv4 text in free text. Edit customer names and addresses out of descriptions by hand. If a value is needed to reproduce a behaviour, replace it consistently rather than deleting it.
+4. **Create the evidence directory.** Make `tests/fixtures/qualification/<id>/`, where `<id>` is lower case, for example `cisco-cbs350-24t-3.4.0.17`. Put three files in it:
+   - `capture.snmprec`: the anonymised walk;
+   - `manifest.json`: as `anonymise.py` wrote it;
    - `evidence.json`: the record described below.
-4. **Classify.** Run `python3 tools/qualification/qualify.py classify tests/fixtures/qualification/<id>/capture.snmprec`. Store its output as `classification` in `evidence.json`.
-5. **Check the evidence.** Run `python3 tools/qualification/qualify.py check-evidence tests/fixtures/qualification/<id>`. It must report no errors, and its warnings (kept MAC addresses) need a deliberate decision.
-6. **Update the matrix.** Add or update the row in `matrix.json`, cite the evidence ID, set each state no higher than the evidence supports, and record the known limitations. Run `qualify.py matrix --write`, then commit the matrix and the evidence together.
-7. **Add regression tests where they help.** A behaviour worth keeping, such as a vendor port-numbering quirk or an LLDP subtype 7 local port, also gets a normaliser test against the captured walk.
+5. **Classify.** Run `python3 tools/qualification/qualify.py classify --template <template> tests/fixtures/qualification/<id>/capture.snmprec`, with the template the device should be linked to (the one in `evidence.json`). Store its output as `classification` in `evidence.json`.
+6. **Check the evidence.** Run `python3 tools/qualification/qualify.py check-evidence tests/fixtures/qualification/<id>`. It must report no errors.
+7. **Update the matrix.** Add or update the row in `matrix.json`, cite the evidence ID, set each state no higher than the evidence supports, and record the known limitations. Run `qualify.py matrix --write`, then commit the matrix and the evidence together.
+8. **Add regression tests where they help.** A behaviour worth keeping, such as a vendor port-numbering quirk or an LLDP subtype 7 local port, also gets a normaliser test against the captured walk.
 
 ### `evidence.json`
 
@@ -69,9 +80,12 @@ The stored classification must equal a fresh replay; a pytest re-runs every comm
   "description": "Acme X-24, 24 copper + 4 SFP+, standalone, LLDP and RSTP enabled.",
   "walk": "capture.snmprec",
   "device": {"vendor": "Acme", "family": "X series", "model": "X-24", "firmware": "1.0.2"},
-  "classification": { "...": "output of qualify.py classify" }
+  "template": "ne_acme_x_series_switch",
+  "classification": { "...": "output of qualify.py classify --template ne_acme_x_series_switch" }
 }
 ```
+
+`template` is optional and names the switch template whose producers classify the walk (default `ne__generic_switch`); `check-evidence` rejects an unknown template, or a classification replayed through a different one.
 
 `kind` is one of the following:
 
@@ -90,12 +104,30 @@ The stored classification must equal a fresh replay; a pytest re-runs every comm
 
 `verified` lists only the capabilities someone checked against the live device. Only those can become Real-device qualified.
 
+### Version strings that look like addresses
+
+Four-part versions such as `2.5.9.54` are also valid IPv4 addresses, and most switch firmware uses them. A dotted quad is accepted without review only in a column whose MIB defines a revision string: `entPhysicalHardwareRev`, `entPhysicalFirmwareRev` and `entPhysicalSoftwareRev`; the LLDP-MED revision objects; Cisco SB/RADLAN `rlPhdUnitGenParam` versions and `rlPhdStackSofrwareVer`; Dell `productIdentificationVersion` and `productIdentificationBuildNumber`. Even there, a private, shared or link-local address (10/8, 172.16/12, 192.168/16, 100.64/10, 169.254/16) is still rejected.
+
+Anywhere else, such as the firmware version inside sysDescr, a reviewer acknowledges each value explicitly in `evidence.json`:
+
+```json
+"reviewed_versions": [
+  {"oid": "1.3.6.1.2.1.1.1.0", "value": "6.5.4.23",
+   "reason": "The device's own firmware version in sysDescr, matching entPhysicalSoftwareRev."}
+]
+```
+
+An acknowledgement covers that exact value at that exact OID. It never covers a private address, and an acknowledgement that matches nothing is an error, so it cannot outlive the value it was written for.
+
 ### `check-evidence` rejects
 
-- A capture taken without `--sanitise`, `--sanitise-serials` and `--sanitise-aliases`.
-- A manifest with keys `capture_walk.py` does not write, such as a target, community or user name.
-- An IPv4 address outside 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24, whether in an IpAddress value, in an LLDP management-address index or in free text. Masks, loopback, multicast and 0.0.0.0 are allowed.
+- A capture taken without `--sanitise`, `--sanitise-serials` and `--sanitise-aliases`, or not anonymised by `anonymise.py`.
+- A manifest with keys the tools do not write, such as a target, community, user name or `net_snmp_version`.
+- An IPv4 address outside 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24, whether in an IpAddress value, in an LLDP management-address index or in free text. Masks, loopback, multicast and 0.0.0.0 are allowed, and so are version strings as described above.
 - A system name, location, contact, serial number or ifAlias that is not the sanitiser's placeholder.
+- A MAC address that is not an anonymised `02:00` placeholder, in a MAC-typed column, an STP bridge ID or text.
+- A vendor host name, serial number, asset or service tag, VLAN name, PoE label or neighbour LLDP detail that is not the anonymiser's placeholder.
+- A `sysUpTime` other than the anonymised 7 days, a TimeTicks value above it, or any row of an end-device MAC table.
 - Captured or field evidence without a vendor, family, model and firmware, and field evidence without `observed_on`, `zabbix_version` and `verified`.
 - A walk path that leaves its evidence directory, or the repository for synthetic evidence.
 
@@ -117,13 +149,14 @@ python3 tools/inventory/capture_walk.py --host <avc-address> --label aruba-iap-5
   --profile aruba-instant --sanitise --sanitise-serials --sanitise-aliases --sanitise-map <private-map.json>
 ```
 
-`--profile aruba-instant` adds only the AI-AP-MIB objects Wi-Fi Explorer reads (VC version and address, `aiAccessPointTable`, `aiRadioTable`), never the client or rogue tables. The sanitiser replaces AP names (`device-NNN`) and AP serial numbers (`SERIAL-NNNN`), and IP addresses as usual; `check-evidence --product wifi` rejects a walk that still holds a real AP name or serial. AP MAC addresses are kept, as for switches, because AP identities are derived from them.
+`--profile aruba-instant` adds only the AI-AP-MIB objects Wi-Fi Explorer reads (VC version and address, `aiAccessPointTable`, `aiRadioTable`), never the client or rogue tables. The sanitiser replaces AP names (`device-NNN`) and AP serial numbers (`SERIAL-NNNN`), and IP addresses as usual; `check-evidence --product wifi` rejects a walk that still holds a real AP name or serial. Run `anonymise.py` as for switches: AP identities are derived from MAC addresses, and the consistent placeholders keep those identities stable.
 
 The *Controller* capability is `ok` only for a walk from a virtual controller; a member AP classifies as `absent` with its cluster datasets `unsupported`, which is expected evidence rather than a failure.
 
 ## Never commit
 
 - Credentials, community strings, SNMPv3 users or passphrases, API tokens or environment dumps.
-- The `--sanitise-map` file, which holds the real values.
+- The `--sanitise-map` file, or the `anonymise.py` map and config: they hold the real values.
+- Real MAC addresses, serial numbers, service tags, or neighbour models and software versions.
 - Unsanitised walks, even temporarily: Git history keeps them.
 - Customer, site or person names in descriptions.

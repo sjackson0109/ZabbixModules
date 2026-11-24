@@ -14,3 +14,4 @@ require __DIR__.'/wifi_paths.php';
 require __DIR__.'/wifi_impact.php';
 require __DIR__.'/wifi_clients.php';
 require __DIR__.'/wifi_capacity.php';
+require __DIR__.'/stored.php';

@@ -1,12 +1,12 @@
 # Wi-Fi AP Zabbix template: requirements specification
 
-Status: requirements for every Wi-Fi Explorer access-point template, written 13 October 2026 and revised 16 October 2026 for the generic template. `Wi-Fi Explorer - Generic AP` in `templates/native/` is the vendor-neutral baseline; the Aruba Instant templates are the reference vendor implementation.
+Status: requirements for every Wi-Fi Explorer access-point template, written 13 October 2026 and revised 16 October 2026 for the generic template. `we__generic_access_point` (Wi-Fi Explorer - Generic Access Point) in `templates/native/` is the vendor-neutral baseline; the Aruba Instant templates are the reference vendor implementation.
 
 ## 1. Purpose and scope
 
 A Wi-Fi access-point template is acceptable when it gives Wi-Fi Explorer complete, honest `wifi-1.0` observations for every AP, radio, SSID, client and RF neighbour it can see, and nothing it cannot prove. This specification states what any such template must do, for any vendor.
 
-Wi-Fi Explorer works like Network Explorer: a generic template built from standard MIBs ships with the module, and vendor templates complement it. *Wi-Fi Explorer - Generic AP* reads any AP that implements the IEEE 802.11 MIB, one host per AP, and covers what the standards carry: the AP, its radios and its SSIDs. Clients, measured channel utilisation, noise floor, RF neighbours and cluster rosters exist only in vendor MIBs, so a vendor template is what adds them. The shipped *Wi-Fi Explorer - Aruba Instant VC by SNMP* and *Aruba Instant AP by SNMP* templates are the reference vendor implementation; an operator may replace them with their own template built to this specification. Requirement words follow RFC 2119: **must**, **should**, **may**.
+Wi-Fi Explorer works like Network Explorer: a generic template built from standard MIBs ships with the module, and vendor templates complement it. *Wi-Fi Explorer - Generic Access Point* reads any AP that implements the IEEE 802.11 MIB, one host per AP, and covers what the standards carry: the AP, its radios and its SSIDs. Clients, measured channel utilisation, noise floor, RF neighbours and cluster rosters exist only in vendor MIBs, so a vendor template is what adds them. The shipped *Wi-Fi Explorer - Aruba Instant Virtual Controller* and *Aruba Instant Access Point* templates are the reference vendor implementation; an operator may replace them with their own template built to this specification. Requirement words follow RFC 2119: **must**, **should**, **may**.
 
 - **In scope:** template structure, items and keys, the envelope contract, the eight datasets, capacity items, macros, triggers, privacy, error handling, tests and qualification, for Zabbix 7.0, 7.2 and 7.4.
 - **Out of scope:** the Wi-Fi Explorer frontend, switch-side collection (Network Explorer's templates own LLDP, VLAN and STP), and controller APIs that need a stored token.
@@ -35,18 +35,18 @@ The generic template ships with Wi-Fi Explorer. A vendor family ships a cluster 
 
 | Template | Linked to | Datasets | Required |
 | --- | --- | --- | --- |
-| *Wi-Fi Explorer - Generic AP* (generic) | One host per AP, at the AP's own address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid` | Shipped; standard MIBs only (section 12.1) |
-| *Wi-Fi Explorer - \<Vendor> \<family> VC by SNMP* (vendor cluster) | One host per cluster or controller, at its management or virtual-controller address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid`, `client` | Must, for a vendor family |
-| *Wi-Fi Explorer - \<Vendor> \<family> AP by SNMP* (vendor per AP) | One host per AP whose RF view is wanted, at the AP's own address | `rf_neighbour` | Should, where the vendor exposes neighbour scans per AP |
+| `we__generic_access_point` (generic) | One host per AP, at the AP's own address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid` | Shipped; standard MIBs only (section 12.1) |
+| `we_<vendor>_<family>_virtual_controller` (vendor cluster) | One host per cluster or controller, at its management or virtual-controller address | `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`, `ssid`, `client` | Must, for a vendor family |
+| `we_<vendor>_<family>_access_point` (vendor per AP) | One host per AP whose RF view is wanted, at the AP's own address | `rf_neighbour` | Should, where the vendor exposes neighbour scans per AP |
 
 A vendor template complements the generic template: an AP is read either by the generic template on its own host or by its vendor's templates, never both, because every Wi-Fi template feeds the same canonical keys.
 
-- **S1.** Templates must be generated from one source (`templates/generate_wifi.py` and `templates/source/wifi/datasets.json`), never edited by hand, for 7.0, 7.2 and 7.4 (`templates/native/<version>/wifi_explorer_snmp.yaml`). `--check` must fail when a committed file differs from the generator.
-- **S2.** Every template must sit in the template group *Templates/Wi-Fi Explorer* and carry the tag `component: wifi-explorer`.
+- **S1.** Templates must be generated from one source (`templates/generate_wifi.py` and `templates/source/wifi/datasets.json`), never edited by hand, for 7.0, 7.2 and 7.4, one file per template (`templates/native/<version>/<template>.yaml`). `--check` must fail when a committed file differs from the generator.
+- **S2.** Every template must be named `we_` plus its words in lowercase with single underscores (`we_<vendor>_<family>_virtual_controller`, `we_<vendor>_<family>_access_point`; only the generic template has a double underscore), and its visible name must be `Wi-Fi Explorer - ` followed by the same words in Title Case. It must sit in the template group *Templates/Wi-Fi Explorer* and carry the tag `component: wifi-explorer`.
 - **S3.** All keys must start with `we.` and follow the key table in section 4. A vendor's raw items may add a vendor segment (`we.raw.<vendor>.<dataset>`).
 - **S4.** The site is the host's `site` tag, the same tag Network Explorer scopes by. The template must not create or set it.
 - **S5.** A cluster template linked to a member AP instead of the controller must report its cluster datasets as `unsupported` with a reason, not as empty.
-- **S6.** The per-AP host must be named like the AP, or carry the AP's address, so its observations can be matched to the AP. It may also link `Network Explorer - LLDP for access points`, with the same `ne.domain` tag as the switches.
+- **S6.** The per-AP host must be named like the AP, or carry the AP's address, so its observations can be matched to the AP. To confirm the AP's uplink from the AP side, a per-AP template embeds Network Explorer's LLDP component (the `ne.lldp.*` items and the rest of that dataset, from `templates/generate_snmp.py` `embedded()`), as `we__generic_access_point` and `we_aruba_instant_access_point` do, and the host carries the same `ne.domain` tag as the switches. A virtual-controller or cluster template does not: its address belongs to whichever AP holds it.
 - **S7.** No low-level discovery. AP, radio and client counts change too often and too widely for one item per object (P7).
 - **S8.** The cluster template (and the generic template, for its one AP) should carry an inherited host dashboard built only from Zabbix's own widgets (Item value, Graph) over the capacity items of section 6: APs up and down, clients and the most on one AP, channel utilisation and radios up by band. It must not need a widget module. Floors, paths, findings and clients stay on the Wi-Fi Explorer page.
 - **S9.** The generic template must read standard MIBs only (`1.3.6.1.2.1` and the IEEE 802.11 MIB, `1.2.840.10036`). Linked to an agent without the IEEE 802.11 MIB it must report every dataset as `unsupported` with the code `not_wifi_ap`, never as an empty AP. It has no `client` or `rf_neighbour` dataset and no item for a value no standard MIB carries.
@@ -254,7 +254,7 @@ Acceptance criteria for a new vendor family:
 
 ### 12.1 The generic AP template (standard MIBs)
 
-*Wi-Fi Explorer - Generic AP* reads one AP at its own address. A radio is an interface with a `dot11PHYType` row; the AP's identity (D1) is the MAC of its lowest-numbered Ethernet interface (`ifType` 6), which is the base MAC and LLDP chassis ID on most APs, never a radio MAC. The OIDs come from the published MIBs and are *Unqualified* until real AP walks are committed.
+*Wi-Fi Explorer - Generic Access Point* reads one AP at its own address. A radio is an interface with a `dot11PHYType` row; the AP's identity (D1) is the MAC of its lowest-numbered Ethernet interface (`ifType` 6), which is the base MAC and LLDP chassis ID on most APs, never a radio MAC. The OIDs come from the published MIBs and are *Unqualified* until real AP walks are committed.
 
 | Dataset | Source | `null`, because no standard MIB carries it |
 | --- | --- | --- |

@@ -65,7 +65,7 @@ final class ApiGateway implements DataGateway {
         if (!$hostids) {
             return [];
         }
-        $options = ['output'=>['itemid','hostid','key_','value_type','state','status'], 'hostids'=>$hostids,
+        $options = ['output'=>['itemid','hostid','key_','value_type','state','status','lastclock'], 'hostids'=>$hostids,
             'limit'=>Limits::ITEMS + 1];
         $options += $keys
             ? ['filter'=>['key_'=>array_values($keys)]]

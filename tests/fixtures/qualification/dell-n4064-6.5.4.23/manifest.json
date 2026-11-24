@@ -1,0 +1,428 @@
+{
+  "format": "network-explorer-walk-manifest-1",
+  "device_label": "dell-n4064-6.5.4.23",
+  "captured_at": "2026-11-20T23:41:11Z",
+  "snmp_version": "2c",
+  "snmp_security_level": "",
+  "walk_options": {
+    "max_repetitions": 10,
+    "request_timeout_s": 5.0,
+    "retries": 1,
+    "subtree_timeout_s": 120.0,
+    "total_timeout_s": 900.0,
+    "snmpbulkwalk_flags": [
+      "-m",
+      "",
+      "-On",
+      "-Oe",
+      "-Ox",
+      "-OU"
+    ]
+  },
+  "sanitised": {
+    "enabled": true,
+    "serials": true,
+    "aliases": true,
+    "shared_map": true
+  },
+  "sanitisation_limits": [
+    "IPv4 addresses are replaced only in IpAddress values, LLDP management-address indexes and LLDP chassis/port IDs of subtype networkAddress; IPv4 text inside descriptions is not altered.",
+    "IPv6 addresses are not altered; IPv4 netmasks, loopback, multicast and 0.0.0.0 are kept.",
+    "Addresses embedded in other OID indexes (e.g. ipAddrTable from an --extra-subtree) are not altered.",
+    "sysName, lldpLocSysName, lldpRemSysName and Aruba aiAPName are replaced by exact value; a neighbour that advertises an FQDN where the device reports a short name gets a different placeholder.",
+    "MAC addresses (ifPhysAddress, LLDP chassis IDs, bridge addresses) are not altered.",
+    "sysDescr, lldpRemSysDesc, ifDescr, port descriptions and entPhysical descriptions are not altered.",
+    "Serial numbers (entPhysicalSerialNum, Aruba aiAPSerialNum) are replaced only with --sanitise-serials; ifAlias only with --sanitise-aliases.",
+    "Placeholders are consistent across devices only when the same --sanitise-map file is reused."
+  ],
+  "snmprec_file": "dell-n4064-6.5.4.23.snmprec",
+  "record_count": 21234,
+  "subtrees": [
+    {
+      "name": "system",
+      "oid": "1.3.6.1.2.1.1",
+      "outcome": "ok",
+      "records": 237,
+      "duration_s": 0.024,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "ifTable",
+      "oid": "1.3.6.1.2.1.2.2",
+      "outcome": "ok",
+      "records": 3840,
+      "duration_s": 0.516,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "ifXTable",
+      "oid": "1.3.6.1.2.1.31.1.1",
+      "outcome": "ok",
+      "records": 3608,
+      "duration_s": 0.519,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "ifStackTable",
+      "oid": "1.3.6.1.2.1.31.1.2",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.009,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "dot3StatsDuplexStatus",
+      "oid": "1.3.6.1.2.1.10.7.2.1.19",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "MAU-MIB",
+      "oid": "1.3.6.1.2.1.26",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "entPhysicalTable",
+      "oid": "1.3.6.1.2.1.47.1.1.1",
+      "outcome": "ok",
+      "records": 795,
+      "duration_s": 0.055,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "entAliasMappingTable",
+      "oid": "1.3.6.1.2.1.47.1.3.2",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "dot1dBasePortTable",
+      "oid": "1.3.6.1.2.1.17.1.4",
+      "outcome": "ok",
+      "records": 573,
+      "duration_s": 0.05,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "dot1dStp",
+      "oid": "1.3.6.1.2.1.17.2",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "Q-BRIDGE dot1qBase/Tp/Static/Vlan",
+      "oid": "1.3.6.1.2.1.17.7.1",
+      "outcome": "ok",
+      "records": 1667,
+      "duration_s": 0.32,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "LLDP-MIB objects",
+      "oid": "1.0.8802.1.1.2.1",
+      "outcome": "ok",
+      "records": 3905,
+      "duration_s": 0.346,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "IEEE8023-LAG-MIB",
+      "oid": "1.2.840.10006.300.43",
+      "outcome": "ok",
+      "records": 3207,
+      "duration_s": 0.246,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "POWER-ETHERNET-MIB",
+      "oid": "1.3.6.1.2.1.105",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.173,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "ENTITY-SENSOR-MIB",
+      "oid": "1.3.6.1.2.1.99",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.164,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "IEEE8021-MSTP-MIB",
+      "oid": "1.3.111.2.802.1.1.6",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.2.1.10.7.2",
+      "oid": "1.3.6.1.2.1.10.7.2",
+      "outcome": "ok",
+      "records": 2584,
+      "duration_s": 0.31,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "extra 1.3.6.1.2.1.25.2",
+      "oid": "1.3.6.1.2.1.25.2",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.2.1.25.3.3",
+      "oid": "1.3.6.1.2.1.25.3.3",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.2021.4",
+      "oid": "1.3.6.1.4.1.2021.4",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.2021.10",
+      "oid": "1.3.6.1.4.1.2021.10",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.2021.11",
+      "oid": "1.3.6.1.4.1.2021.11",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.9.6.1.101.1",
+      "oid": "1.3.6.1.4.1.9.6.1.101.1",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.9.6.1.101.53",
+      "oid": "1.3.6.1.4.1.9.6.1.101.53",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.9.6.1.101.83",
+      "oid": "1.3.6.1.4.1.9.6.1.101.83",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.9.6.1.101.108",
+      "oid": "1.3.6.1.4.1.9.6.1.101.108",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.27282.100",
+      "oid": "1.3.6.1.4.1.27282.100",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.674.10895.3000.1.2.100",
+      "oid": "1.3.6.1.4.1.674.10895.3000.1.2.100",
+      "outcome": "ok",
+      "records": 13,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.674.10895.3000.1.2.110",
+      "oid": "1.3.6.1.4.1.674.10895.3000.1.2.110",
+      "outcome": "ok",
+      "records": 51,
+      "duration_s": 0.011,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4",
+      "oid": "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4",
+      "outcome": "ok",
+      "records": 173,
+      "duration_s": 0.054,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43",
+      "oid": "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43",
+      "outcome": "ok",
+      "records": 581,
+      "duration_s": 0.05,
+      "partial": false,
+      "skipped_values": 0,
+      "message": ""
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.1.7",
+      "oid": "1.3.6.1.4.1.89.1.7",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.1.8",
+      "oid": "1.3.6.1.4.1.89.1.8",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.1.9",
+      "oid": "1.3.6.1.4.1.89.1.9",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.008,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.53",
+      "oid": "1.3.6.1.4.1.89.53",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.83",
+      "oid": "1.3.6.1.4.1.89.83",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    },
+    {
+      "name": "extra 1.3.6.1.4.1.89.108",
+      "oid": "1.3.6.1.4.1.89.108",
+      "outcome": "no-such-object",
+      "records": 0,
+      "duration_s": 0.007,
+      "partial": false,
+      "skipped_values": 0,
+      "message": "agent returned no instances in this subtree"
+    }
+  ],
+  "anonymised": {
+    "tool": "tools/qualification/anonymise.py",
+    "version": 1,
+    "uptime_ticks": 60480000,
+    "rules": [
+      "mac-addresses",
+      "vendor-host-names",
+      "serial-numbers-and-service-tags",
+      "vlan-names",
+      "poe-labels",
+      "neighbour-lldp-details",
+      "end-device-mac-tables-dropped",
+      "time-ticks",
+      "manifest-net-snmp-version-dropped"
+    ]
+  }
+}

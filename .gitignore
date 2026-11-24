@@ -9,3 +9,17 @@ test-results/
 playwright-report/
 .env
 *.egg-info/
+
+# Inventory tool output (tools/inventory): real host, site and proxy names
+inventory-*.csv
+# capture_walk.py output staged for review; only reviewed evidence is committed, under tests/fixtures/qualification/
+captures/
+# Pre-2.0.0 layered drafts, kept locally as reference while their walk-verified parts move into the flat-template
+# generator (templates/generate_snmp.py). They hold estate-specific values and are never published.
+templates/model_specific/
+ne-walks/
+# MIB modules stay local: they are the vendors' and the IETF's copyright. tools/mib/collect_mibs.py rebuilds the
+# folder from the Observium CE archive and SHA256SUMS checks it; only those two files are published.
+mib/*
+!mib/README.md
+!mib/SHA256SUMS

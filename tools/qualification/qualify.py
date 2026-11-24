@@ -4,7 +4,9 @@
 Stdlib only (Python 3.10+); ``classify`` also needs Node.js, because it replays a walk through the same native
 template normalisers Zabbix runs (``tests/js/run_normaliser.cjs``). Nothing here talks to a device or to Zabbix.
 
-  qualify.py [--product P] classify <file.snmprec>       per-dataset outcome of the native normalisers, as JSON
+  qualify.py [--product P] classify [--template T] <file.snmprec>
+                                                        per-dataset outcome of the native normalisers, as JSON;
+                                                        T is the switch template whose producers are replayed
   qualify.py [--product P] check-evidence <evidence-dir> sanitisation and completeness of one evidence directory
   qualify.py [--product P] matrix [--check | --write]    validate the product's matrix.json against its evidence
                                                         and render (or check) its Markdown matrix
@@ -32,20 +34,18 @@ MATRIX_JSON = ROOT / "docs/qualification/matrix.json"
 MATRIX_MD = ROOT / "docs/qualification/MATRIX.md"
 EVIDENCE_ROOT = ROOT / "tests/fixtures/qualification"
 
-# Raw template keys replayed for a classification, and the canonical dataset each produces.
-RAW_KEYS = {
-    "device": "ne.raw.system",
-    "interfaces_state": "ne.raw.if.state",
-    "interfaces_inventory": "ne.raw.if.inventory",
-    "port_capability": "ne.raw.if.capability",
-    "lldp": "ne.raw.lldp",
-    "vlan": "ne.raw.vlan",
-    "stp": "ne.raw.stp",
-    "lag": "ne.raw.lag",
-}
-CAPABILITIES = ("interfaces", "entity", "mau", "lldp", "vlan", "stp", "lag")
+# A classification replays the producers of one switch template (templates/source/datasets.json), the generic one
+# unless the evidence names another, so a vendor template's own producers (hardware, PoE) are judged on its walks.
+SWITCH_MANIFEST = ROOT / "templates/source/datasets.json"
+DEFAULT_TEMPLATE = "ne__generic_switch"
+# Each producer's name in a classification (the dataset, or dataset_variant where a dataset has two producers).
+# Datasets walked in more than one producer: interfaces (status, link and inventory) and PoE (status and power).
+PRODUCER_NAMES = {"interfaces": "interfaces_state", "interfaces.inventory": "interfaces_inventory",
+                  "interfaces.link": "interfaces_link", "poe.power": "poe_power"}
+CAPABILITIES = ("interfaces", "entity", "mau", "lldp", "vlan", "stp", "lag", "hardware", "poe")
 CAPABILITY_LABELS = {"interfaces": "Interfaces", "entity": "ENTITY", "mau": "MAU", "lldp": "LLDP",
-                     "vlan": "VLAN", "stp": "STP", "lag": "LAG"}
+                     "vlan": "VLAN", "stp": "STP", "lag": "LAG", "hardware": "Hardware", "poe": "PoE"}
+SYSTEM_UPTIME = "1.3.6.1.2.1.1.3"
 
 # Wi-Fi Explorer: the Aruba Instant producers (templates/source/wifi/datasets.json) and what each capability means.
 WIFI_RAW_KEYS = {
@@ -74,15 +74,98 @@ LLDP_REM_SYS_NAME = "1.0.8802.1.1.2.1.4.1.1.9"
 ENT_SERIAL = "1.3.6.1.2.1.47.1.1.1.1.11"
 IF_ALIAS = "1.3.6.1.2.1.31.1.1.1.18"
 # LLDP management-address tables: (entry OID, index parts before the address subtype).
-LLDP_MAN_ADDR_ENTRIES = (("1.0.8802.1.1.2.1.3.8.1", 0), ("1.0.8802.1.1.2.1.4.2.1", 3))
+LLDP_MAN_ADDR_ENTRIES = (("1.0.8802.1.1.2.1.3.8.1", 0), ("1.0.8802.1.1.2.1.4.2.1", 3),
+                         ("1.0.8802.1.1.2.1.1.7.1", 0))   # loc, rem and lldpConfigManAddrTable
 ARUBA_AI = "1.3.6.1.4.1.14823.2.3.3.1"
 AI_AP_NAME = ARUBA_AI + ".2.1.1.2"
 AI_AP_SERIAL = ARUBA_AI + ".2.1.1.4"
 DOCUMENTATION_NETS = tuple(ipaddress.IPv4Network(n) for n in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24"))
-MANIFEST_KEYS = {"format", "device_label", "captured_at", "net_snmp_version", "snmp_version", "snmp_security_level",
-                 "walk_options", "sanitised", "sanitisation_limits", "snmprec_file", "record_count", "subtrees"}
+MANIFEST_KEYS = {"format", "device_label", "captured_at", "snmp_version", "snmp_security_level", "walk_options",
+                 "sanitised", "sanitisation_limits", "snmprec_file", "record_count", "subtrees", "anonymised"}
 IPV4_TEXT = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
-MAC_TEXT = re.compile(r"^(?:[0-9a-f]{12})$")
+PRIVATE_NETS = tuple(ipaddress.IPv4Network(n) for n in
+                     ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10", "169.254.0.0/16"))
+
+# --- what public evidence may hold (docs/qualification/README.md); tools/qualification/anonymise.py enforces it ---
+PUBLISHED_UPTIME = 60_480_000   # sysUpTime of anonymised evidence: 7 days in TimeTicks; no TimeTicks value is larger
+LLDP_LOC_CHASSIS_SUBTYPE = "1.0.8802.1.1.2.1.3.1.0"
+LLDP_LOC_CHASSIS_ID = "1.0.8802.1.1.2.1.3.2.0"
+LLDP_LOC_PORT_SUBTYPE = "1.0.8802.1.1.2.1.3.7.1.2."
+LLDP_LOC_PORT_ID = "1.0.8802.1.1.2.1.3.7.1.3."
+LLDP_LOC_PORT_DESC = "1.0.8802.1.1.2.1.3.7.1.4."
+LLDP_REM_CHASSIS_SUBTYPE = "1.0.8802.1.1.2.1.4.1.1.4."
+LLDP_REM_CHASSIS_ID = "1.0.8802.1.1.2.1.4.1.1.5."
+LLDP_REM_PORT_SUBTYPE = "1.0.8802.1.1.2.1.4.1.1.6."
+LLDP_REM_PORT_ID = "1.0.8802.1.1.2.1.4.1.1.7."
+LLDP_REM_PORT_DESC = "1.0.8802.1.1.2.1.4.1.1.8."
+LLDP_REM_SYS_DESC = "1.0.8802.1.1.2.1.4.1.1.10."
+# LLDP-EXT-MED-MIB sits under lldpExtensions.4795; Cisco SB and RADLAN firmware publishes it under lldpExtensions.1.
+_LLDP_MED = ("1.0.8802.1.1.2.1.5.4795.1", "1.0.8802.1.1.2.1.5.1.1")
+# Columns whose MIB defines a revision string: a dotted quad there is a version number, not an address.
+VERSION_COLUMNS = tuple(f"{column}." for column in (
+    "1.3.6.1.2.1.47.1.1.1.1.8", "1.3.6.1.2.1.47.1.1.1.1.9", "1.3.6.1.2.1.47.1.1.1.1.10",      # entPhysical*Rev
+    *(f"{arc}.2.{c}" for arc in _LLDP_MED for c in (2, 3, 4)),                                 # lldpXMedLoc*Rev
+    *(f"{arc}.3.3.1.{c}" for arc in _LLDP_MED for c in (1, 2, 3)),                             # lldpXMedRem*Rev
+    *(f"{base}.53.14.1.{c}" for base in ("1.3.6.1.4.1.9.6.1.101", "1.3.6.1.4.1.89")
+      for c in (2, 3, 4, 17, 18)),                                    # rlPhdUnitGenParam Software/Firmware/Hardware/Cpld/Mcu
+    *(f"{base}.53.4.1.5" for base in ("1.3.6.1.4.1.9.6.1.101", "1.3.6.1.4.1.89")),  # rlPhdStackSofrwareVer
+    "1.3.6.1.4.1.674.10895.3000.1.2.100.4", "1.3.6.1.4.1.674.10895.3000.1.2.100.5",  # Dell productIdentification Version, BuildNumber
+))
+SERIAL_COLUMNS = (   # serial numbers, asset tags and service tags (a value equal to the model name is allowed)
+    *(f"1.3.6.1.4.1.9.6.1.101.53.14.1.{c}." for c in (5, 6, 7)), *(f"1.3.6.1.4.1.89.53.14.1.{c}." for c in (5, 6, 7)),
+    *(f"1.3.6.1.4.1.674.10895.3000.1.2.100.8.1.{c}." for c in (2, 3, 4)),
+    *(f"{arc}.2.{c}.0" for arc in _LLDP_MED for c in (5, 8)), *(f"{arc}.3.3.1.{c}." for arc in _LLDP_MED for c in (4, 7)),
+)
+MODEL_COLUMNS = ("1.3.6.1.2.1.47.1.1.1.1.13.", "1.3.6.1.4.1.9.6.1.101.53.14.1.11.", "1.3.6.1.4.1.89.53.14.1.11.",
+                 *(f"{arc}.2.7.0" for arc in _LLDP_MED))   # Cisco SB fills its service-tag column with the model name
+HOSTNAME_COLUMNS = ("1.3.6.1.4.1.9.6.1.101.1.19.1.3.", "1.3.6.1.4.1.674.10895.3000.1.2.100.7.0")
+VLAN_NAME_COLUMNS = ("1.3.6.1.2.1.17.7.1.4.3.1.1.", "1.0.8802.1.1.2.1.5.32962.1.2.3.1.2.",
+                     "1.0.8802.1.1.2.1.5.32962.1.3.3.1.2.")
+POE_LABEL = "1.3.6.1.2.1.105.1.1.1.9."   # pethPsePortType: a free-text port label
+NEIGHBOUR_TEXT_COLUMNS = (LLDP_REM_SYS_DESC, LLDP_REM_PORT_DESC,
+                          *(f"{arc}.3.3.1.{c}." for arc in _LLDP_MED for c in (1, 2, 3, 5, 6)))
+TLV_COLUMNS = ("1.0.8802.1.1.2.1.4.4.1.4.", "1.0.8802.1.1.2.1.4.3.1.2.")   # lldpRemOrgDefInfo, lldpRemUnknownTLVInfo
+MAC_COLUMNS = (   # always a MAC address
+    "1.3.6.1.2.1.2.2.1.6.", "1.3.6.1.2.1.17.1.1.0",                                   # ifPhysAddress, dot1dBaseBridgeAddress
+    *(f"1.2.840.10006.300.43.1.1.1.1.{c}." for c in (2, 4, 8)),                       # dot3adAgg MAC, actor and partner system
+    *(f"1.2.840.10006.300.43.1.2.1.1.{c}." for c in (3, 8, 9)),                       # dot3adAggPort actor and partner system
+    "1.3.6.1.4.1.9.6.1.101.53.4.1.7.", "1.3.6.1.4.1.89.53.4.1.7.",                    # rlPhdStackMacAddr
+)
+MAC_SUBTYPED = (   # (value column, subtype column, the subtype that means "MAC address")
+    (LLDP_LOC_CHASSIS_ID, LLDP_LOC_CHASSIS_SUBTYPE, "4"), (LLDP_REM_CHASSIS_ID, LLDP_REM_CHASSIS_SUBTYPE, "4"),
+    (LLDP_LOC_PORT_ID, LLDP_LOC_PORT_SUBTYPE, "3"), (LLDP_REM_PORT_ID, LLDP_REM_PORT_SUBTYPE, "3"),
+)
+BRIDGE_ID_COLUMNS = ("1.3.6.1.2.1.17.2.5.0", "1.3.6.1.2.1.17.2.15.1.6.", "1.3.6.1.2.1.17.2.15.1.8.")  # priority + MAC
+END_DEVICE_TABLES = ("1.3.6.1.2.1.17.7.1.2.2.", "1.3.6.1.2.1.17.4.3.")   # dot1qTpFdbTable, dot1dTpFdbTable
+INTERFACE_NAME = re.compile(
+    r"(?i)^(?:(?:gi|te|fo|tw|hu|xg|fa|po|ch|ag|ge|xe|et|vl|lo|em|en|eth|ethernet|gigabitethernet|tengigabitethernet|"
+    r"fortygigabitethernet|twentyfivegige|hundredgige|port-channel|lag|bond|eno|ens|enp|vmnic|mgmt|oob|vlan|loopback|"
+    r"port|unit)\s*\d[\d/.:-]*|\d+(?:[/.]\d+)*)$")
+TEXT_MAC = re.compile(r"(?i)\b[0-9a-f]{2}([:-])(?:[0-9a-f]{2}\1){4}[0-9a-f]{2}\b")
+PLACEHOLDER_MAC = "0200"
+NOT_SERIAL = re.compile(r"(?i)^(?:|none|not available|n/?a|unknown)$")
+
+
+def is_mac_column(oid: str, records: dict) -> bool:
+    if oid.startswith(MAC_COLUMNS) or oid in MAC_COLUMNS:
+        return True
+    for column, subtype_column, mac_subtype in MAC_SUBTYPED:
+        if oid == column or (column.endswith(".") and oid.startswith(column)):
+            index = "" if oid == column else oid[len(column):]
+            return records.get(subtype_column + index, ("", ""))[1] == mac_subtype
+    return False
+
+
+def time_mark_position(arcs: list[str]) -> int | None:
+    """Where a TimeFilter time mark sits in the index of an LLDP remote or Q-BRIDGE current-VLAN row, if any."""
+    if arcs[:8] == ["1", "0", "8802", "1", "1", "2", "1", "4"] and len(arcs) > 11 and arcs[9] == "1":
+        return 11                                     # lldpRem*Table: column . timeMark . port . index ...
+    if (arcs[:8] == ["1", "0", "8802", "1", "1", "2", "1", "5"] and len(arcs) > 14
+            and arcs[9] == "1" and arcs[10] == "3" and arcs[12] == "1"):
+        return 14                                     # lldpX*Rem*Table of every extension
+    if arcs[:12] == ["1", "3", "6", "1", "2", "1", "17", "7", "1", "4", "2", "1"] and len(arcs) > 13:
+        return 13                                     # dot1qVlanCurrentTable
+    return None
 
 
 class UsageError(Exception):
@@ -128,11 +211,47 @@ def dataset_outcome(envelope: dict) -> dict:
 
 
 def capability_from(outcome: dict, need_rows: bool = True) -> str:
-    """ok (rows present), empty (collected, nothing observed), partial, unsupported or failed."""
+    """ok (rows present), empty (collected, nothing observed), partial, unsupported, failed, or not_walked (the
+    capture never walked what the producer reads, so it shows nothing either way)."""
     status = outcome["status"]
     if status == "ok":
         return "ok" if outcome["rows"] or not need_rows else "empty"
-    return status if status in ("partial", "unsupported", "failed") else "failed"
+    return status if status in ("partial", "unsupported", "failed", "not_walked") else "failed"
+
+
+def switch_templates() -> dict[str, dict]:
+    manifest = json.loads(SWITCH_MANIFEST.read_text(encoding="utf-8"))
+    return {p["template"]: p for p in manifest["templates"] if p["template"].startswith("ne_")}
+
+
+def template_producers(template: str) -> dict[str, dict]:
+    """The producers a switch template holds, by classification name (the generator's rule: a producer with a
+    templates list belongs to those templates only)."""
+    profile = switch_templates().get(template)
+    if profile is None:
+        raise UsageError(f"{template} is not a switch template in {SWITCH_MANIFEST.relative_to(ROOT).as_posix()}")
+    producers = {}
+    for entry in json.loads(SWITCH_MANIFEST.read_text(encoding="utf-8"))["datasets"]:
+        if entry["template"] in profile["components"] and template in entry.get("templates", [template]):
+            producer = entry["dataset"] + ("." + entry["variant"] if entry.get("variant") else "")
+            producers[PRODUCER_NAMES.get(producer, entry["dataset"])] = entry
+    return producers
+
+
+def capture_manifest(walk: Path) -> dict | None:
+    """The capture_walk.py manifest beside a captured walk; synthetic walks have none."""
+    path = walk.parent / "manifest.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
+def walked(entry: dict, manifest: dict | None) -> bool:
+    """Whether the capture walked anything the producer reads besides sysUpTime: a capture lists the subtrees it
+    walked, and a subtree the agent did not implement is still walked (its outcome is no-such-object)."""
+    if manifest is None:
+        return True
+    roots = [s["oid"] for s in manifest.get("subtrees", []) if s.get("outcome") in ("ok", "no-such-object")]
+    return any(oid == root or oid.startswith(root + ".") for oid in entry["walk"] if oid != SYSTEM_UPTIME
+               for root in roots)
 
 
 def classify_wifi(walk: Path) -> dict:
@@ -151,26 +270,43 @@ def classify_wifi(walk: Path) -> dict:
     return {"format": "wifi-explorer-classification-1", "system": system, "datasets": datasets, "capabilities": caps}
 
 
-def classify(walk: Path) -> dict:
-    """Replays a walk through every native normaliser and states, per matrix capability, what it shows."""
-    envelopes = {name: run_normaliser(key, walk) for name, key in RAW_KEYS.items()}
-    datasets = {name: dataset_outcome(envelope) for name, envelope in envelopes.items()}
+def classify(walk: Path, template: str = DEFAULT_TEMPLATE) -> dict:
+    """Replays a walk through every producer of a switch template and states, per matrix capability, what it shows.
+    A capability the template does not collect is not_collected."""
+    manifest = capture_manifest(walk)
+    envelopes, datasets = {}, {}
+    for name, entry in template_producers(template).items():
+        if walked(entry, manifest):
+            envelopes[name] = run_normaliser(entry["raw_key"], walk)
+            datasets[name] = dataset_outcome(envelopes[name])
+        else:
+            datasets[name] = {"status": "not_walked", "rows": 0, "errors": [], "warnings": []}
     caps = {}
-    state, inventory = datasets["interfaces_state"], datasets["interfaces_inventory"]
-    worst = [capability_from(state), capability_from(inventory)]
-    caps["interfaces"] = next((s for s in ("failed", "unsupported", "partial", "empty") if s in worst), "ok")
-    placed = [row for row in envelopes["interfaces_inventory"].get("data") or []
+    def worst(names: tuple[str, ...]) -> str:
+        states = [capability_from(datasets[name]) for name in names if name in datasets]
+        return next((s for s in ("failed", "unsupported", "partial", "empty", "not_walked") if s in states), "ok")
+
+    caps["interfaces"] = worst(("interfaces_state", "interfaces_link", "interfaces_inventory"))
+    placed = [row for row in (envelopes.get("interfaces_inventory") or {}).get("data") or []
               if row.get("member") is not None or row.get("slot") is not None]
     # ENTITY-MIB placement is only visible through the inventory rows it places.
     caps["entity"] = ("ok" if placed else "absent") if caps["interfaces"] in ("ok", "partial") else caps["interfaces"]
     caps["mau"] = capability_from(datasets["port_capability"])
-    for name in ("lldp", "vlan", "stp", "lag"):
-        caps[name] = capability_from(datasets[name])
+    for name in ("lldp", "vlan", "stp", "lag", "hardware"):
+        caps[name] = capability_from(datasets[name]) if name in datasets else "not_collected"
+    caps["poe"] = worst(("poe", "poe_power")) if "poe" in datasets else "not_collected"
     records = {oid: (tag, value) for oid, tag, value in read_snmprec(walk)}
     system = {"sys_object_id": records.get(SYS_OBJECT_ID, ("", ""))[1],
               "sys_descr": octets(*records.get(SYS_DESCR, ("4", "")))}
-    return {"format": "network-explorer-classification-1", "system": system, "datasets": datasets,
-            "capabilities": caps}
+    return {"format": "network-explorer-classification-2", "template": template, "system": system,
+            "datasets": datasets, "capabilities": caps}
+
+
+def classify_evidence(evidence: dict, product: str = "network") -> dict:
+    """The classification an evidence directory should hold: its walk replayed through its template's producers."""
+    if product == "network":
+        return classify(walk_path(evidence), evidence.get("template", DEFAULT_TEMPLATE))
+    return PRODUCTS[product]["classify"](walk_path(evidence))
 
 
 # --- products ----------------------------------------------------------------------------------------------------
@@ -231,10 +367,33 @@ def _man_addr_index(oid: str) -> str | None:
     return None
 
 
-def check_walk(records: list[tuple[str, str, str]]) -> tuple[list[str], list[str]]:
-    """Errors: anything identifying that the capture sanitiser should have replaced, or free-text IPv4 it cannot.
-    Warnings: what the sanitiser deliberately keeps (MAC addresses), for the reviewer."""
+def _private(text: str) -> bool:
+    try:
+        return any(ipaddress.IPv4Address(text) in net for net in PRIVATE_NETS)
+    except ValueError:
+        return False
+
+
+def _subtype(records: dict, column: str, oid: str, subtype_column: str) -> str:
+    return records.get(subtype_column + oid[len(column):], ("", ""))[1]
+
+
+def check_walk(records: list[tuple[str, str, str]], reviewed: list[dict] | None = None) -> tuple[list[str], list[str]]:
+    """Errors: anything identifying that capture_walk.py --sanitise or tools/qualification/anonymise.py should have
+    replaced, and free-text IPv4 that neither can (edit it by hand, or acknowledge a reviewed version string)."""
     errors, warnings = [], []
+    by = {oid: (tag, value) for oid, tag, value in records}
+    models = {octets(*by[o]).strip("\x00 ") for o in by if o.startswith(MODEL_COLUMNS) or o in MODEL_COLUMNS} - {""}
+    names = {octets(*by[o]) for o in by if o.startswith(("1.3.6.1.2.1.2.2.1.2.", "1.3.6.1.2.1.31.1.1.1.1."))}
+    acknowledged = {}
+    for item in reviewed or []:
+        oid, address = str(item.get("oid", "")).lstrip("."), str(item.get("value", ""))
+        if not item.get("reason") or not oid or not IPV4_TEXT.fullmatch(address):
+            errors.append(f"reviewed_versions entry {item!r} needs an oid, a dotted-quad value and a reason")
+        elif _private(address):
+            errors.append(f"reviewed_versions cannot acknowledge {address} at {oid}: it is in a private address range")
+        else:
+            acknowledged[(oid, address)] = False
     placeholders = [
         (lambda o: o in (SYS_NAME, LLDP_LOC_SYS_NAME) or o.startswith(LLDP_REM_SYS_NAME + "."), r"device-\d{3}", "system name"),
         (lambda o: o.startswith(AI_AP_NAME + "."), r"device-\d{3}", "AP name"),
@@ -243,28 +402,84 @@ def check_walk(records: list[tuple[str, str, str]]) -> tuple[list[str], list[str
         (lambda o: o == SYS_CONTACT, r"contact-redacted", "sysContact"),
         (lambda o: o.startswith(ENT_SERIAL + "."), r"SERIAL-\d{4}", "serial number"),
         (lambda o: o.startswith(IF_ALIAS + "."), r"alias-\d{4}", "ifAlias"),
+        (lambda o: o.startswith(HOSTNAME_COLUMNS) or o in HOSTNAME_COLUMNS, r"device-\d{3}|\d+", "vendor host name"),
+        (lambda o: o.startswith(VLAN_NAME_COLUMNS), r"VLAN\d{4}|(?i:default)", "VLAN name"),
+        (lambda o: o.startswith(POE_LABEL), r"label-\d{3}", "PoE port label"),
+        (lambda o: o.startswith(LLDP_REM_SYS_DESC), r"sysdesc-\d{3}", "neighbour system description"),
+        (lambda o: o.startswith(LLDP_REM_PORT_DESC), r"portdesc-\d{3}", "neighbour port description"),
+        (lambda o: o.startswith(NEIGHBOUR_TEXT_COLUMNS[2:]), r"inventory-\d{3}", "neighbour LLDP-MED inventory"),
     ]
-    macs = 0
+    end_device_rows = 0
     for oid, tag, value in records:
+        if oid.startswith(END_DEVICE_TABLES):
+            end_device_rows += 1
         address = _man_addr_index(oid)
         if address and not _ipv4_ok(address):
             errors.append(f"{oid}: LLDP management-address index holds {address}, not a documentation address")
         if tag == "64" and not _ipv4_ok(value):
             errors.append(f"{oid}: IpAddress {value} is not a documentation address")
+        if tag == "67" and value.isdigit():
+            if oid == "1.3.6.1.2.1.1.3.0" and int(value) != PUBLISHED_UPTIME:
+                errors.append(f"{oid}: sysUpTime is not the anonymised {PUBLISHED_UPTIME}")
+            elif int(value) > PUBLISHED_UPTIME:
+                errors.append(f"{oid}: TimeTicks value is older than the anonymised uptime")
+        if tag == "4x" and is_mac_column(oid, by) and _real_mac(value.lower()):
+            errors.append(f"{oid}: MAC address is not anonymised")
+        if tag == "4x" and oid.startswith(BRIDGE_ID_COLUMNS) and len(value) == 16 and _real_mac(value[4:].lower()):
+            errors.append(f"{oid}: bridge ID holds a MAC address that is not anonymised")
         if tag not in ("4", "4x"):
             continue
         text = octets(tag, value)
+        clean = text.strip("\x00 ")
         for matches, pattern, label in placeholders:
-            if matches(oid) and text and not re.fullmatch(pattern, text):
+            if matches(oid) and clean and not re.fullmatch(pattern, clean):
                 errors.append(f"{oid}: {label} is not a sanitised placeholder")
+        if oid.startswith(SERIAL_COLUMNS) and not (NOT_SERIAL.match(clean) or re.fullmatch(r"SERIAL-\d{4}", clean)
+                                                   or clean in models):
+            errors.append(f"{oid}: serial number, asset tag or service tag is not a placeholder")
+        if oid.startswith(LLDP_REM_CHASSIS_ID) and clean:
+            kind = _subtype(by, LLDP_REM_CHASSIS_ID, oid, LLDP_REM_CHASSIS_SUBTYPE)
+            if kind in ("1", "2", "3", "6", "7") and not re.fullmatch(r"chassis-\d{3}", clean) \
+                    and not (kind == "6" and INTERFACE_NAME.match(clean)):
+                errors.append(f"{oid}: neighbour chassis ID is not a placeholder")
+        if oid.startswith(LLDP_REM_PORT_ID) and clean:
+            kind = _subtype(by, LLDP_REM_PORT_ID, oid, LLDP_REM_PORT_SUBTYPE)
+            if (kind in ("1", "2", "6") or (kind in ("5", "7") and not INTERFACE_NAME.match(clean))) \
+                    and not re.fullmatch(r"port-\d{3}", clean):
+                errors.append(f"{oid}: neighbour port ID is not an interface name or placeholder")
+        if oid.startswith(TLV_COLUMNS) and re.search(r"[\x20-\x7e]{4,}", text) and not re.fullmatch(r"orgdef-\d{3}", clean):
+            errors.append(f"{oid}: neighbour TLV text is not a placeholder")
+        if oid.startswith(LLDP_LOC_PORT_DESC) and clean and clean not in names and not INTERFACE_NAME.match(clean) \
+                and not re.fullmatch(r"portdesc-\d{3}", clean):
+            errors.append(f"{oid}: local port description is not an interface name or placeholder")
+        for found in TEXT_MAC.finditer(text):
+            raw = re.sub(r"[:-]", "", found.group(0)).lower()
+            if _real_mac(raw):
+                errors.append(f"{oid}: free text contains a MAC address that is not anonymised")
         for found in IPV4_TEXT.findall(text):
-            if not _ipv4_ok(found):
+            if _ipv4_ok(found):
+                continue
+            if _private(found):
                 errors.append(f"{oid}: free text contains IPv4 address {found}; edit it by hand")
-        if tag == "4x" and len(value) == 12 and MAC_TEXT.match(value.lower()):
-            macs += 1
-    if macs:
-        warnings.append(f"{macs} six-octet values (MAC addresses) are kept as captured; confirm they may be shared")
+            elif oid.startswith(VERSION_COLUMNS):
+                continue   # a revision column: a version number, not an address
+            elif (oid, found) in acknowledged:
+                acknowledged[(oid, found)] = True
+            else:
+                errors.append(f"{oid}: free text contains IPv4 address {found}; edit it by hand, or list it in"
+                              " reviewed_versions if a reviewer confirmed it is a version string")
+    if end_device_rows:
+        errors.append(f"{end_device_rows} rows of an end-device MAC table (dot1qTpFdbTable/dot1dTpFdbTable) are present")
+    for (oid, address), used in acknowledged.items():
+        if not used:
+            errors.append(f"reviewed_versions acknowledges {address} at {oid}, but the walk has no such value there")
     return errors, warnings
+
+
+def _real_mac(mac: str) -> bool:
+    """A unicast MAC that is not an anonymised 02:00 placeholder (zero and broadcast identify nothing)."""
+    return (len(mac) == 12 and mac not in ("000000000000", "ffffffffffff") and not int(mac[:2], 16) & 1
+            and not mac.startswith(PLACEHOLDER_MAC))
 
 
 def check_evidence(directory: Path, product: str = "network") -> tuple[list[str], list[str]]:
@@ -299,7 +514,9 @@ def check_evidence(directory: Path, product: str = "network") -> tuple[list[str]
                 if sanitised.get(flag) is not True:
                     errors.append(f"capture was not taken with sanitisation '{flag}' (capture_walk.py --sanitise"
                                   " --sanitise-serials --sanitise-aliases)")
-        walk_errors, walk_warnings = check_walk(read_snmprec(walk))
+            if not isinstance(manifest.get("anonymised"), dict) or manifest["anonymised"].get("version", 0) < 1:
+                errors.append("capture was not anonymised (tools/qualification/anonymise.py)")
+        walk_errors, walk_warnings = check_walk(read_snmprec(walk), evidence.get("reviewed_versions"))
         errors += walk_errors
         warnings += walk_warnings
     if kind == "field":
@@ -309,6 +526,13 @@ def check_evidence(directory: Path, product: str = "network") -> tuple[list[str]
                 errors.append(f"field.{key} is required for field evidence")
         if set(field.get("verified", [])) - set(capabilities):
             errors.append(f"field.verified may list only {', '.join(capabilities)}")
+    if product == "network":
+        template = evidence.get("template", DEFAULT_TEMPLATE)
+        if template not in switch_templates():
+            errors.append(f"template {template} is not a switch template")
+        elif isinstance(evidence.get("classification"), dict) and evidence["classification"].get("template") != template:
+            errors.append(f"classification was not replayed through {template}; run qualify.py classify --template"
+                          f" {template} on the walk and store its output")
     if not isinstance(evidence.get("classification"), dict):
         errors.append("classification is missing; run qualify.py classify on the walk and store its output")
     return errors, warnings
@@ -425,6 +649,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="network (switches, the default) or wifi (Wi-Fi Explorer sources)")
     commands = parser.add_subparsers(dest="command", required=True)
     one = commands.add_parser("classify", help="replay a walk through the native normalisers")
+    one.add_argument("--template", default=DEFAULT_TEMPLATE,
+                     help=f"switch template whose producers to replay (network only; default {DEFAULT_TEMPLATE})")
     one.add_argument("walk", type=Path)
     two = commands.add_parser("check-evidence", help="check one evidence directory")
     two.add_argument("directory", type=Path)
@@ -435,7 +661,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "classify":
-            print(json.dumps(PRODUCTS[args.product]["classify"](args.walk), indent=2, sort_keys=True))
+            result = (classify(args.walk, args.template) if args.product == "network"
+                      else PRODUCTS[args.product]["classify"](args.walk))
+            print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         if args.command == "check-evidence":
             errors, warnings = check_evidence(args.directory, args.product)

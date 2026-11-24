@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lab  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILE = "Network Explorer - Generic Switch"
+PROFILE = "ne__generic_switch"
 GROUP = "Network Explorer lab"
 # sw-dist-01 sits in its own group so a restricted viewer can be denied it.
 HIDDEN_GROUP = "Network Explorer lab restricted"
@@ -36,19 +36,21 @@ VIEWER = "ne-lab-viewer"
 SITES = {name: "lab-west" if name == "sw-dist-01" else "lab-east" for name in SWITCHES}
 # Demonstrates both interface triggers: Gi1/0/24 is monitored, Gi1/0/23 should run at 1G but runs at 100M.
 CORE_MACROS = [{"macro": "{$NE.IF.MONITOR:\"Gi1/0/24\"}", "value": "1"},
-               {"macro": "{$NE.IF.EXPECTED_SPEED:\"Gi1/0/23\"}", "value": "1000000000"},
-               {"macro": "{$NE.IF.SPEED.DEGRADED_FOR}", "value": "1m"}]
+               {"macro": "{$NE.IF.EXPECTED_SPEED:\"Gi1/0/23\"}", "value": "1000000000"}]
 
 
 def import_templates(config: dict, token: str) -> None:
-    source = (ROOT / "templates" / "native" / config["version"] / "network_explorer_snmp.yaml").read_text()
     rules = {kind: {"createMissing": True, "updateExisting": True}
              for kind in ("template_groups", "templates", "items", "triggers", "discoveryRules", "valueMaps",
                           "templateLinkage", "templateDashboards")}
     rules["templateLinkage"] = {"createMissing": True}
     rules["templates"] = {"createMissing": True, "updateExisting": True}
-    lab.api_request(config["url"], "configuration.import", {"format": "yaml", "rules": rules, "source": source}, token)
-    print("Imported native SNMP templates.")
+    # One file per switch template; the lab links the generic one.
+    for path in sorted((ROOT / "templates" / "native" / config["version"]).glob("ne_*.yaml")):
+        source = path.read_text(encoding="utf-8")
+        lab.api_request(config["url"], "configuration.import", {"format": "yaml", "rules": rules, "source": source},
+                        token)
+        print(f"Imported {path.name}.")
 
 
 def group_id(config: dict, token: str, name: str) -> str:

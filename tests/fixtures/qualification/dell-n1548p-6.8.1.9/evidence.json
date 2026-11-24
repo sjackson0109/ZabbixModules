@@ -1,0 +1,122 @@
+{
+  "classification": {
+    "capabilities": {
+      "entity": "absent",
+      "hardware": "ok",
+      "interfaces": "ok",
+      "lag": "ok",
+      "lldp": "ok",
+      "mau": "unsupported",
+      "poe": "ok",
+      "stp": "unsupported",
+      "vlan": "ok"
+    },
+    "datasets": {
+      "device": {
+        "errors": [],
+        "rows": 1,
+        "status": "ok",
+        "warnings": []
+      },
+      "hardware": {
+        "errors": [],
+        "rows": 15,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_inventory": {
+        "errors": [],
+        "rows": 118,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_link": {
+        "errors": [],
+        "rows": 118,
+        "status": "ok",
+        "warnings": []
+      },
+      "interfaces_state": {
+        "errors": [],
+        "rows": 118,
+        "status": "ok",
+        "warnings": []
+      },
+      "lag": {
+        "errors": [],
+        "rows": 64,
+        "status": "ok",
+        "warnings": []
+      },
+      "lldp": {
+        "errors": [],
+        "rows": 28,
+        "status": "ok",
+        "warnings": []
+      },
+      "poe": {
+        "errors": [],
+        "rows": 49,
+        "status": "ok",
+        "warnings": []
+      },
+      "poe_power": {
+        "errors": [],
+        "rows": 49,
+        "status": "ok",
+        "warnings": []
+      },
+      "port_capability": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "stp": {
+        "errors": [
+          "unsupported"
+        ],
+        "rows": 0,
+        "status": "unsupported",
+        "warnings": []
+      },
+      "vlan": {
+        "errors": [],
+        "rows": 142,
+        "status": "ok",
+        "warnings": []
+      }
+    },
+    "format": "network-explorer-classification-2",
+    "system": {
+      "sys_descr": "Dell Networking N1548P, 6.8.1.9, Linux 3.6.5, Not Available",
+      "sys_object_id": "1.3.6.1.4.1.674.10895.3066"
+    },
+    "template": "ne_dell_n_series_switch"
+  },
+  "description": "Dell N1548P, 52 ports, firmware 6.8.1.9. Real walk captured 2026-11-20 with capture_walk.py --sanitise --sanitise-serials --sanitise-aliases and anonymised with tools/qualification/anonymise.py (MAC addresses, host names, serials, VLAN names, PoE labels, neighbour LLDP details and uptime; end-device MAC table removed); PoE controller version strings in Cisco SB 101.108.2.1 masked by review.",
+  "device": {
+    "family": "N-Series",
+    "firmware": "6.8.1.9",
+    "model": "N1548P",
+    "vendor": "Dell"
+  },
+  "id": "dell-n1548p-6.8.1.9",
+  "kind": "captured",
+  "reviewed_versions": [
+    {
+      "oid": "1.3.6.1.2.1.1.1.0",
+      "reason": "The device's own firmware version in its system description (sysDescr), matching entPhysicalSoftwareRev; reviewed 2026-11-21.",
+      "value": "6.8.1.9"
+    },
+    {
+      "oid": "1.0.8802.1.1.2.1.3.4.0",
+      "reason": "The device's own firmware version in its system description (lldpLocSysDesc), matching entPhysicalSoftwareRev; reviewed 2026-11-21.",
+      "value": "6.8.1.9"
+    }
+  ],
+  "template": "ne_dell_n_series_switch",
+  "walk": "capture.snmprec"
+}

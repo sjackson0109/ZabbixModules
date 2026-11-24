@@ -5,19 +5,34 @@ namespace Modules\NetworkExplorer\Services;
 final class DatasetReader {
     public const KEYS = [
         'ne.device.snapshot'=>'device', 'ne.interfaces.inventory'=>'interfaces',
-        'ne.interfaces.state'=>'interfaces', 'ne.lldp.snapshot'=>'lldp', 'ne.lag.snapshot'=>'lag',
-        'ne.port_capability.snapshot'=>'port_capability', 'ne.vlan.snapshot'=>'vlan', 'ne.stp.snapshot'=>'stp'
+        'ne.interfaces.state'=>'interfaces', 'ne.interfaces.link'=>'interfaces', 'ne.lldp.snapshot'=>'lldp',
+        'ne.lag.snapshot'=>'lag', 'ne.port_capability.snapshot'=>'port_capability', 'ne.vlan.snapshot'=>'vlan',
+        'ne.stp.snapshot'=>'stp'
     ];
-    // Native templates poll interface inventory and state as separate attempts.
+    // Native templates poll interface inventory, status and link (speed, duplex) as separate attempts.
     private const ATTEMPTS = ['ne.device.attempt'=>'device', 'ne.interfaces.attempt'=>'interfaces',
-        'ne.interfaces.inventory.attempt'=>'interfaces', 'ne.lldp.attempt'=>'lldp', 'ne.lag.attempt'=>'lag',
-        'ne.port_capability.attempt'=>'port_capability', 'ne.vlan.attempt'=>'vlan', 'ne.stp.attempt'=>'stp'];
-    // Matches the native templates' {$NE.<DATASET>.STALE} defaults.
-    private const TTL = ['device'=>172800, 'interfaces'=>180, 'lldp'=>900, 'lag'=>900,
-        'port_capability'=>2700, 'vlan'=>1800, 'stp'=>360];
+        'ne.interfaces.inventory.attempt'=>'interfaces', 'ne.interfaces.link.attempt'=>'interfaces',
+        'ne.lldp.attempt'=>'lldp', 'ne.lag.attempt'=>'lag', 'ne.port_capability.attempt'=>'port_capability',
+        'ne.vlan.attempt'=>'vlan', 'ne.stp.attempt'=>'stp'];
+    /**
+     * The walk (producer) each snapshot and attempt comes from. Its ne.collection.success[<producer>] item is stored at
+     * every complete observation, so its Zabbix timestamp is when a stored-on-change snapshot was last confirmed.
+     */
+    private const PRODUCERS = ['ne.device.snapshot'=>'device', 'ne.device.attempt'=>'device',
+        'ne.interfaces.state'=>'interfaces', 'ne.interfaces.attempt'=>'interfaces',
+        'ne.interfaces.inventory'=>'interfaces.inventory', 'ne.interfaces.inventory.attempt'=>'interfaces.inventory',
+        'ne.interfaces.link'=>'interfaces.link', 'ne.interfaces.link.attempt'=>'interfaces.link',
+        'ne.lldp.snapshot'=>'lldp', 'ne.lldp.attempt'=>'lldp', 'ne.lag.snapshot'=>'lag', 'ne.lag.attempt'=>'lag',
+        'ne.port_capability.snapshot'=>'port_capability', 'ne.port_capability.attempt'=>'port_capability',
+        'ne.vlan.snapshot'=>'vlan', 'ne.vlan.attempt'=>'vlan', 'ne.stp.snapshot'=>'stp', 'ne.stp.attempt'=>'stp'];
+    // Matches the native templates' {$NE.<DATASET>.STALE} defaults (interfaces: the status walk).
+    private const TTL = ['device'=>172800, 'interfaces'=>450, 'lldp'=>2700, 'lag'=>2700,
+        'port_capability'=>64800, 'vlan'=>5400, 'stp'=>900];
     /** Interface attributes owned by the inventory walk, not the state walk. */
     private const INVENTORY_FIELDS = ['description','alias','type','physical','mtu','mac_address','stack_parent_uid',
         'member','slot','port'];
+    /** Interface attributes the native link walk owns; the status walk leaves them null. */
+    private const LINK_FIELDS = ['speed_bps','duplex'];
     /** Always reported; the 1.1 datasets are reported only where a host has their items. */
     private const CORE = ['device','interfaces','lldp','lag'];
     /** A host with any of these is a Network Explorer host; every native template and the collector carry one. */
@@ -40,8 +55,10 @@ final class DatasetReader {
      */
     public function read(array $hosts, array $only = []): array {
         $hostids = array_map('strval', array_keys($hosts));
+        $successKeys = array_map(static fn($key) => 'ne.collection.success['.self::PRODUCERS[$key].']',
+            array_filter($only, static fn($key) => isset(self::PRODUCERS[$key])));
         $items = $hostids ? $this->gateway->items($hostids,
-            $only ? array_values(array_unique(array_merge($only, self::MEMBERSHIP))) : []) : [];
+            $only ? array_values(array_unique(array_merge($only, self::MEMBERSHIP, $successKeys))) : []) : [];
         $wanted = $only ? array_fill_keys($only, true) : null;
         if (count($items) > Limits::ITEMS) {
             throw new \RuntimeException('item_budget_exceeded');
@@ -49,12 +66,20 @@ final class DatasetReader {
         $historyItems = [];
         $scalarItemIds = [];
         $collected = [];
+        $observed = [];
         foreach ($items as $item) {
             if (!isset($hosts[(string) $item['hostid']])) {
                 continue;
             }
             $collected[(string) $item['hostid']] = true;
             $key = (string) $item['key_'];
+            // When each walk last completed: Zabbix's own timestamp of its last complete observation.
+            if (preg_match('/^ne\.collection\.success\[([a-z_.]{1,64})\]$/D', $key, $match)) {
+                if ((int) ($item['lastclock'] ?? 0) > 0) {
+                    $observed[(string) $item['hostid']][$match[1]] = (int) $item['lastclock'];
+                }
+                continue;
+            }
             if ($wanted !== null && !isset($wanted[$key])) {
                 continue;
             }
@@ -81,12 +106,15 @@ final class DatasetReader {
             $latest = null;
             $success = null;
             $error = null;
-            foreach ($history[(string) $item['itemid']] ?? [] as $row) {
+            // The newest stored value has been confirmed by every complete observation since it was stored.
+            $confirmed = $observed[$hostid][self::PRODUCERS[$key] ?? ''] ?? null;
+            foreach (array_values($history[(string) $item['itemid']] ?? []) as $index => $row) {
                 $value = (string) ($row['value'] ?? '');
                 $byteCount += strlen($value);
                 if ($byteCount > Limits::HISTORY_BYTES) {
                     throw new \RuntimeException('response_budget_exceeded');
                 }
+                $value = StoredEnvelope::rehydrate($value, (int) ($row['clock'] ?? 0), $index === 0 ? $confirmed : null);
                 try {
                     $envelope = $this->validator->decode($value, $dataset);
                     if ($latest === null) {
@@ -189,6 +217,7 @@ final class DatasetReader {
         }
         $inventory = $parts['ne.interfaces.inventory'] ?? null;
         $state = $parts['ne.interfaces.state'] ?? null;
+        $link = $parts['ne.interfaces.link'] ?? null;
         $merged = $state ?? $inventory;
         $rows = [];
         foreach (($inventory['data'] ?? []) as $row) {
@@ -198,18 +227,34 @@ final class DatasetReader {
             $rows[$row['uid']] = $row;
         }
         foreach (($state['data'] ?? []) as $row) {
-            // Native state walks leave inventory attributes null; they must not erase the inventory values.
-            if ($inventory !== null) {
-                foreach (self::INVENTORY_FIELDS as $field) {
-                    if (($row[$field] ?? null) === null) {
-                        unset($row[$field]);
-                    }
+            // Native state walks leave inventory attributes null, and since 2.3.0 the link walk's speed and duplex
+            // too; a null must not erase a value another walk reported.
+            foreach (array_merge($inventory !== null ? self::INVENTORY_FIELDS : [], self::LINK_FIELDS) as $field) {
+                if (array_key_exists($field, $row) && $row[$field] === null) {
+                    unset($row[$field]);
                 }
             }
             // Never pair a reused ifIndex with an unrelated UID.
             $rows[$row['uid']] = array_replace($rows[$row['uid']] ?? [], $row);
             $rows[$row['uid']]['_state_present'] = true;
         }
+        // The link walk (every {$NE.IF.LINK.INTERVAL}) owns negotiated speed and duplex.
+        foreach (($link['data'] ?? []) as $row) {
+            if (!isset($rows[$row['uid']])) {
+                continue;
+            }
+            foreach (self::LINK_FIELDS as $field) {
+                if (($row[$field] ?? null) !== null) {
+                    $rows[$row['uid']][$field] = $row[$field];
+                }
+            }
+        }
+        foreach ($rows as &$row) {
+            foreach (self::LINK_FIELDS as $field) {
+                $row[$field] = $row[$field] ?? null;
+            }
+        }
+        unset($row);
         $merged['data'] = array_values($rows);
         if ($inventory !== null) {
             $merged['inventory_observed_at'] = $inventory['observed_at'];

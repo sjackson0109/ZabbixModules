@@ -1,6 +1,6 @@
 # Dell N-Series: production template handoff
 
-Status: **unqualified**; no device fixtures or field evidence are available yet. This file is ready to begin a dedicated implementation thread when access exists.
+Status: **captured-walk tested** for the N1548P (6.8.1.9) and N4064 (6.5.4.23), listed in the [qualification matrix](../../../docs/qualification/MATRIX.md) and served by `ne_dell_n_series_switch`, with hardware health from DNOS-SWITCHING, DNOS-BOXSERVICES and Dell-Vendor ([HARDWARE.md](../HARDWARE.md)). DNOS has no BRIDGE-MIB spanning tree, so STP reports unsupported. Other models and stacks are unqualified. The rest of this file is the original handoff.
 
 ## Scope and profile boundaries
 

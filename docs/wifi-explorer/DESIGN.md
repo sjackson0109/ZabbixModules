@@ -15,11 +15,11 @@ Wi-Fi Explorer does not have its own trust model. It reuses Network Explorer's, 
 | Scope | `NetworkScope::validTagValue()` and the `site` host tag | Site scope for Wi-Fi owners. |
 | Templates | The walk → attempt → gated snapshot item pattern and its stale triggers | `templates/generate_wifi.py`. |
 
-Network Explorer's switch, VLAN and STP interpretation is not duplicated (principle 6). Uplinks, VLAN paths and impact (Phases C–E) read Network Explorer's own model of the site through `NetworkService::buildScope()`, and AP-side LLDP comes from Network Explorer's LLDP producer linked to the AP host, resolved with Network Explorer's `IdentityResolver`.
+Network Explorer's switch, VLAN and STP interpretation is not duplicated (principle 6). Uplinks, VLAN paths and impact (Phases C–E) read Network Explorer's own model of the site through `NetworkService::buildScope()`, and AP-side LLDP comes from Network Explorer's LLDP producer embedded in the AP host's per-AP template, resolved with Network Explorer's `IdentityResolver`.
 
 ## Acquisition owners (sections 20 and 21)
 
-An **owner** is a Zabbix host that carries a Wi-Fi producer. For the generic AP template (`Wi-Fi Explorer - Generic AP`, standard MIBs only) it is one host per AP, a `standalone` owner of exactly that AP, its radios and SSIDs. For Aruba Instant it is one host per cluster, pointed at the floating virtual-controller address, because only the elected VC lists the cluster's APs and radios (see the [Aruba review](ARUBA_TEMPLATE_REVIEW.md)).
+An **owner** is a Zabbix host that carries a Wi-Fi producer. For the generic AP template (`we__generic_access_point`, standard MIBs only) it is one host per AP, a `standalone` owner of exactly that AP, its radios and SSIDs. For Aruba Instant it is one host per cluster, pointed at the floating virtual-controller address, because only the elected VC lists the cluster's APs and radios (see the [Aruba review](ARUBA_TEMPLATE_REVIEW.md)).
 
 - An AP is visible because a readable owner's dataset lists it. Wi-Fi Explorer never assumes an AP is itself a polled SNMP endpoint, and creates no per-AP hosts in Phase A.
 - When two readable owners list the same AP (a cluster linked twice, or a VC move), the owner with the newest complete inventory owns it, the AP is counted once, and an info finding names both sources.
@@ -126,7 +126,7 @@ A viewer only sees the floors, intent and events of the sites they can see, and 
 
 - Overlays: status, band, channel, utilisation, clients, neighbours, retries. Markers show observed values at configured positions. Utilisation, clients and neighbours can also be drawn as a field interpolated between APs (inverse-distance weighting on a 40-cell grid, reach 18% of the plan width), labelled *Interpolated*, with a legend saying the shading is no measurement and not a predictive survey (principle 8). Retry rates are not exposed by AI-AP-MIB, so that overlay says *Not collected*.
 - Channel reuse: pairs of placed APs on the same channel, drawn dashed, and solid where one AP actually hears the other in its RF data.
-- RF neighbours come from a per-AP host with **Wi-Fi Explorer - Aruba Instant AP by SNMP** (the AP's own address), because each AP lists only what it hears. The observing AP is matched by the host's SNMP address, then by host name. Each BSSID is one row with every observer; *heard best by* is proximity evidence, not a location.
+- RF neighbours come from a per-AP host with **Wi-Fi Explorer - Aruba Instant Access Point** (`we_aruba_instant_access_point`, the AP's own address), because each AP lists only what it hears. The observing AP is matched by the host's SNMP address, then by host name. Each BSSID is one row with every observer; *heard best by* is proximity evidence, not a location.
 - Classes: *managed* (a visible radio's BSSID: observed; or the same first five octets: inferred), *known external* (configured), *known neighbour* (the AP says valid or known-interfering), *flagged* (the AP says unsecure, DoS or suspected-unsecure), *unknown*. The AP's own label is kept as evidence. Nothing is called malicious (principle 9).
 
 ### SSIDs and wired uplinks (Phase C, sections 10 and 11)
@@ -135,7 +135,7 @@ A viewer only sees the floors, intent and events of the sites they can see, and 
 - Per expected AP, broadcasting is **inferred**: the SSID is enabled on the AP's cluster (current data), the AP is up, and a radio is up in an expected band. Instant zones can restrict an SSID to some APs and are not visible over SNMP.
 - `UplinkService` finds each AP's switch port from two independent sides:
   - switch side: a switch's LLDP neighbour whose chassis ID (MAC subtype) is the AP's MAC, or whose management address is the AP's address; a system name alone never identifies an AP;
-  - AP side: the AP host's own LLDP (Network Explorer's LLDP producer, linked to the AP host), resolved by Network Explorer's `IdentityResolver` with the same domain rules.
+  - AP side: the AP host's own LLDP (Network Explorer's LLDP producer, embedded in the per-AP template), resolved by Network Explorer's `IdentityResolver` with the same domain rules.
 - States: *confirmed* (both sides agree), *switch only*, *AP only*, *conflicting* (they disagree: warning), *ambiguous* (several ports) and *unresolved* (info, only for APs that are up). The uplink carries the port's link state, VLAN membership and freshness from Network Explorer.
 - Uplinks need a site (Network Explorer's model of that site) and are read only for the views that use them.
 

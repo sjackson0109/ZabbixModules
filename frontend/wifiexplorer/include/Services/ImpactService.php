@@ -17,7 +17,8 @@ use Modules\NetworkExplorer\Services\VlanService;
  *   cannot_assess    the AP's uplink or path is unknown or stops before the element could be ruled out.
  *
  * Client counts are the clients associated now (observed); how many roam to a neighbouring AP is not predicted,
- * so the total is labelled an estimate. PoE is not collected, so whether an AP also loses power is not stated.
+ * so the total is labelled an estimate. Wi-Fi Explorer does not read the switches' PoE data, so whether an AP also
+ * loses power is not stated.
  */
 final class ImpactService {
     private array $hosts = [];

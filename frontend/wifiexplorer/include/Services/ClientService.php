@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Modules\WifiExplorer\Services;
 
+use Modules\NetworkExplorer\Services\StoredEnvelope;
+
 /**
  * Client journey (requirements section 13): the current clients of the visible clusters, a search over what the
  * viewer may already see, and for one selected client its trace (AP, radio, wired uplink, VLAN paths) and a
@@ -127,7 +129,9 @@ final class ClientService {
                 break;
             }
             try {
-                $envelope = $validator->decode($row['value'], 'client');
+                // Each sample's time is its own Zabbix timestamp.
+                $envelope = $validator->decode(StoredEnvelope::rehydrate((string) $row['value'], (int) $row['clock']),
+                    'client');
             }
             catch (\InvalidArgumentException $error) {
                 continue;   // An invalid sample is skipped, not guessed at.

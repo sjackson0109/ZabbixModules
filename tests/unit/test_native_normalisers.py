@@ -70,8 +70,11 @@ def test_interface_identity_matches_the_python_collector():
 
 
 def test_reduced_speed_port_has_evidence_for_amber():
+    # Negotiated speed and duplex are read by the link walk; the status walk leaves them unknown.
+    link = rows(run("ne.raw.if.link", CORE), name="Gi1/0/23")[0]
+    assert (link["speed_bps"], link["duplex"]) == (100_000_000, "half")
     state = rows(run("ne.raw.if.state", CORE), name="Gi1/0/23")[0]
-    assert (state["speed_bps"], state["duplex"]) == (100_000_000, "half")
+    assert (state["speed_bps"], state["duplex"], state["oper_status"]) == (None, None, "up")
     capability = rows(run("ne.raw.if.capability", CORE), uid=uid("Gi1/0/23"))[0]
     assert capability["oper_speed_bps"] == 100_000_000 and capability["oper_duplex"] == "half"
     assert max(capability["partner_advertised_speeds_bps"]) == 1_000_000_000
@@ -179,6 +182,49 @@ def test_idle_lacp_aggregator_lists_ifstack_members(tmp_path):
 def test_switch_without_lag_reports_complete_empty(validator):
     envelope = run("ne.raw.lag", ACCESS)
     assert (envelope["status"], envelope["data"]) == ("ok", [])
+
+
+CAPTURES = ROOT / "tests/fixtures/qualification"
+
+
+def capture(label: str) -> Path:
+    return CAPTURES / label / "capture.snmprec"
+
+
+@pytest.mark.parametrize("label", ["cisco-cbs350-8fp-2g-3.6.0.3", "dell-x1052-3.0.1.9",
+                                   "cisco-cbs220-24p-4g-2.0.2.15", "cisco-sg300-28pp-1.4.11.5"])
+def test_port_attached_to_its_own_index_is_individual(validator, label):
+    # RADLAN agents report every unbundled port as attached to its own ifIndex.
+    envelope = run("ne.raw.lag", capture(label))
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["errors"]) == ("ok", [])
+    assert all(row["member_interface_uids"] == [] for row in envelope["data"])
+
+
+def test_attached_aggregator_is_still_a_member_join():
+    envelope = run("ne.raw.lag", capture("dell-n4064-6.5.4.23"))
+    bundled = [row for row in envelope["data"] if row["member_interface_uids"]]
+    assert envelope["status"] == "ok"
+    assert [(row["name"], row["mode"], len(row["member_interface_uids"])) for row in bundled] == [("Po1", "lacp", 2)]
+
+
+@pytest.mark.parametrize("label, members", [
+    ("cisco-sg350xg-24f-2.5.9.54", []),
+    ("cisco-cbs350-24p-4x-3.6.0.3", ["CBS350-24P-4X Stack Unit 1", "CBS350-24P-4X Stack Unit 2"]),
+])
+def test_empty_stack_slots_are_not_members(label, members):
+    (device,) = run("ne.raw.system", capture(label))["data"]
+    assert [m["member"] for m in device["stack_members"]] == members
+    assert device["model"] is not None and device["serial"] is not None
+
+
+@pytest.mark.parametrize("raw_key", ["ne.raw.system", "ne.raw.if.inventory"])
+def test_crlf_fixture_gives_the_same_walk(tmp_path, raw_key):
+    lf = capture("cisco-sg350-28p-2.5.9.54")
+    crlf = tmp_path / "crlf.snmprec"
+    crlf.write_bytes(lf.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    assert run(raw_key, crlf, "--walk-only") == run(raw_key, lf, "--walk-only")
+    assert "\r" not in run(raw_key, crlf, "--walk-only")
 
 
 def walk_file(tmp_path: Path, raw_key: str, source: Path, transform) -> Path:

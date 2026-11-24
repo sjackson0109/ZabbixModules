@@ -5,7 +5,9 @@
 
 var NE = {};
 NE.SCHEMA = '1.1';
-NE.VERSION = '2.2.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+// Datasets added in schema 1.2 declare it; the 1.1 datasets are unchanged, so their consumers are too.
+NE.SCHEMAS = {hardware: '1.2', poe: '1.2'};
+NE.VERSION = '2.3.0';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
 NE.FAILED = '__NE_COLLECTION_FAILED__';
 NE.UPTIME = '1.3.6.1.2.1.1.3.0';
 
@@ -366,7 +368,7 @@ NE.note = function (list, code, message) {
 NE.envelope = function (dataset, adapter) {
     var now = new Date().toISOString();
     return {
-        schema_version: NE.SCHEMA, dataset: dataset,
+        schema_version: NE.SCHEMAS[dataset] || NE.SCHEMA, dataset: dataset,
         generation_id: dataset + '-' + now.replace(/[^0-9]/g, '') + '-' + Math.floor(Math.random() * 1e9),
         attempted_at: now, observed_at: null, status: 'failed', complete: false,
         source: {method: 'native_snmp', adapter: adapter, version: NE.VERSION},

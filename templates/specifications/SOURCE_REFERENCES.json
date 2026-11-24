@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "purpose": "MIB candidate/index research; no field qualification",
+  "purpose": "MIB candidate/index research and the pinned MIB sources of the vendor producers; no field qualification",
   "sources": [
     {
       "mib": "IF-MIB",
@@ -23,6 +23,41 @@
       "source": "Zabbix official generic SNMP template export conventions",
       "url": "https://github.com/zabbix/zabbix/blob/release/7.0/templates/net/generic_snmp/template_net_generic_snmp.yaml",
       "status": "template graph-prototype/export conventions inspected; runtime import compatibility is a separate lab test"
+    },
+    {
+      "source": "Observium Community Edition MIB folder",
+      "url": "https://www.observium.org/observium-community-latest.tar.gz",
+      "download_sha256": "01f4bec0bb01c49afe07e26f2b3f79d4eeeabf412ce5f15193df4ed7fc77d715",
+      "status": "source of the local mib/ folder (mib/README.md, rebuilt by tools/mib/collect_mibs.py); not bundled, each file's checksum is in mib/SHA256SUMS"
+    },
+    {
+      "mib": "POWER-ETHERNET-MIB",
+      "url": "https://www.rfc-editor.org/rfc/rfc3621",
+      "file": "mib/rfc/POWER-ETHERNET-MIB",
+      "file_sha256": "1e13ba739e18149a51779473a3d9b640e6fd5428edbc919833c8d80f694708bb",
+      "status": "authoritative object semantics for the poe dataset (templates/specifications/POE.md); device exposure captured in tests/fixtures/qualification. Columns 15-17 of the Observium copy are not in RFC 3621 and are not read"
+    },
+    {
+      "mib": "CISCOSB-POE-MIB",
+      "file": "mib/ciscosb/CISCOSB-POE-MIB",
+      "file_sha256": "3f79064944921d2a4628e262c2dec5fbd386a2cf9c354430ff1a769fdc366a9e",
+      "status": "rlPethPsePortOutputPower and rlPethPsePortOperPowerLimit (milliwatts) for the Cisco Small Business PoE producer; captured on SG300, SG350, CBS350, C1200 and C1300"
+    },
+    {
+      "mib": "CISCO-ENVMON-MIB",
+      "file": "mib/cisco/CISCO-ENVMON-MIB",
+      "file_sha256": "7a1ba1f7b2c05a9dbeeadacd14b5f42f0ac32447ce441415550d085aebc47d38",
+      "status": "object assignments for the Cisco Business 220 hardware producer; the CBS220-24P-4G on 2.0.2.15 answers it with no-such-object, so the producer ships disabled (templates/specifications/HARDWARE.md)"
+    },
+    {
+      "source": "Cisco Business 220 Series Smart Switches data sheet",
+      "url": "https://www.cisco.com/c/en/us/products/collateral/switches/business-220-series-smart-switches/datasheet-c78-744915.html",
+      "status": "vendor list of supported MIBs, including POWER-ETHERNET-MIB, IEEE8023-LAG-MIB and CISCO-ENVMON-MIB; a claim, not evidence of what a firmware answers: the CBS220-24P-4G on 2.0.2.15 answers CISCO-ENVMON-MIB with no-such-object"
+    },
+    {
+      "source": "IANA Private Enterprise Numbers",
+      "url": "https://www.iana.org/assignments/enterprise-numbers.txt",
+      "status": "27282 is Realtek Semiconductor Corp.: the enterprise of the CBS220's private OIDs, so it shares no tables with the 350-class CISCOSB firmware"
     }
   ]
 }

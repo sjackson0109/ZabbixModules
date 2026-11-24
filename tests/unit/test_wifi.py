@@ -27,8 +27,8 @@ RAW_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"] if entry["t
 GENERIC_KEYS = [entry["raw_key"] for entry in GEN.manifest()["datasets"] if entry["template"] == "Generic AP"]
 GENERIC = WALKS / "generic-ap.snmprec"
 GENERIC_TRI = WALKS / "generic-ap-tri.snmprec"
-GENERIC_NAME = "Wi-Fi Explorer - Generic AP"
-ARUBA_VC = "Wi-Fi Explorer - Aruba Instant VC by SNMP"
+GENERIC_NAME = "we__generic_access_point"
+ARUBA_VC = "we_aruba_instant_virtual_controller"
 # Cluster datasets need the virtual controller; the per-AP RF dataset answers on any Instant AP.
 VC_ONLY = [e["raw_key"] for e in GEN.manifest()["datasets"]
            if e["template"] == "Aruba Instant VC" and e["dataset"] != "device"]
@@ -139,18 +139,32 @@ def test_other_vendor_is_unsupported(validator, tmp_path):
     assert envelope["errors"][0]["code"] == "not_aruba_instant"
 
 
+def rendered(version: str) -> dict:
+    """The templates as Zabbix reads them from the generated files, one template per file."""
+    return {"templates": [t for text in GEN.render(version).values()
+                          for t in yaml.safe_load(text)["zabbix_export"]["templates"]]}
+
+
 @pytest.mark.parametrize("version", ["7.0", "7.2", "7.4"])
 def test_generated_templates_are_current(version):
-    path = ROOT / "templates/native" / version / "wifi_explorer_snmp.yaml"
-    assert path.read_text() == GEN.render(version)
+    files = GEN.render(version)
+    folder = ROOT / "templates/native" / version
+    # One file per template, named after it, and no stale export beside them.
+    assert sorted(files) == sorted(t["template"] + ".yaml" for t in GEN.manifest()["templates"].values())
+    assert not any((folder / name).exists() for name in GEN.LEGACY_EXPORTS)
+    for name, text in files.items():
+        assert (folder / name).read_text(encoding="utf-8") == text, name
+        export = yaml.safe_load(text)["zabbix_export"]
+        assert export["version"] == version and [g["name"] for g in export["template_groups"]] == [GEN.GROUP]
+        assert [t["template"] + ".yaml" for t in export["templates"]] == [name]
 
 
 def test_templates_carry_no_credentials_token_or_per_client_items():
-    text = GEN.render("7.4").lower()
+    text = "\n".join(GEN.render("7.4").values()).lower()
     for needle in ("community", "{$snmp_community", "api.token", "authpassphrase", "privpassphrase", "password",
                    "discovery_rules", "item_prototypes"):
         assert needle not in text, needle
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    export = rendered("7.4")
     keys = [i["key"] for t in export["templates"] for i in t["items"]]
     assert [k for k in keys if "client" in k] == ["we.raw.aruba.client", "we.normalised[client]", "we.client.attempt",
         "we.client.snapshot", "we.collection.status[client]", "we.collection.success[client]", "we.capacity.clients",
@@ -162,8 +176,11 @@ def test_templates_carry_no_credentials_token_or_per_client_items():
 
 def test_macros_appear_only_where_zabbix_should_expand_them():
     """Zabbix expands user macros anywhere in a JavaScript step, comments and strings included. Only the client
-    normaliser's call may name the client macros, so the secret key can never reach a stored value."""
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    normaliser's call may name the client macros, so the secret key can never reach a stored value. The embedded LLDP
+    normaliser names its own redaction switch, as it does on a switch."""
+    export = rendered("7.4")
+    expected = {"we.normalised[client]": ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"],
+                "ne.normalised[lldp]": ["{$NE.LLDP.REDACT_REMOTE}"]}
     for template in export["templates"]:
         for item in template["items"]:
             for step in item.get("preprocessing", []):
@@ -171,14 +188,13 @@ def test_macros_appear_only_where_zabbix_should_expand_them():
                     continue
                 script = step["parameters"][0]
                 found = sorted(set(re.findall(r"\{\$[A-Z0-9_.]+\}", script)))
-                expected = ["{$WE.CLIENT.IDENTIFIERS}", "{$WE.CLIENT.KEY}"] if item["key"] == "we.normalised[client]" else []
-                assert found == expected, (item["key"], found)
+                assert found == expected.get(item["key"], []), (item["key"], found)
 
 
 @needs_node
 def test_complete_attempts_are_stored_as_receipts(validator):
     """The attempt item keeps every outcome, but a complete success without its rows: they are in the snapshot."""
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    export = rendered("7.4")
     items = {i["key"]: i for t in export["templates"] for i in t["items"]}
     attempt, normalised = items["we.client.attempt"], items["we.normalised[client]"]
     assert attempt["master_item"]["key"] == "we.normalised[client]" and normalised["history"] == "0"
@@ -190,17 +206,21 @@ def test_complete_attempts_are_stored_as_receipts(validator):
          + step + "})(value));"], input=json.dumps(envelope), check=True, capture_output=True, text=True).stdout)
     complete = run("we.raw.aruba.client", VC)
     stored = receipt(complete)
-    validator.validate(stored)
+    # Stored without the times Zabbix already records; the frontend restores them (StoredEnvelope.php).
+    assert stored.pop("timing") == "zabbix" and not {"attempted_at", "observed_at", "generation_id"} & set(stored)
+    times = {k: complete[k] for k in ("attempted_at", "observed_at", "generation_id")}
+    validator.validate(dict(stored, **times))
     assert stored["data"] == [] and stored["data_omitted"] is True and stored["data_rows"] == len(complete["data"]) > 0
-    assert stored["observed_at"] == complete["observed_at"] and stored["warnings"] == complete["warnings"]
+    assert stored["warnings"] == complete["warnings"]
     failed = dict(complete, status="failed", complete=False, observed_at=None, data=[])
-    assert receipt(failed) == failed, "a failed attempt is stored as it is"
+    kept = receipt(failed)
+    assert kept.pop("timing") == "zabbix" and kept == {k: v for k, v in failed.items() if k not in times},         "a failed attempt is stored as it is, without its times"
 
 
 @needs_node
 def test_capacity_items_are_cluster_totals_with_trends():
     """Numeric capacity values come only from complete observations and are never a zero standing in for unknown."""
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    export = rendered("7.4")
     items = {i["key"]: i for t in export["templates"] if t["template"] == ARUBA_VC for i in t["items"]}
     capacity = {k: i for k, i in items.items() if k.startswith("we.capacity.")}
     assert all(i["trends"] == "{$WE.CAPACITY.TRENDS}" and i["value_type"] in ("UNSIGNED", "FLOAT") for i in capacity.values())
@@ -244,8 +264,12 @@ def test_cluster_template_carries_a_host_dashboard_of_builtin_widgets():
 
 def test_template_keys_and_uuids_are_unique():
     """UUIDs are unique across the export; keys within each template, since every vendor template feeds the same
-    canonical keys (they are never linked to the same host)."""
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    canonical keys (they are never linked to the same host). Wi-Fi keys are we.*; the only ne.* keys are the LLDP
+    component a per-AP template embeds, the same keys a switch carries, read the same way by the frontend."""
+    export = rendered("7.4")
+    metas = {m["template"]: m for m in GEN.manifest()["templates"].values()}
+    lldp = {"ne.raw.lldp", "ne.normalised[lldp]", "ne.lldp.attempt", "ne.lldp.snapshot", "ne.collection.status[lldp]",
+            "ne.collection.success[lldp]"}
     uuids = []
     for template in export["templates"]:
         uuids.append(template["uuid"])
@@ -256,8 +280,11 @@ def test_template_keys_and_uuids_are_unique():
             uuids += [t["uuid"] for t in item.get("triggers", [])]
         uuids += [d["uuid"] for d in template.get("dashboards", [])]
         assert len(keys) == len(set(keys)), template["template"]
-        assert all(k.startswith("we.") for k in keys), "Wi-Fi keys never collide with Network Explorer's ne.* keys"
+        embedded = lldp if metas[template["template"]].get("network_explorer") == ["LLDP"] else set()
+        assert {k for k in keys if not k.startswith("we.")} == embedded, template["template"]
     assert len(uuids) == len(set(uuids))
+    assert [m["template"] for m in metas.values() if m.get("network_explorer")] == [
+        "we__generic_access_point", "we_aruba_instant_access_point"], "every per-AP template confirms its uplink"
 
 
 def test_aruba_instant_uuids_are_unchanged_by_the_generic_template():
@@ -276,7 +303,7 @@ def test_snapshot_keys_match_the_frontend_reader():
 
 def test_javascript_is_ecmascript_5_for_duktape():
     dukpy = pytest.importorskip("dukpy")
-    export = yaml.safe_load(GEN.render("7.0"))["zabbix_export"]
+    export = rendered("7.0")
     for template in export["templates"]:
         for item in template["items"]:
             for step in item.get("preprocessing", []):
@@ -413,7 +440,9 @@ def test_generic_template_is_named_like_the_generic_switch_and_reads_standard_mi
     assert list(templates)[0] == GENERIC_NAME, "the generic template comes first, vendor templates complement it"
     walks = [i["snmp_oid"] for i in template["items"] if i["type"] == "SNMP_AGENT"]
     oids = [oid for walk in walks for oid in walk[len("walk["):-1].split(",")]
-    assert oids and all(oid.startswith(("1.3.6.1.2.1.", "1.2.840.10036.")) for oid in oids), "no enterprise MIB"
+    # MIB-2, the IEEE 802.11 MIB and, for the embedded LLDP, LLDP-MIB (IEEE 802.1AB).
+    assert oids and all(oid.startswith(("1.3.6.1.2.1.", "1.2.840.10036.", "1.0.8802.1.1.2.")) for oid in oids), \
+        "no enterprise MIB"
     datasets = {e["dataset"] for e in GEN.manifest()["datasets"] if e["template"] == "Generic AP"}
     assert datasets == {"device", "ap_inventory", "ap_state", "radio_inventory", "radio_state", "ssid"}
     keys = {i["key"] for i in template["items"]}
@@ -499,7 +528,7 @@ def test_generic_ap_without_an_ethernet_mac_is_incomplete_not_empty(validator, t
 
 @needs_node
 def test_generic_capacity_items_count_aps_and_radios_only():
-    export = yaml.safe_load(GEN.render("7.4"))["zabbix_export"]
+    export = rendered("7.4")
     template = next(t for t in export["templates"] if t["template"] == GENERIC_NAME)
     capacity = {i["key"]: i for i in template["items"] if i["key"].startswith("we.capacity.")}
     assert sorted(capacity) == sorted(["we.capacity.aps.up", "we.capacity.aps.down"]

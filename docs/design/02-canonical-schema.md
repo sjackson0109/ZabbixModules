@@ -1,6 +1,6 @@
 # 02 — Canonical schema (Canonical Network Discovery Dataset)
 
-Status: **current 1.1** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/envelope-1.1.schema.json`](../../schemas/envelope-1.1.schema.json), with worked examples in [`schemas/examples/`](../../schemas/examples/) checked by `tests/unit/test_schema_1_1.py`. The native templates emit 1.1. Version 1.0 (`schemas/envelope.schema.json`) is still accepted by the frontend and is what the Python collector emits; 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable.
+Status: **current 1.1** (spec §13–17, §23, §40.2). The machine-readable contract is [`schemas/envelope-1.1.schema.json`](../../schemas/envelope-1.1.schema.json), with worked examples in [`schemas/examples/`](../../schemas/examples/) checked by `tests/unit/test_schema_1_1.py`. The native templates emit 1.1. Version 1.0 (`schemas/envelope.schema.json`) is still accepted by the frontend and is what the Python collector emits; 1.1 only adds datasets and optional fields, so a 1.0 producer stays readable. Schema 1.2 ([`schemas/envelope-1.2.schema.json`](../../schemas/envelope-1.2.schema.json)) adds the `hardware` and `poe` datasets of the vendor and switch templates; only those two declare it, so every 1.1 dataset and its readers are unchanged (section below).
 
 ## Envelope (unchanged from 1.0)
 
@@ -19,6 +19,12 @@ Every dataset is published per Zabbix host as one JSON envelope:
 | `errors` | Coded, credential-free messages. Any error makes the observation `partial`. |
 | `warnings` | Optional, 1.1 only. Row-level problems, such as a duplicate interface name or an `ifNumber` mismatch: the row is skipped or keeps unknown fields, and the dataset stays `ok` and current. A walk with no identifiable interface at all is still an error. |
 | `data` | Rows for the dataset (below) |
+
+## Stored form (native templates, 2.3.0)
+
+Zabbix records when every value was collected, so the native templates store envelopes without the times it already has: no `attempted_at`, `observed_at` or `generation_id`, and `"timing": "zabbix"` to say so. Row times the device reports relative to its own uptime are stored as absolute times rounded to the minute: a device's `uptime_s` as `boot_at`, a spanning-tree bridge's `time_since_topology_change_s` as `topology_changed_at`, a port's `last_change` to the minute; LLDP rows drop their `observed_at`. Readings (hardware `util_*_pct`, `celsius`, `speed`, `free_bytes`) stay in numeric items. The stored JSON is then identical from poll to poll while the device does not change, so `Discard unchanged with heartbeat` keeps it to one value per change and per `{$NE.HEARTBEAT}`.
+
+The readers restore the canonical envelope before validating it ([`StoredEnvelope.php`](../../frontend/networkexplorer/include/Services/StoredEnvelope.php)): `attempted_at` and `observed_at` from the stored value's Zabbix clock or, for the newest complete one, from the clock of the walk's `ne.collection.success[<producer>]` item, which is stored at every complete observation; `uptime_s` and `time_since_topology_change_s` from the stored absolute times; an LLDP row's `observed_at` from its envelope's. Envelopes from the collector, the lab and earlier templates carry their own times and are read unchanged. The canonical schemas are unchanged.
 
 ## Freshness (spec §23)
 
@@ -140,6 +146,15 @@ Role and state are separate enums (spec §29). A derived role is labelled as suc
 | member interfaces | `member_interface_uids[]` plus `members[]` (new) with `selected`, `collecting`, `distributing` |
 | operational state | `oper_status` |
 | peer relationship | `actor_system_id`, `partner_system_id`; links grouped at read time from LLDP on member ports |
+
+## Schema 1.2: hardware and PoE
+
+Two datasets added in 1.2 declare `schema_version` `1.2`; the envelope is the same. The frontend does not read them yet: Zabbix items, discovery and triggers built from their snapshots carry them.
+
+| Dataset | Rows | Specification |
+|---|---|---|
+| `hardware` | `kind` `global`, `cpu`, `memory`, `fan`, `psu` or `temperature`; `uid` from the table index; `unit` (stack unit or null); `state` as the device judges it, with `raw_state`; kind-specific readings (utilisation, bytes, speed, supply source, `celsius` with the device's own `warning_c`, `critical_c` or `shutdown_c`) | [HARDWARE.md](../../templates/specifications/HARDWARE.md) |
+| `poe` | `kind` `pse` (one per PSE group: `power_w`, `consumption_w`, `usage_threshold_pct`, `util_pct`, `port_count`) or `port` (one per PSE port: detection `state`, `admin_enabled`, `power_class`, `priority`, the RFC 3621 counters, `if_index` and `interface_uid` where the template can map the port, `power_mw` and `power_limit_mw` from a vendor table) | [POE.md](../../templates/specifications/POE.md) |
 
 ## Size limits
 

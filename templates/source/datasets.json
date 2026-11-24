@@ -1,5 +1,45 @@
 {
-  "comment": "Single source for the native SNMP producers: the template generator and the Node tests both read this file. Each raw walk includes the join columns its normaliser needs.",
+  "comment": "Single source for the native SNMP templates and producers: the template generator, the Node tests and qualify.py read this file. Each raw walk includes the join columns its normaliser needs. A producer with a templates list belongs to those templates only; one without belongs to every template that has its component.",
+  "templates": [
+    {
+      "template": "ne__generic_switch", "name": "Network Explorer - Generic Switch",
+      "scope": "Network Explorer - Generic standard MIB",
+      "comment": "The double underscore sorts this template and its file first. Its visible name is unchanged from 2.1.0. scope keeps the UUIDs it had as \"Network Explorer - Generic standard MIB\" (2.0.0) and \"Network Explorer - Generic Switch\" (2.1.0, 2.2.0), so importing over either renames the template in place and keeps its items, history and host links.",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "PoE"], "dashboard": true,
+      "description": "Link this one template to a switch that has an SNMP interface. It collects every standard-MIB dataset; datasets the device lacks report unsupported without affecting the others. Its host dashboard (Ports, Topology, Findings) needs the Network Explorer widget modules enabled; until then its widgets show as inaccessible."
+    },
+    {
+      "template": "ne_cisco_small_business_switch", "name": "Network Explorer - Cisco Small Business Switch",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco Small Business or Catalyst 1200/1300 switch on the 350-class firmware: SG350, SG350X, SG350XG, CBS350, C1200 and C1300. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs: CPU, temperature against the unit's own thresholds, and fans and power supplies per stack unit. Its PoE ports are named after their interfaces and report the power each one delivers (CISCOSB-POE-MIB). Port capability is included but disabled, because these models do not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    },
+    {
+      "template": "ne_cisco_sg300_switch", "name": "Network Explorer - Cisco SG300 Switch",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco SG300 switch on firmware 1.4. It collects everything the Generic Switch does, plus hardware health from the CISCOSB MIBs in their older 14-column layout: CPU, temperature, fans and power supplies. Its PoE ports are named after their interfaces and report the power each one delivers (CISCOSB-POE-MIB). Port capability is included but disabled, because the SG300 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    },
+    {
+      "template": "ne_cisco_cbs220_switch", "name": "Network Explorer - Cisco CBS220 Switch",
+      "comment": "The CBS220 runs Realtek-based firmware (its private OIDs sit under enterprise 27282), not the 350-class CISCOSB MIBs, so it has its own template. Hardware Health reads CISCO-ENVMON-MIB, which Cisco's data sheet lists, but the CBS220-24P-4G on 2.0.2.15 answers it with no-such-object, so it ships disabled: a frame of reference for firmware that does answer it.",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability", "Hardware Health"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Cisco Business 220 (CBS220) smart switch. It collects everything the Generic Switch does, with its PoE ports named after their interfaces. Hardware health (temperature, fans and power supplies from CISCO-ENVMON-MIB, which Cisco's data sheet lists for the series) is included but disabled: firmware 2.0.2.15 does not answer that MIB. Enable it only on a switch whose firmware does. Port capability is included but disabled, because the CBS220 does not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    },
+    {
+      "template": "ne_dell_n_series_switch", "name": "Network Explorer - Dell N Series Switch",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Dell Networking N-Series switch on DNOS 6. The N1548P and N4064 have been tested; other N-Series models use the same MIBs but are unqualified. It collects everything the Generic Switch does, plus hardware health from the DNOS and Dell-Vendor MIBs: overall status, CPU, memory, and fans, power supplies and temperature sensors per stack unit. Its PoE ports are named after their interfaces. Port capability is included but disabled, because these models do not implement MAU-MIB. Spanning tree reports unsupported: DNOS has no BRIDGE-MIB spanning tree. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    },
+    {
+      "template": "ne_dell_x_series_switch", "name": "Network Explorer - Dell X Series Switch",
+      "components": ["Base", "Interfaces", "Port Capability", "LLDP", "VLAN", "STP", "LAG", "Hardware Health", "PoE"],
+      "disabled": ["Port Capability"], "dashboard": true,
+      "description": "Link this one template, instead of the Generic Switch, to a Dell Networking X-Series switch (RADLAN-based firmware). The X1052 has been tested; other X-Series models use the same MIBs but are unqualified. It collects everything the Generic Switch does, plus hardware health from the RADLAN and Dell-Vendor MIBs: overall status, CPU, temperature, fans and power supplies. Port capability is included but disabled, because these models do not implement MAU-MIB. The qualification matrix (docs/qualification/MATRIX.md) lists the models and firmware this has been tested on."
+    }
+  ],
   "datasets": [
     {
       "dataset": "device", "template": "Base", "script": "device.js", "call": "normaliseDevice(w, e)",
@@ -12,10 +52,18 @@
     {
       "dataset": "interfaces", "template": "Interfaces", "script": "interfaces.js", "call": "normaliseInterfaces(w, e)",
       "adapter": "standard-if-state", "raw_key": "ne.raw.if.state", "attempt_key": "ne.interfaces.attempt",
-      "snapshot_keys": ["ne.interfaces.state"], "interval_macro": "{$NE.IF.STATE.INTERVAL}", "interval": "1m", "stale": "5m",
-      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.1", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.5", "1.3.6.1.2.1.2.2.1.7",
-               "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.2.2.1.9", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.15",
-               "1.3.6.1.2.1.10.7.2.1.19"]
+      "snapshot_keys": ["ne.interfaces.state"], "interval_macro": "{$NE.IF.STATE.INTERVAL}", "interval": "150s", "stale": "450s",
+      "comment": "Link up/down, admin state and last change: what port alerts and the Ports panel need promptly. Names identify the rows.",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.1", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.7",
+               "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.2.2.1.9", "1.3.6.1.2.1.31.1.1.1.1"]
+    },
+    {
+      "dataset": "interfaces", "variant": "link", "template": "Interfaces", "script": "interfaces.js", "call": "normaliseInterfaces(w, e)",
+      "adapter": "standard-if-link", "raw_key": "ne.raw.if.link", "attempt_key": "ne.interfaces.link.attempt",
+      "snapshot_keys": ["ne.interfaces.link"], "interval_macro": "{$NE.IF.LINK.INTERVAL}", "interval": "15m", "stale": "45m",
+      "comment": "Negotiated speed and duplex change only when a link renegotiates, so they are walked less often than status.",
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.1", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.5",
+               "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.15", "1.3.6.1.2.1.10.7.2.1.19"]
     },
     {
       "dataset": "interfaces", "variant": "inventory", "template": "Interfaces", "script": "interfaces.js", "call": "normaliseInterfaces(w, e)",
@@ -31,14 +79,14 @@
     {
       "dataset": "port_capability", "template": "Port Capability", "script": "port_capability.js", "call": "normalisePortCapability(w, e)",
       "adapter": "standard-mau", "raw_key": "ne.raw.if.capability", "attempt_key": "ne.port_capability.attempt",
-      "snapshot_keys": ["ne.port_capability.snapshot"], "interval_macro": "{$NE.PORT_CAPABILITY.INTERVAL}", "interval": "15m", "stale": "45m",
+      "snapshot_keys": ["ne.port_capability.snapshot"], "interval_macro": "{$NE.PORT_CAPABILITY.INTERVAL}", "interval": "6h", "stale": "18h",
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.26.2.1.1.3",
                "1.3.6.1.2.1.26.2.1.1.13", "1.3.6.1.2.1.26.5.1.1.1", "1.3.6.1.2.1.26.5.1.1.10", "1.3.6.1.2.1.26.5.1.1.11"]
     },
     {
       "dataset": "lldp", "template": "LLDP", "script": "lldp.js", "call": "normaliseLldp(w, e, '{$NE.LLDP.REDACT_REMOTE}' === '1')",
       "adapter": "standard-lldp", "raw_key": "ne.raw.lldp", "attempt_key": "ne.lldp.attempt",
-      "snapshot_keys": ["ne.lldp.snapshot"], "interval_macro": "{$NE.LLDP.INTERVAL}", "interval": "5m", "stale": "15m",
+      "snapshot_keys": ["ne.lldp.snapshot"], "interval_macro": "{$NE.LLDP.INTERVAL}", "interval": "15m", "stale": "45m",
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18",
                "1.0.8802.1.1.2.1.3.7.1", "1.0.8802.1.1.2.1.4.1.1", "1.0.8802.1.1.2.1.4.2.1.3",
                "1.0.8802.1.1.2.1.5.4623.1.3.1.1", "1.0.8802.1.1.2.1.5.4623.1.3.3.1", "1.0.8802.1.1.2.1.5.32962.1.3.1.1.1"]
@@ -46,7 +94,7 @@
     {
       "dataset": "vlan", "template": "VLAN", "script": "vlan.js", "call": "normaliseVlan(w, e)",
       "adapter": "standard-q-bridge", "raw_key": "ne.raw.vlan", "attempt_key": "ne.vlan.attempt",
-      "snapshot_keys": ["ne.vlan.snapshot"], "interval_macro": "{$NE.VLAN.INTERVAL}", "interval": "10m", "stale": "30m",
+      "snapshot_keys": ["ne.vlan.snapshot"], "interval_macro": "{$NE.VLAN.INTERVAL}", "interval": "30m", "stale": "90m",
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.17.1.4.1.2",
                "1.3.6.1.2.1.17.7.1.4.3.1", "1.3.6.1.2.1.17.7.1.4.2.1.4", "1.3.6.1.2.1.17.7.1.4.2.1.5",
                "1.3.6.1.2.1.17.7.1.4.2.1.6", "1.3.6.1.2.1.17.7.1.4.5.1.1", "1.3.6.1.2.1.17.7.1.4.5.1.2"]
@@ -54,18 +102,119 @@
     {
       "dataset": "stp", "template": "STP", "script": "stp.js", "call": "normaliseStp(w, e)",
       "adapter": "standard-bridge-rstp", "raw_key": "ne.raw.stp", "attempt_key": "ne.stp.attempt",
-      "snapshot_keys": ["ne.stp.snapshot"], "interval_macro": "{$NE.STP.INTERVAL}", "interval": "2m", "stale": "6m",
+      "snapshot_keys": ["ne.stp.snapshot"], "interval_macro": "{$NE.STP.INTERVAL}", "interval": "5m", "stale": "15m",
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.17.1.1",
                "1.3.6.1.2.1.17.1.4.1.2", "1.3.6.1.2.1.17.2"]
     },
     {
       "dataset": "lag", "template": "LAG", "script": "lag.js", "call": "normaliseLag(w, e)",
       "adapter": "standard-ieee8023-lag", "raw_key": "ne.raw.lag", "attempt_key": "ne.lag.attempt",
-      "snapshot_keys": ["ne.lag.snapshot"], "interval_macro": "{$NE.LAG.INTERVAL}", "interval": "5m", "stale": "15m",
+      "snapshot_keys": ["ne.lag.snapshot"], "interval_macro": "{$NE.LAG.INTERVAL}", "interval": "15m", "stale": "45m",
       "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.3", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1",
                "1.3.6.1.2.1.31.1.2.1.3", "1.2.840.10006.300.43.1.1.1.1.4", "1.2.840.10006.300.43.1.1.1.1.5",
                "1.2.840.10006.300.43.1.1.1.1.8", "1.2.840.10006.300.43.1.2.1.1.12", "1.2.840.10006.300.43.1.2.1.1.13",
                "1.2.840.10006.300.43.1.2.1.1.17", "1.2.840.10006.300.43.1.2.1.1.21"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_cisco_small_business_switch"],
+      "scripts": ["lib.js", "hw.js", "radlan.js"], "call": "normaliseRadlanHardware(w, e, RADLAN.CISCOSB, '24', false)",
+      "adapter": "ciscosb-hardware-24", "raw_key": "ne.raw.hw.ciscosb", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["cpu", "fan", "fan_speed", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.9.6.1.101.1.6", "1.3.6.1.4.1.9.6.1.101.1.7", "1.3.6.1.4.1.9.6.1.101.1.8",
+               "1.3.6.1.4.1.9.6.1.101.1.9", "1.3.6.1.4.1.9.6.1.101.53.15.1", "1.3.6.1.4.1.9.6.1.101.83.1.1.1",
+               "1.3.6.1.4.1.9.6.1.101.83.1.2.1"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_cisco_sg300_switch"],
+      "scripts": ["lib.js", "hw.js", "radlan.js"], "call": "normaliseRadlanHardware(w, e, RADLAN.CISCOSB, '14', false)",
+      "adapter": "ciscosb-hardware-14", "raw_key": "ne.raw.hw.ciscosb.v1", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["cpu", "fan", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.9.6.1.101.1.6", "1.3.6.1.4.1.9.6.1.101.1.7", "1.3.6.1.4.1.9.6.1.101.1.8",
+               "1.3.6.1.4.1.9.6.1.101.1.9", "1.3.6.1.4.1.9.6.1.101.53.15.1", "1.3.6.1.4.1.9.6.1.101.83.1.1.1",
+               "1.3.6.1.4.1.9.6.1.101.83.1.2.1"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_dell_n_series_switch"],
+      "scripts": ["lib.js", "hw.js", "dnos6.js"], "call": "normaliseDnosHardware(w, e)",
+      "adapter": "dnos6-hardware", "raw_key": "ne.raw.hw.dnos6", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["global", "cpu", "memory", "fan", "fan_speed", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4.1", "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4.2",
+               "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4.10", "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4.11",
+               "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.1.1.4.12", "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43.1.6.1",
+               "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43.1.7.1", "1.3.6.1.4.1.674.10895.5000.2.6132.1.1.43.1.8.1",
+               "1.3.6.1.4.1.674.10895.3000.1.2.110.1"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_dell_x_series_switch"],
+      "scripts": ["lib.js", "hw.js", "radlan.js"], "call": "normaliseRadlanHardware(w, e, RADLAN.RADLAN, '14', true)",
+      "adapter": "dellx-hardware-14", "raw_key": "ne.raw.hw.dellx", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["global", "cpu", "fan", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.89.1.6", "1.3.6.1.4.1.89.1.7", "1.3.6.1.4.1.89.1.8", "1.3.6.1.4.1.89.1.9",
+               "1.3.6.1.4.1.89.53.15.1", "1.3.6.1.4.1.89.83.1.1.1", "1.3.6.1.4.1.89.83.1.2.1",
+               "1.3.6.1.4.1.674.10895.3000.1.2.110.1"]
+    },
+    {
+      "dataset": "hardware", "template": "Hardware Health", "templates": ["ne_cisco_cbs220_switch"],
+      "scripts": ["lib.js", "hw.js", "envmon.js"], "call": "normaliseEnvmonHardware(w, e)",
+      "adapter": "cisco-envmon-hardware", "raw_key": "ne.raw.hw.envmon", "attempt_key": "ne.hardware.attempt",
+      "snapshot_keys": ["ne.hardware.snapshot"], "interval_macro": "{$NE.HARDWARE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["fan", "psu", "temperature"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.4.1.9.9.13.1.3.1.2", "1.3.6.1.4.1.9.9.13.1.3.1.3", "1.3.6.1.4.1.9.9.13.1.3.1.4",
+               "1.3.6.1.4.1.9.9.13.1.3.1.6", "1.3.6.1.4.1.9.9.13.1.3.1.7", "1.3.6.1.4.1.9.9.13.1.4.1.2",
+               "1.3.6.1.4.1.9.9.13.1.4.1.3", "1.3.6.1.4.1.9.9.13.1.5.1.2", "1.3.6.1.4.1.9.9.13.1.5.1.3",
+               "1.3.6.1.4.1.9.9.13.1.5.1.4"]
+    },
+    {
+      "dataset": "poe", "template": "PoE", "templates": ["ne__generic_switch", "ne_dell_x_series_switch"],
+      "comment": "RFC 3621 does not map a PSE port to an interface, so these ports are named by group and port.",
+      "script": "poe.js", "call": "normalisePoe(w, e, null, null)",
+      "adapter": "standard-poe", "raw_key": "ne.raw.poe", "attempt_key": "ne.poe.attempt",
+      "snapshot_keys": ["ne.poe.snapshot"], "interval_macro": "{$NE.POE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["pse", "port"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.1.1.7",
+               "1.3.6.1.2.1.105.1.1.1.8", "1.3.6.1.2.1.105.1.1.1.10", "1.3.6.1.2.1.105.1.1.1.11", "1.3.6.1.2.1.105.1.1.1.12",
+               "1.3.6.1.2.1.105.1.1.1.13", "1.3.6.1.2.1.105.1.1.1.14", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.5"]
+    },
+    {
+      "dataset": "poe", "template": "PoE",
+      "templates": ["ne_dell_n_series_switch", "ne_cisco_cbs220_switch", "ne_cisco_small_business_switch", "ne_cisco_sg300_switch"],
+      "comment": "Captures of these families number each PSE port by its ifIndex, so each port joins to its interface.",
+      "script": "poe.js", "call": "normalisePoe(w, e, 'ifindex', null)",
+      "adapter": "standard-poe-ifindex", "raw_key": "ne.raw.poe.ifindex", "attempt_key": "ne.poe.attempt",
+      "snapshot_keys": ["ne.poe.snapshot"], "interval_macro": "{$NE.POE.INTERVAL}", "interval": "5m", "stale": "15m",
+      "provides": ["pse", "port"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.31.1.1.1.1",
+               "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.1.1.7",
+               "1.3.6.1.2.1.105.1.1.1.8", "1.3.6.1.2.1.105.1.1.1.10", "1.3.6.1.2.1.105.1.1.1.11", "1.3.6.1.2.1.105.1.1.1.12",
+               "1.3.6.1.2.1.105.1.1.1.13", "1.3.6.1.2.1.105.1.1.1.14", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.5"]
+    },
+    {
+      "dataset": "poe", "variant": "power", "template": "PoE",
+      "templates": ["ne__generic_switch", "ne_dell_x_series_switch", "ne_dell_n_series_switch", "ne_cisco_cbs220_switch"],
+      "comment": "Unit consumption against its budget, every 15 minutes. Port enable and detection status list the ports; their readings are numeric items only, so no snapshot is stored.",
+      "script": "poe.js", "call": "normalisePoe(w, e, null, null)",
+      "adapter": "standard-poe-power", "raw_key": "ne.raw.poe.power", "attempt_key": "ne.poe.power.attempt",
+      "snapshot_keys": [], "interval_macro": "{$NE.POE.POWER.INTERVAL}", "interval": "15m", "stale": "45m",
+      "provides": ["pse_power"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.4"]
+    },
+    {
+      "dataset": "poe", "variant": "power", "template": "PoE", "templates": ["ne_cisco_small_business_switch", "ne_cisco_sg300_switch"],
+      "comment": "As the standard power walk, plus rlPethPsePortTable for the power each port delivers (milliwatts).",
+      "script": "poe.js", "call": "normalisePoe(w, e, null, 'ciscosb')",
+      "adapter": "ciscosb-poe-power", "raw_key": "ne.raw.poe.power.ciscosb", "attempt_key": "ne.poe.power.attempt",
+      "snapshot_keys": [], "interval_macro": "{$NE.POE.POWER.INTERVAL}", "interval": "15m", "stale": "45m",
+      "provides": ["pse_power", "port_power"],
+      "walk": ["1.3.6.1.2.1.1.3", "1.3.6.1.2.1.105.1.1.1.3", "1.3.6.1.2.1.105.1.1.1.6", "1.3.6.1.2.1.105.1.3.1.1.2",
+               "1.3.6.1.2.1.105.1.3.1.1.3", "1.3.6.1.2.1.105.1.3.1.1.4",
+               "1.3.6.1.4.1.9.6.1.101.108.1.1.5", "1.3.6.1.4.1.9.6.1.101.108.1.1.9"]
     }
   ]
 }

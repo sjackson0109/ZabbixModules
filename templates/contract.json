@@ -1,6 +1,12 @@
 {
   "format_version": "1.0",
-  "status": "production implementation specification; no field-qualified vendor profiles",
+  "status": "earlier implementation specification (schema 1.0), written before device walks were available and kept as the design reference; it is not maintained with the templates",
+  "superseded_by": {
+    "templates_and_producers": "templates/source/datasets.json",
+    "specifications": "templates/specifications/ (CONTRACT.md, HARDWARE.md, POE.md and the dataset files)",
+    "canonical_datasets": "schemas/ (envelope 1.1 and 1.2)",
+    "qualification": "docs/qualification/MATRIX.md"
+  },
   "supported_target_versions": [
     "7.0",
     "7.2",

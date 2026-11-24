@@ -17,7 +17,7 @@ The [requirements](REQUIREMENTS.md) define seven phases (section 36). Phase A la
 Delivered:
 
 - `wifi-1.0` envelope schema with five datasets: `device`, `ap_inventory`, `ap_state`, `radio_inventory`, `radio_state`.
-- Aruba Instant producer: AI-AP-MIB normalisers and the generated template *Wi-Fi Explorer - Aruba Instant VC by SNMP* for 7.0, 7.2 and 7.4.
+- Aruba Instant producer: AI-AP-MIB normalisers and the generated template *Wi-Fi Explorer - Aruba Instant VC by SNMP* (now `we_aruba_instant_virtual_controller`) for 7.0, 7.2 and 7.4.
 - `frontend/wifiexplorer`: Monitoring → Wi-Fi Explorer with site scope, overview, findings, AP inventory, AP and radio detail and data quality, all permission-filtered through Network Explorer's gateway.
 - Qualification: `qualify.py --product wifi`, `capture_walk.py --profile aruba-instant`, synthetic VC and member evidence. Aruba Instant itself stays Unqualified.
 
@@ -25,7 +25,7 @@ Open before Aruba Instant can move past Unqualified: sanitised captures of a VC 
 
 ## Phase B: floor plans and RF
 
-Delivered: floors and AP placement (by `ap_uid`) in the module configuration, edited under **Configure**; the **Floor plans** tab with status, band, channel, utilisation, clients, neighbours and retries overlays, interpolated fields labelled as interpolation, channel-reuse lines backed by RF evidence and an unplaced-AP list; the per-AP template *Wi-Fi Explorer - Aruba Instant AP by SNMP* and the `rf_neighbour` dataset (deduplicated, bounded to the strongest 500); the **RF neighbours** tab with evidence-based classes that keep the AP's own label and never say malicious. See [design](DESIGN.md#floor-plans-and-rf-phase-b-sections-14-and-19).
+Delivered: floors and AP placement (by `ap_uid`) in the module configuration, edited under **Configure**; the **Floor plans** tab with status, band, channel, utilisation, clients, neighbours and retries overlays, interpolated fields labelled as interpolation, channel-reuse lines backed by RF evidence and an unplaced-AP list; the per-AP template *Wi-Fi Explorer - Aruba Instant AP by SNMP* (now `we_aruba_instant_access_point`) and the `rf_neighbour` dataset (deduplicated, bounded to the strongest 500); the **RF neighbours** tab with evidence-based classes that keep the AP's own label and never say malicious. See [design](DESIGN.md#floor-plans-and-rf-phase-b-sections-14-and-19).
 
 ## Phase C: SSIDs and wired uplinks
 
