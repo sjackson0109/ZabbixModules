@@ -23,19 +23,28 @@ function vlanBitmaps(column, current) {
         if (!column.hasOwnProperty(k)) { continue; }
         vid = current ? k.split('.')[1] : k;
         if (!/^[0-9]+$/.test(vid || '')) { continue; }
-        ports = NE.bitsSet(NE.bytes(column[k]), 1);
+        ports = NE.hexBits(column[k], 1);
         out[vid] = out[vid] || {};
         for (i = 0; i < ports.length; i++) { out[vid][ports[i]] = true; }
     }
     return out;
 }
 
-function vlanMembers(bitmaps, port) {
-    var out = [], vid;
+// {bridgePort: [vlanId, ...]} from vlanBitmaps' {vlanId: {bridgePort: true}}: one pass over the set bits, instead
+// of a lookup per port and VLAN.
+function vlanMembership(bitmaps) {
+    var out = {}, vid, port;
     for (vid in bitmaps) {
-        if (bitmaps.hasOwnProperty(vid) && bitmaps[vid][port]) { out.push(parseInt(vid, 10)); }
+        if (!bitmaps.hasOwnProperty(vid)) { continue; }
+        for (port in bitmaps[vid]) {
+            if (bitmaps[vid].hasOwnProperty(port)) { (out[port] = out[port] || []).push(parseInt(vid, 10)); }
+        }
     }
     return out;
+}
+
+function vlanMembers(membership, port) {
+    return membership.hasOwnProperty(port) ? membership[port].slice() : [];
 }
 
 function normaliseVlan(walk, env) {
@@ -83,6 +92,8 @@ function normaliseVlan(walk, env) {
             for (p in maps[m][vid]) { if (maps[m][vid].hasOwnProperty(p)) { ports[p] = true; } }
         }
     }
+    var mEgress = vlanMembership(sEgress), mUntagged = vlanMembership(sUntagged), mForbidden = vlanMembership(sForbidden);
+    var mCurEgress = vlanMembership(cEgress), mCurUntagged = vlanMembership(cUntagged);
     var portList = [];
     for (p in ports) { if (ports.hasOwnProperty(p) && /^[0-9]+$/.test(p)) { portList.push(parseInt(p, 10)); } }
     portList.sort(function (a, b) { return a - b; });
@@ -94,11 +105,11 @@ function normaliseVlan(walk, env) {
         if (uid === null) {
             NE.error(env, 'bridge_port_unresolved', 'A bridge port could not be mapped to an interface; its VLAN membership is unattributed.');
         }
-        var egress = hasStatic ? vlanMembers(sEgress, p) : null;
-        var untagged = hasStatic ? vlanMembers(sUntagged, p) : null;
-        var forbidden = hasStatic ? vlanMembers(sForbidden, p) : null;
-        var curEgress = hasCurrent ? vlanMembers(cEgress, p) : null;
-        var curUntagged = hasCurrent ? vlanMembers(cUntagged, p) : null;
+        var egress = hasStatic ? vlanMembers(mEgress, p) : null;
+        var untagged = hasStatic ? vlanMembers(mUntagged, p) : null;
+        var forbidden = hasStatic ? vlanMembers(mForbidden, p) : null;
+        var curEgress = hasCurrent ? vlanMembers(mCurEgress, p) : null;
+        var curUntagged = hasCurrent ? vlanMembers(mCurUntagged, p) : null;
         var tagged = null;
         if (egress !== null) {
             tagged = egress.filter(function (x) { return untagged.indexOf(x) < 0; });
