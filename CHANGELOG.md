@@ -4,7 +4,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
-## [2.3.0] - 2026-11-23
+## [2.3.0] - 2026-11-24
 
 ### Added
 - The first vendor switch templates, each linked on its own instead of the Generic Switch, carrying everything the Generic Switch collects plus hardware health:
