@@ -234,7 +234,7 @@ def test_failed_collection_records_failed_attempt_and_discards_snapshot():
 def test_complete_snapshot_passes_gate_and_feeds_discovery_and_scalars():
     items = {i["key"]: i for i in all_items()}
     inventory = observe("ne.raw.if.inventory", "sw-core-01.snmprec")
-    kept = json.loads(apply(items["ne.interfaces.inventory"]["preprocessing"], inventory))
+    kept = GEN.unpacked(json.loads(apply(items["ne.interfaces.inventory"]["preprocessing"], inventory)))
     assert kept.pop("timing") == "zabbix"
     # Rows are kept as observed, except that a port's last change, worked out from the device's uptime, is rounded
     # to the minute so that it reads the same at every poll.
@@ -417,7 +417,7 @@ def test_hardware_snapshot_feeds_discovery_and_scalars(raw_key, label, fans, cpu
     items = {i["key"]: i for i in template["items"]}
     rules = {r["key"]: r for r in template["discovery_rules"]}
     envelope = observe(raw_key, CAPTURES / label / "capture.snmprec")
-    kept = json.loads(apply(items["ne.hardware.snapshot"]["preprocessing"], envelope))
+    kept = GEN.unpacked(json.loads(apply(items["ne.hardware.snapshot"]["preprocessing"], envelope)))
     # The stored snapshot keeps states and thresholds; readings are numeric items only.
     assert len(kept["data"]) == len(json.loads(envelope)["data"])
     assert all(r.get(f) is None for r in kept["data"] for f in ("util_5m_pct", "celsius", "speed"))
@@ -457,7 +457,7 @@ def test_poe_snapshot_feeds_discovery(name, raw_key, power_key, label, deliverin
     rules = {r["key"]: r for r in template["discovery_rules"]}
     envelope = observe(raw_key, CAPTURES / label / "capture.snmprec", name)
     readings = observe(power_key, CAPTURES / label / "capture.snmprec", name)
-    kept = json.loads(apply(items["ne.poe.snapshot"]["preprocessing"], envelope))
+    kept = GEN.unpacked(json.loads(apply(items["ne.poe.snapshot"]["preprocessing"], envelope)))
     assert kept.pop("timing") == "zabbix" and kept == stored(envelope)
     units = json.loads(apply(rules["ne.poe.pse.discovery"]["preprocessing"], envelope))
     # A stack slot without a unit is never discovered (the CBS350 agent lists four groups for two units).

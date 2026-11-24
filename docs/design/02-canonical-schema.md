@@ -26,6 +26,18 @@ Zabbix records when every value was collected, so the native templates store env
 
 The readers restore the canonical envelope before validating it ([`StoredEnvelope.php`](../../frontend/networkexplorer/include/Services/StoredEnvelope.php)): `attempted_at` and `observed_at` from the stored value's Zabbix clock or, for the newest complete one, from the clock of the walk's `ne.collection.success[<producer>]` item, which is stored at every complete observation; `uptime_s` and `time_since_topology_change_s` from the stored absolute times; an LLDP row's `observed_at` from its envelope's. Envelopes from the collector, the lab and earlier templates carry their own times and are read unchanged. The canonical schemas are unchanged.
 
+**Packed rows (2.3.1).** Zabbix keeps at most 65,535 bytes of a text value and cuts the rest, which leaves invalid JSON. So that a large switch's snapshots fit, the stored rows are packed: `data` is replaced by `blocks`, one block per run of consecutive rows with the same fields, each holding the field names once (`columns`) and one array of values per row (`rows`):
+
+```json
+{"schema_version":"1.1","dataset":"vlan","status":"ok","timing":"zabbix","blocks":[
+  {"columns":["kind","vlan_id","name"],"rows":[["vlan",10,"users"],["vlan",20,null]]},
+  {"columns":["kind","interface_uid","mode","pvid"],"rows":[["port","if-1f0c…","access",10]]}]}
+```
+
+Packing keeps every row, field and value, and the row order; it roughly halves a snapshot. The reader turns `blocks` back into `data` before validating; blocks that do not line up (a row of the wrong length, a field name that is not one, `data` as well as `blocks`) leave no rows, so the value is rejected as an invalid envelope rather than partly read. A receipt of a complete attempt has no rows and is not packed.
+
+**Too large to store.** The normaliser fails an observation whose packed envelope would leave less than 2,048 bytes below the limit (the stored form writes some row times out in full): `status: "failed"`, `capability.state: "supported"`, no rows, error code `snapshot_too_large`, with the row count in its message. The snapshot item keeps its last complete value, the receipt records the failure, and the dataset's staleness alert fires as for any other failure. The snapshot script also refuses to store a value over the limit, so a value cut short is never written.
+
 ## Freshness (spec §23)
 
 The frontend shows the five states the spec requires. Each is computed per dataset per host from the envelope and the Zabbix item state:

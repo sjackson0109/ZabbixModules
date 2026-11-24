@@ -215,6 +215,12 @@ def test_complete_attempts_are_stored_as_receipts(validator):
     failed = dict(complete, status="failed", complete=False, observed_at=None, data=[])
     kept = receipt(failed)
     assert kept.pop("timing") == "zabbix" and kept == {k: v for k, v in failed.items() if k not in times},         "a failed attempt is stored as it is, without its times"
+    # The snapshot itself is packed (one list of field names per run of rows) and unpacks to the same rows.
+    snapshot = items["we.client.snapshot"]["preprocessing"][0]["parameters"][0]
+    kept = json.loads(subprocess.run(
+        ["node", "-e", "const value=require('fs').readFileSync(0,'utf8');process.stdout.write(String((function(value){"
+         + snapshot + "})(value)));"], input=json.dumps(complete), check=True, capture_output=True, text=True).stdout)
+    assert "data" not in kept and kept["blocks"] and GEN.generate_snmp.unpacked(kept)["data"] == complete["data"]
 
 
 @needs_node

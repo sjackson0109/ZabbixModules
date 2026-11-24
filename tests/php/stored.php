@@ -124,5 +124,52 @@ final class StoredGateway implements DataGateway {
     $assert(($only['datasets']['1']['interfaces']['observed_at'] ?? null) === gmdate('Y-m-d\TH:i:s\Z', $now - 100),
         'Reading one snapshot also reads its walk\'s last complete observation.');
 
+    // Packed rows (2.3.1): each run of rows with the same fields is a block of field names and value arrays.
+    $pack = static function (array $envelope): array {
+        $blocks = [];
+        foreach ($envelope['data'] as $row) {
+            $last = count($blocks) - 1;
+            if ($last < 0 || $blocks[$last]['columns'] !== array_keys($row)) {
+                $blocks[] = ['columns'=>array_keys($row), 'rows'=>[]];
+                ++$last;
+            }
+            $blocks[$last]['rows'][] = array_values($row);
+        }
+        unset($envelope['data']);
+        return $envelope + ['blocks'=>$blocks];
+    };
+    $vlanRows = [['kind'=>'vlan', 'vlan_id'=>10, 'name'=>'users'], ['kind'=>'vlan', 'vlan_id'=>20, 'name'=>null],
+        ['kind'=>'port', 'interface_uid'=>'if-a1', 'mode'=>'access', 'pvid'=>10, 'untagged'=>'10'],
+        ['kind'=>'vlan', 'vlan_id'=>30, 'name'=>'voice']];
+    $plain = $decode($stored('vlan', $vlanRows), 'vlan', $now);
+    $packed = $decode($pack($stored('vlan', $vlanRows)), 'vlan', $now);
+    $assert(count($pack($stored('vlan', $vlanRows))['blocks']) === 3 && $packed === $plain,
+        'Packed blocks restore the same rows, in their stored order, as rows stored whole.');
+    $broken = [
+        'a row shorter than its columns'=>static function (array $e): array { array_pop($e['blocks'][0]['rows'][0]); return $e; },
+        'a field name that is not a field'=>static function (array $e): array { $e['blocks'][0]['columns'][1] = 'Vlan Id'; return $e; },
+        'a repeated field name'=>static function (array $e): array { $e['blocks'][0]['columns'][1] = 'kind'; return $e; },
+        'blocks that are not a list'=>static function (array $e): array { $e['blocks'] = ['x'=>$e['blocks'][0]]; return $e; },
+        'rows that are objects'=>static function (array $e): array {
+            $e['blocks'][0]['rows'][0] = array_combine($e['blocks'][0]['columns'], $e['blocks'][0]['rows'][0]); return $e; },
+        'rows beside the blocks'=>static function (array $e): array { $e['data'] = [['kind'=>'vlan', 'vlan_id'=>99]]; return $e; }
+    ];
+    foreach ($broken as $what => $damage) {
+        try {
+            $decode($damage($pack($stored('vlan', $vlanRows))), 'vlan', $now);
+            $ok = false;
+        }
+        catch (\InvalidArgumentException $e) {
+            $ok = $e->getMessage() === 'invalid_envelope';
+        }
+        $assert($ok, 'Packed rows with '.$what.' are an invalid envelope, never partly read.');
+    }
+    $packedRead = new StoredGateway();
+    $packedRead->add('1', 'ne.interfaces.state', [[$now - 60, $pack($stored('interfaces', [$port('if-a1', 'Gi1', null, null),
+        $port('if-a2', 'Gi2', null, null)]))]]);
+    $packedRead->add('1', 'ne.collection.success[interfaces]', [], 3, $now - 60);
+    $rows = (new DatasetReader($packedRead, $now))->read(['1'=>['hostid'=>'1']])['datasets']['1']['interfaces']['data'] ?? [];
+    $assert(array_column($rows, 'name') === ['Gi1', 'Gi2'], 'The reader merges packed interface snapshots as before.');
+
     echo "Stored-envelope checks passed ({$checks} checks).\n";
 })();

@@ -117,7 +117,7 @@ def receipt(dataset: str) -> str:
 
 def stored(dataset: str) -> str:
     """A complete observation in its stored form (no timestamps, stable rows)."""
-    return gate(dataset, generate_snmp.storage(dataset, STORAGE_ROWS) + "return JSON.stringify(e);")
+    return gate(dataset, generate_snmp.stored(dataset, STORAGE_ROWS))
 
 
 # Cluster-level numbers from each complete observation, stored as numeric items so that Zabbix keeps trends for

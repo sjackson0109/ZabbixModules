@@ -413,7 +413,8 @@ test('scope summary counts only what the payload returned', () => {
     runtime.scopeSummary({
       hosts: [{ hostid: '1' }, { hostid: '2' }, { hostid: '3' }],
       edges: [link('1', '2'), link('2', '3'), { source: '3', target: null }],
-      lags: [{ id: 'l1' }],
+      // An aggregator with no member ports is not a LAG (some switches list every one they could configure).
+      lags: [{ id: 'l1', members: [{ uid: 'if-1' }] }, { id: 'l2', members: [] }, { id: 'l3' }],
       findings: [{ severity: 'info' }, { severity: 'warning' }, { severity: 'warning' }],
       quality: [
         { freshness: 'stale', status: 'ok' },
