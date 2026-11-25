@@ -26,7 +26,7 @@ Zabbix records when every value was collected, so the native templates store env
 
 The readers restore the canonical envelope before validating it ([`StoredEnvelope.php`](../../frontend/networkexplorer/include/Services/StoredEnvelope.php)): `attempted_at` and `observed_at` from the stored value's Zabbix clock or, for the newest complete one, from the clock of the walk's `ne.collection.success[<producer>]` item, which is stored at every complete observation; `uptime_s` and `time_since_topology_change_s` from the stored absolute times; an LLDP row's `observed_at` from its envelope's. Envelopes from the collector, the lab and earlier templates carry their own times and are read unchanged. The canonical schemas are unchanged.
 
-**Packed rows (2.3.1).** Zabbix keeps at most 65,535 bytes of a text value and cuts the rest, which leaves invalid JSON. So that a large switch's snapshots fit, the stored rows are packed: `data` is replaced by `blocks`, one block per run of consecutive rows with the same fields, each holding the field names once (`columns`) and one array of values per row (`rows`):
+**Packed rows (2.3.2).** Zabbix keeps at most 65,535 bytes of a text value and cuts the rest, which leaves invalid JSON. So that a large switch's snapshots fit, the stored rows are packed: `data` is replaced by `blocks`, one block per run of consecutive rows with the same fields, each holding the field names once (`columns`) and one array of values per row (`rows`):
 
 ```json
 {"schema_version":"1.1","dataset":"vlan","status":"ok","timing":"zabbix","blocks":[

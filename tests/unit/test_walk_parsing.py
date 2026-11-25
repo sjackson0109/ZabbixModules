@@ -1,6 +1,6 @@
 """The walk parser and octet helpers in templates/source/js/lib.js, run in Duktape (Zabbix's JavaScript engine).
 
-2.3.1 rewrote them for speed: a Dell N4064's VLAN walk took over Zabbix's 10-second script limit. These tests hold the
+2.3.2 rewrote them for speed: a Dell N4064's VLAN walk took over Zabbix's 10-second script limit. These tests hold the
 rewritten helpers to the 2.3.0 implementations, kept below verbatim, on edge cases and random input.
 """
 from __future__ import annotations

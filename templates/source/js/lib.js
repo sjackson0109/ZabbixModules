@@ -7,7 +7,7 @@ var NE = {};
 NE.SCHEMA = '1.1';
 // Datasets added in schema 1.2 declare it; the 1.1 datasets are unchanged, so their consumers are too.
 NE.SCHEMAS = {hardware: '1.2', poe: '1.2'};
-NE.VERSION = '2.3.1';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
+NE.VERSION = '2.3.2';  // The root VERSION file; tests/unit/test_native_templates.py checks it.
 NE.FAILED = '__NE_COLLECTION_FAILED__';
 NE.UPTIME = '1.3.6.1.2.1.1.3.0';
 // Zabbix stores at most 65,535 bytes of one text value and cuts the rest, which leaves invalid JSON. The stored form
