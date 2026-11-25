@@ -14,7 +14,7 @@ namespace Modules\NetworkExplorer\Services;
  *     observation since the row was stored was identical;
  *   - uptime_s from boot_at, time_since_topology_change_s from topology_changed_at, and an LLDP row's observed_at
  *     from the envelope's;
- *   - "data" from packed rows: since 2.3.1 each run of consecutive rows with the same fields is stored as a block of
+ *   - "data" from packed rows: since 2.3.2 each run of consecutive rows with the same fields is stored as a block of
  *     the field names, once ("columns"), and an array of values per row ("rows"), so that a large switch's snapshot
  *     stays within Zabbix's text limit. Blocks that do not line up leave no "data", so the envelope fails validation.
  * Any other value (canonical envelopes from the collector, the lab or an earlier template) is returned unchanged.

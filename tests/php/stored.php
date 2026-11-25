@@ -124,7 +124,7 @@ final class StoredGateway implements DataGateway {
     $assert(($only['datasets']['1']['interfaces']['observed_at'] ?? null) === gmdate('Y-m-d\TH:i:s\Z', $now - 100),
         'Reading one snapshot also reads its walk\'s last complete observation.');
 
-    // Packed rows (2.3.1): each run of rows with the same fields is a block of field names and value arrays.
+    // Packed rows (2.3.2): each run of rows with the same fields is a block of field names and value arrays.
     $pack = static function (array $envelope): array {
         $blocks = [];
         foreach ($envelope['data'] as $row) {

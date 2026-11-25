@@ -173,7 +173,7 @@ def test_wifi_templates_follow_the_same_policy():
                 assert throttle not in item["preprocessing"], (name, key)
 
 
-# The largest captured switch. Before 2.3.1 its interface inventory snapshot was 68 KB, more than Zabbix keeps of a
+# The largest captured switch. Before 2.3.2 its interface inventory snapshot was 68 KB, more than Zabbix keeps of a
 # text value, so the stored JSON was cut short and the frontend reported the dataset as invalid.
 LARGE = CAPTURES / "dell-n4064-6.5.4.23" / "capture.snmprec"
 LARGE_KEYS = ("ne.raw.system", "ne.raw.if.state", "ne.raw.if.link", "ne.raw.if.inventory", "ne.raw.lldp",
