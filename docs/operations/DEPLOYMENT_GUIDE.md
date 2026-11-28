@@ -1,6 +1,6 @@
 # Deployment guide: Docker test server and multi-proxy production
 
-This guide installs release 2.3.2, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (access points, radios, SSIDs and, with a vendor template such as Aruba Instant's, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
+This guide installs release 2.3.3, which is one package with two pages: **Network Explorer** (switches, links, VLANs, STP, LAGs) and **Wi-Fi Explorer** (access points, radios, SSIDs and, with a vendor template such as Aruba Instant's, clients, and how they reach the wired network). They are installed together, in the same steps, on two kinds of estate:
 
 - **Test:** one Docker host running the Zabbix server, frontend and one or more proxies as containers.
 - **Production:** one frontend server and several proxies spread across data centres, each proxy built from a customised Dockerfile.
@@ -45,7 +45,7 @@ What each page needs from the other:
    sha256sum -c SHA256SUMS
    ```
 
-   You get `network-explorer-frontend-2.3.2.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-2.3.2.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
+   You get `network-explorer-frontend-2.3.3.tar` (the seven module directories under `frontend/`, Wi-Fi Explorer included), `network-explorer-templates-2.3.3.tar` (both template files under `templates/native/<version>/`), and the optional collector package. A published release has the same archives attached, built by the release workflow. Copy only the archives to your servers; nothing else from the checkout is needed.
 4. **Decide the `ne.domain` value(s).** Every switch host needs exactly one host tag `ne.domain` (for example `ne.domain=corp`). Peer matching only happens between hosts with the same value. Use one value across all five data centres if they are one routed/LLDP-connected network; use different values only for networks that must never be matched to each other (for example separate customers with overlapping IPs). The tag never grants visibility. Wi-Fi hosts get the same value as the switches they connect to.
 5. **Decide the `site` values.** The host tag `site=<name>` (for example `site=dc-north`) is what both pages narrow by, and it is how Wi-Fi Explorer finds the switches an Aruba cluster's APs plug into: AP uplinks, VLAN paths and impact are worked out only against switches with the same `site` value as the cluster's host. Pick one value per physical site and use it on that site's switches and Wi-Fi hosts alike.
 6. **Check host names.** Technical and visible host names must be unique across the whole installation; LLDP peer matching relies on that.
@@ -91,7 +91,7 @@ Keep each release unpacked outside the modules directory, so you can roll back, 
 
 ```sh
 DATA_DIRECTORY=/media/data            # as in your compose .env
-RELEASE=2.3.2
+RELEASE=2.3.3
 MODULES=$DATA_DIRECTORY/usr/share/zabbix/modules
 
 # 1. Unpack the release outside the modules directory.
@@ -117,10 +117,10 @@ The `rm -rf` names only the seven package directories (and `${MODULES:?}` stops 
 Use this only if your web service does **not** mount the whole `modules/` directory (see above). Unpack the package into a versioned directory on the Docker host:
 
 ```sh
-sudo mkdir -p /opt/zabbix/network-explorer/2.3.2
-sudo tar -xf network-explorer-frontend-2.3.2.tar -C /opt/zabbix/network-explorer/2.3.2
-sudo ln -sfn /opt/zabbix/network-explorer/2.3.2 /opt/zabbix/network-explorer/current
-sudo chmod -R a+rX /opt/zabbix/network-explorer/2.3.2
+sudo mkdir -p /opt/zabbix/network-explorer/2.3.3
+sudo tar -xf network-explorer-frontend-2.3.3.tar -C /opt/zabbix/network-explorer/2.3.3
+sudo ln -sfn /opt/zabbix/network-explorer/2.3.3 /opt/zabbix/network-explorer/current
+sudo chmod -R a+rX /opt/zabbix/network-explorer/2.3.3
 ```
 
 The web container runs as an unprivileged user, so files must be world-readable and directories traversable; nothing needs to be writable. Then mount each directory read-only. In your compose file (service name and image are examples):
@@ -155,7 +155,7 @@ docker exec <web container> ls /usr/share/zabbix/modules/
 # Dockerfile.web
 FROM zabbix/zabbix-web-nginx-pgsql:alpine-7.4.3
 USER root
-# Unpacked from network-explorer-frontend-2.3.2.tar next to this Dockerfile: all seven module directories.
+# Unpacked from network-explorer-frontend-2.3.3.tar next to this Dockerfile: all seven module directories.
 COPY frontend/ /usr/share/zabbix/modules/
 RUN chmod -R a+rX /usr/share/zabbix/modules
 # Return to the base image's user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
@@ -163,9 +163,9 @@ USER 1997
 ```
 
 ```sh
-mkdir build && tar -xf network-explorer-frontend-2.3.2.tar -C build
+mkdir build && tar -xf network-explorer-frontend-2.3.3.tar -C build
 cp Dockerfile.web build/
-docker build -t registry.example/zabbix-web-ne:7.4.3-ne2.3.2 -f build/Dockerfile.web build
+docker build -t registry.example/zabbix-web-ne:7.4.3-ne2.3.3 -f build/Dockerfile.web build
 ```
 
 Use the `-mysql` web image instead if your database is MySQL/MariaDB. Tag the image with both the Zabbix and the release version so a rollback is a tag change. If you already maintain a customised web image, add the `COPY` and `chmod` lines to it instead. `COPY frontend/` copies every directory in the package, so Wi-Fi Explorer is in the image with nothing extra to add.
@@ -190,7 +190,7 @@ If you run more than one frontend against the same database, every frontend must
 
 ## 4. Import the templates
 
-Unpack `network-explorer-templates-2.3.2.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import the files below with **Data collection → Templates → Import**, one at a time; each stands alone. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
+Unpack `network-explorer-templates-2.3.3.tar` on your workstation and use the files for your version, here `templates/native/7.4/`. Import the files below with **Data collection → Templates → Import**, one at a time; each stands alone. Leave the default rules (create new, update existing; do not tick *Delete missing* on a first import).
 
 1. The switch templates, one self-contained template per file, in the template group `Templates/Network Explorer` (created by the first import):
    - `ne__generic_switch.yaml`, **Network Explorer - Generic Switch**: everything Network Explorer collects from a switch (device identity, interfaces with port discovery, port capability, LLDP, VLAN, STP, LAG and PoE), and the switch host dashboard (Ports, Topology, Findings) built from the five widgets. One per switch; nothing else needs linking beside it.
@@ -301,6 +301,7 @@ In **Monitoring → Latest data**, filter the host and the key `ne.`:
 1. **Monitoring → Network Explorer**. With no selection it draws every switch you can read as a Layer 2 topology. Choose the pilot host as *Seed device*, or its *Site* if you tag hosts with `site=<name>`. Click the switch to see its interfaces, and click a link to see both ends. If the switches run spanning tree, the root bridge is marked ★.
 2. Open the host dashboard (Monitoring → Hosts → *Dashboards*, or *Open host dashboard* on the Explorer page) or add the **Port panel**, **Physical topology** and **Data quality** widgets to a dashboard. Check:
    - ports appear with correct state and speed, and stacks show one tab per member (this needs ENTITY-MIB; switches without it show ports unplaced rather than guessed);
+   - clicking a port shows its record in the Interface detail widget beside the Port panel. A Port panel on a dashboard of your own shows the record below its grid, unless you clear its *Show interface details* option;
    - an LLDP neighbour that is also monitored, with the same `ne.domain`, can be clicked through to its host;
    - the Data quality widget shows no invalid or stale datasets.
 3. Set the management subnet(s) in the Explorer page's *Management subnet* field (or the Physical topology widget's field, or `management_cidr=` on the JSON route) (see the [module README](../../frontend/networkexplorer/README.md)); physically connected devices outside it stay visible and are highlighted.
@@ -416,8 +417,8 @@ Proxies need nothing for a frontend or template upgrade; they receive the new it
 ### 8.2 Rollback
 
 - **Frontend:** rerun the 3.1 commands with the previous `RELEASE`, or repoint `current` to the previous version (3.2), and recreate the container; or redeploy the previous image tag (3.3). The module stays enabled because its ID does not change.
-- **Templates:** re-import the previous release's YAML files with *Update existing*. Do not unlink with *Unlink and clear* as a rollback step: that deletes the items and their history. A re-import without *Delete missing* keeps the items the newer release added; from 2.3.2 back to 2.2.0 that is the PoE dataset on the switch templates, which 2.3.2's frontend ignores, so it can stay, and the LLDP items on the per-AP Wi-Fi templates, which keep collecting and which 2.2.0 reads the same way. The re-import also recreates `Network Explorer - LLDP for access points`; do not link it to those AP hosts again, since their per-AP template already owns its keys. Tick *Delete missing* only if you want those items and their history gone.
-- **From 2.3.2 back to 2.3.0:** re-import the 2.3.0 templates first and the 2.3.0 frontend after the next poll of each walk has stored a snapshot again (within an hour, the interface inventory interval). The 2.3.0 frontend reads 2.3.2's packed snapshots as invalid; the 2.3.2 frontend reads both forms. On a switch whose snapshots exceed the text limit unpacked (5.3), 2.3.0 shows `invalid_json` again.
+- **Templates:** re-import the previous release's YAML files with *Update existing*. Do not unlink with *Unlink and clear* as a rollback step: that deletes the items and their history. A re-import without *Delete missing* keeps the items the newer release added; from 2.3.3 back to 2.2.0 that is the PoE dataset on the switch templates, which 2.3.3's frontend ignores, so it can stay, and the LLDP items on the per-AP Wi-Fi templates, which keep collecting and which 2.2.0 reads the same way. The re-import also recreates `Network Explorer - LLDP for access points`; do not link it to those AP hosts again, since their per-AP template already owns its keys. Tick *Delete missing* only if you want those items and their history gone.
+- **From 2.3.3 back to 2.3.0:** re-import the 2.3.0 templates first and the 2.3.0 frontend after the next poll of each walk has stored a snapshot again (within an hour, the interface inventory interval). The 2.3.0 frontend reads 2.3.3's packed snapshots as invalid; the 2.3.3 frontend reads both forms. On a switch whose snapshots exceed the text limit unpacked (5.3), 2.3.0 shows `invalid_json` again.
 - **Wi-Fi configuration:** it stays in the database across a rollback. If the older release refuses it, the page says the stored configuration does not validate; paste the copy you saved in 8.1 into Configure.
 - **Removing everything:** unlink the switch, access-point LLDP and Wi-Fi templates from hosts (*Unlink and clear* if you want the data gone), disable the seven modules in Administration → General → Modules (Wi-Fi Explorer first, Network Explorer last), then remove the module files or mounts. Removing the files does not delete users' dashboards; widgets on them show as unavailable until removed.
 
@@ -486,7 +487,7 @@ To move back, swap the other way in the same manner; the vendor template's own i
 
 ## 9. Optional: the Python collector on a proxy
 
-The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 2.3.2 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native switch template to the same host.
+The collector exists only for switches that native SNMP items cannot reach; it has no Wi-Fi datasets. It is a frozen schema 1.0 fallback: it does not collect VLAN, STP, port capability or static LAG data, and 2.3.3 ships no template that maps its output to the `ne.*` keys. **Skip this section unless you have such a device.** Never link a collector-fed producer and the native switch template to the same host.
 
 If you do need it, add it to that proxy's Dockerfile. The example below targets the official Alpine proxy image; adjust the package manager for an Ubuntu or RHEL base. Python 3.10 or newer is required.
 
@@ -494,16 +495,16 @@ If you do need it, add it to that proxy's Dockerfile. The example below targets 
 FROM zabbix/zabbix-proxy-mysql:alpine-7.4.3
 USER root
 RUN apk add --no-cache python3
-COPY network-explorer-collector-2.3.2.tar /tmp/
+COPY network-explorer-collector-2.3.3.tar /tmp/
 RUN mkdir -p /opt/network-explorer/src \
- && tar -xf /tmp/network-explorer-collector-2.3.2.tar -C /opt/network-explorer/src \
+ && tar -xf /tmp/network-explorer-collector-2.3.3.tar -C /opt/network-explorer/src \
  && python3 -m venv /opt/network-explorer/venv \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --require-hashes \
       -r /opt/network-explorer/src/collector/requirements.lock \
  && /opt/network-explorer/venv/bin/pip install --no-cache-dir --no-deps /opt/network-explorer/src/collector \
  && install -m 0755 /opt/network-explorer/src/collector/packaging/network-explorer-collect \
       /opt/network-explorer/network-explorer-collect \
- && rm /tmp/network-explorer-collector-2.3.2.tar
+ && rm /tmp/network-explorer-collector-2.3.3.tar
 # Return to the image's original user (check with: docker image inspect -f '{{.Config.User}}' <base image>).
 USER 1997
 ```
@@ -546,15 +547,16 @@ Notes for a customised proxy image:
 | No *Configure* link on the Wi-Fi page | User is not a Super admin | Expected; ask a Super admin. |
 | Module works on one frontend but errors on another | Frontends have different module files | Deploy the same image tag or mounts on every frontend. |
 | Widgets look old after an upgrade | Browser cache | Ctrl+F5; recreate the web container if the bind-mounted `current` link changed. |
-| `*.attempt` shows `failed` with a timeout | SNMP timeout too low for a bulk walk, or UDP 161 filtered from that proxy | Raise the proxy's SNMP agent timeout (5.2); test with `snmpwalk` from the proxy's network. |
+| A dataset `Failed` with `walk_partial`; its finding names the OID, such as `walk_partial at OID 1.0.8802.1.1.2.1.4.1.1` | The switch stopped answering part-way through that walk, after Zabbix's five retries of the request: the SNMP timeout is too short for it, the switch is too busy to answer, or UDP 161 is lossy on that path. One OID that fails discards the whole walk (ZBX-27224) | Raise the SNMP agent timeout to at least 10s (5.2) and check the switch's CPU. Time a walk of that OID with `snmpbulkwalk` from the server's or proxy's network. If one OID always fails on one model, report the OID, model and firmware. |
+| A dataset `Failed` with `collection_failed`, `snmp_error` or `walk_oid_loop` | Zabbix could not walk it; the raw walk item turns Zabbix's error into this code, so the item itself stays supported | Open the host's *Raw SNMP walk: <dataset>* item and use *Test* → *Get value from host* to see Zabbix's own error. `walk_oid_loop` is a device returning OIDs out of order. |
 | SNMP interface unavailable (red) | Credentials, SNMP version or ACL on the switch | Fix as for any SNMP host. Last good snapshots are kept and stale triggers fire. |
 | A dataset shows `unsupported` | The switch does not publish that MIB | Expected; the other datasets still work. VLAN needs Q-BRIDGE-MIB, STP needs BRIDGE-MIB, port placement needs ENTITY-MIB. |
 | Ports shown but unplaced, no stack tabs | No ENTITY-MIB port entities | Expected for that device; ports are listed rather than guessed. |
 | Neighbours listed but not clickable | Neighbour not monitored, different or missing `ne.domain`, or the user cannot see it | Monitor the neighbour with the same `ne.domain` tag; check the user's host groups. |
 | Remote neighbour descriptions missing | `{$NE.LLDP.REDACT_REMOTE}=1` on that host | Intended if set deliberately; set it to `0` only where every reader may see neighbour identities. |
-| Data quality shows a dataset `Failed` with `invalid_json`, and the Ports page shows no port grid | 2.3.0 templates: a snapshot over Zabbix's 65,535-byte text limit was cut short (5.3); typical on a switch with many interfaces such as a Dell N4064 | Upgrade the frontend modules to 2.3.2 first (they read both forms), then the templates; the next poll stores the packed snapshot. Use *Execute now* on the `ne.raw.if.*` items to avoid waiting for the hourly inventory walk. |
+| Data quality shows a dataset `Failed` with `invalid_json`, and the Ports page shows no port grid | 2.3.0 templates: a snapshot over Zabbix's 65,535-byte text limit was cut short (5.3); typical on a switch with many interfaces such as a Dell N4064 | Upgrade the frontend modules to 2.3.3 first (they read both forms), then the templates; the next poll stores the packed snapshot. Use *Execute now* on the `ne.raw.if.*` items to avoid waiting for the hourly inventory walk. |
 | Data quality shows a dataset `Failed` with `snapshot_too_large` | Even packed, the dataset is over Zabbix's text limit (5.3) | Report it with the interface count (or client count) and model; the last complete snapshot stays in use. |
-| Data quality shows every dataset `Failed` with `invalid_envelope` after a template upgrade | 2.3.2 templates with 2.3.0 frontend modules: the older reader does not understand packed snapshots | Upgrade the frontend modules to the same version as the templates. |
+| Data quality shows every dataset `Failed` with `invalid_envelope` after a template upgrade | 2.3.2 or later templates with 2.3.0 frontend modules: the older reader does not understand packed snapshots | Upgrade the frontend modules to the same version as the templates. |
 | Topology shows no links, with a warning that switches have no `ne.domain` host tag | Peers are matched only between hosts with the same `ne.domain` tag (2.4); no template sets it | Add `ne.domain` (and `site`) host tags to every switch, with the same value across one LLDP-connected network. |
 | `Cannot link template … because its parent template "Network Explorer - Interfaces" would be linked twice` | 1.4.0 or earlier templates: the profile and the templates it already links were all selected on one host | Upgrade to the flat templates (8.3), or with 1.4.0 link only `Network Explorer - Profile - Generic standard MIB`. |
 | A dataset's `ne.normalised[...]` item and the items that depend on it are not supported with `RangeError: execution timeout` | Its JavaScript ran past Zabbix's 10-second limit for one preprocessing script: a very large walk, or preprocessing workers that are short of CPU | 2.3.2 made the VLAN normaliser about three times faster. If it persists, check the server's or proxy's CPU and `StartPreprocessors`, and report the model and its VLAN and port counts. |

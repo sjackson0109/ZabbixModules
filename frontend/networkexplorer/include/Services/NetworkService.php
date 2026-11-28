@@ -12,6 +12,11 @@ namespace Modules\NetworkExplorer\Services;
  */
 final class NetworkService {
     private const MAX_STACK_MEMBERS = 16;
+    /**
+     * Warnings that skip no row. A device whose ifNumber disagrees with its interface table is a device quirk: every
+     * row the table holds is still walked.
+     */
+    private const NOT_SKIPPED = ['interface_count_mismatch'];
     private const INTERFACE_FIELDS = ['uid', 'if_index', 'name', 'description', 'alias', 'type', 'physical',
         'admin_status', 'oper_status', 'speed_bps', 'duplex', 'mtu', 'mac_address', 'expected_speed_bps', 'member',
         'slot', 'port'];
@@ -102,7 +107,8 @@ final class NetworkService {
             VlanService::link($graph['edges'], $layers['vlan_ports'], array_map('array_filter', $layers['lldp']),
                 $labels),
             StpService::link($graph['edges'], $layers['stp_bridges'], $layers['stp_ports'],
-                array_column($hosts, 'domain', 'hostid')));
+                array_filter(array_column($hosts, 'domain', 'hostid'), static fn($hostid): bool =>
+                    ($datasets[$hostid]['stp']['freshness'] ?? null) === 'current', ARRAY_FILTER_USE_KEY)));
         $this->attachPeers($interfaces, $graph['edges'], $hosts);
         $findings = array_merge($findings, $this->healthFindings($hosts, $read['quality'], $truncated),
             $graph['findings']);
@@ -527,16 +533,20 @@ final class NetworkService {
             if ($row['errors'] === ['agent_unreachable']) {
                 continue;
             }
-            if ($row['warnings'] ?? []) {
+            $skipped = array_values(array_diff($row['warnings'] ?? [], self::NOT_SKIPPED));
+            if ($skipped) {
                 $findings[] = Finding::create('collection_rows_skipped_'.$row['dataset'], 'info', $row['hostid'],
                     ucfirst($row['dataset']).' collection skipped some rows.',
-                    'The rest of the dataset is current. Diagnostics: '.implode(', ', $row['warnings']).'.');
+                    'The rest of the dataset is current. Diagnostics: '.implode(', ', $skipped).'.');
             }
             if ($row['status'] !== 'ok' || $row['freshness'] !== 'current') {
+                // Error codes are bounded identifiers and stopped_at a walk OID (DatasetQuality), never device text.
+                $errors = $row['errors'] ? ' ('.implode(', ', $row['errors'])
+                .(($row['stopped_at'] ?? null) !== null ? ' at OID '.$row['stopped_at'] : '').')' : '';
                 $findings[] = Finding::create('collection_'.$row['dataset'],
                     $row['status'] === 'failed' ? 'warning' : 'info', $row['hostid'],
                     ucfirst($row['dataset']).' collection requires attention.',
-                    'Outcome: '.$row['status'].'; observation: '.$row['freshness'].'.');
+                    'Outcome: '.$row['status'].$errors.'; observation: '.$row['freshness'].'.');
             }
         }
         if ($truncated) {

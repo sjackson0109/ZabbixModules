@@ -3,7 +3,8 @@ declare(strict_types=1);
 namespace Modules\NePortPanel\Includes;
 
 use Zabbix\Widgets\CWidgetForm;
-use Zabbix\Widgets\Fields\{CWidgetFieldColor, CWidgetFieldMultiSelectOverrideHost, CWidgetFieldSelect};
+use Zabbix\Widgets\Fields\{CWidgetFieldCheckBox, CWidgetFieldColor, CWidgetFieldMultiSelectOverrideHost,
+    CWidgetFieldSelect};
 
 class WidgetForm extends CWidgetForm {
     /**
@@ -23,6 +24,8 @@ class WidgetForm extends CWidgetForm {
             ->addField((new CWidgetFieldSelect('layout', _('Physical layout'), [0=>_('Automatic'), 1=>_('24 port'),
                 2=>_('48 port'), 3=>_('Mixed copper / fibre'), 4=>_('Stack'), 5=>_('Generic rows')]))->setDefault(0))
             ->addField((new CWidgetFieldSelect('layer', _('Default layer'),
-                [0=>_('Physical'), 1=>_('VLAN'), 2=>_('STP'), 3=>_('LLDP')]))->setDefault(0));
+                [0=>_('Physical'), 1=>_('VLAN'), 2=>_('STP'), 3=>_('LLDP')]))->setDefault(0))
+            // Off where an Interface detail widget shows the selected port instead, as on the host dashboard.
+            ->addField((new CWidgetFieldCheckBox('details', _('Show interface details')))->setDefault(1));
     }
 }

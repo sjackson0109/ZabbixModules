@@ -128,6 +128,10 @@ final class Manager {
     $payload = WidgetPayload::build(['layout'=>4, 'layer'=>9, 'colour_down'=>'ff0000', 'colour_normal'=>'red'], true, true);
     $assert($payload['scope']['layout'] === 'stack' && $payload['scope']['layer'] === 'physical'
         && $payload['scope']['colours'] === ['down'=>'FF0000'], 'Form values map to known names and colours only.');
+    $assert($payload['scope']['details'] === true
+        && WidgetPayload::build(['details'=>'0'], true, true)['scope']['details'] === false
+        && WidgetPayload::build(['details'=>1], true, true)['scope']['details'] === true,
+        'The port panel draws its own interface details unless the form turns them off.');
     $payload = WidgetPayload::build(['colour_normal'=>'287e3f', 'colour_degraded'=>'B37312', 'colour_unknown'=>'3A4752',
         'colour_disabled'=>'123456'], true, true);
     $assert($payload['scope']['colours'] === ['disabled'=>'123456'],

@@ -29,7 +29,7 @@ PROFILES = json.loads(read_text(MANIFEST))["templates"]
 # Earlier releases exported every switch template in this one file.
 LEGACY_EXPORTS = ("network_explorer_snmp.yaml",)
 PROFILE = PROFILES[0]["template"]
-FAILED = "__NE_COLLECTION_FAILED__"
+FAILED = _common.FAILED
 SCHEMA = "1.1"
 # Datasets added in schema 1.2 (templates/source/js/lib.js NE.SCHEMAS); the others stay on 1.1.
 SCHEMAS = {"hardware": "1.2", "poe": "1.2"}
@@ -246,8 +246,7 @@ def raw_item(entry: dict) -> dict:
             "history": "0", "value_type": "TEXT", "trends": "0",
             "description": "Input for the canonical normaliser only; not stored. A timeout or SNMP error becomes "
                            "a failed attempt instead of making the dataset silently disappear.",
-            "preprocessing": [{"type": "CHECK_NOT_SUPPORTED", "parameters": ["-1"],
-                               "error_handler": "CUSTOM_VALUE", "error_handler_params": FAILED}],
+            "preprocessing": _common.collection_failure(entry["walk"]),
             "tags": tags(entry["dataset"])}
 
 
@@ -698,7 +697,9 @@ def render(version: str) -> dict[str, str]:
 def host_dashboard() -> dict:
     """The switch host dashboard, inherited from the device template. Zabbix imports it whether or not the widget
     modules are installed; a widget whose module is missing or disabled shows as inaccessible."""
-    port_panel = [{"type": "STRING", "name": "reference", "value": "NEPRT"}]
+    # The Interface detail widget beside the panel shows the selected port, so the panel draws no drawer of its own.
+    port_panel = [{"type": "STRING", "name": "reference", "value": "NEPRT"},
+                  {"type": "INTEGER", "name": "details", "value": "0"}]
     detail = [{"type": "STRING", "name": "itemid._reference", "value": "NEPRT._itemid"}]
     pages = [
         {"name": "Ports", "widgets": [widget("nedataquality", "Collection quality", 0, 0, 72, 4),

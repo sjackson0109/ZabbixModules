@@ -216,7 +216,7 @@ Every way a poll can go wrong must end in an envelope that says so, so the page 
 | --- | --- | --- | --- | --- |
 | Every expected table read | `ok` | `true` | Replaced | None |
 | Some tables or columns missing, or a row cap hit as an error | `partial` | `false` | Kept as it was | An error per missing table, for example `clients_over_limit` |
-| SNMP timeout, no response, unreadable walk | `failed` | `false` | Kept as it was | `agent_unreachable` (no sysUpTime in the walk) or `collection_failed` (no data, or the item not supported, via `CHECK_NOT_SUPPORTED`) |
+| SNMP timeout, no response, unreadable walk | `failed` | `false` | Kept as it was | `agent_unreachable` (no sysUpTime in the walk); otherwise the raw item's `CHECK_NOT_SUPPORTED` steps turn Zabbix's error into `walk_partial` (stopped part-way, naming the walk OID), `walk_oid_loop`, `snmp_error` or `collection_failed` (no data, or any other error) |
 | The host is not this vendor's controller (a member AP, another vendor) | `unsupported` | `false` | Kept as it was | `capability.state: unsupported` with a reason, for example `not_aruba_instant` |
 | A value the vendor reports in an unexpected form | `ok` or `partial` | as read | as read | A warning naming the field and the raw value; the field is `null` |
 

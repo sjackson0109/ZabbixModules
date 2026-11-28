@@ -34,6 +34,31 @@ IF_STATUS_UNKNOWN = IF_STATUS["unknown"]
 IF_STATUS_CONVERT = "var m=" + json.dumps(IF_STATUS) + "; v=m[v]===undefined?" + str(IF_STATUS_UNKNOWN) + ":m[v];"
 COLLECTION_STATUS = ("var s=JSON.parse(value).status; var m={ok:0,partial:1,failed:2,unsupported:3}; "
                      "if(m[s]===undefined) throw 'Unknown status'; return m[s];")
+FAILED = "__NE_COLLECTION_FAILED__"
+# Zabbix's own error texts for a failed walk[] (src/libs/zbxpoller/checks_snmp.c), each matched to a fixed failure
+# class that NE.run in lib.js turns into an error code. When a request still times out after its retries once the walk
+# has data (every walk starts with sysUpTime), the item is not supported with "only partial data received, cannot
+# retrieve OID: '<oid>' from [[<address>]:<port>]: timed out", and Zabbix discards the whole walk (ZBX-27224).
+# A timeout before any data is a network error instead: the interface goes unreachable and no value is processed.
+WALK_FAILURES = (("Timeout while retrieving data|partial data received", "walk_partial"),
+                 ("OID not changing|OID loop detected", "walk_oid_loop"),
+                 ("^SNMP error", "snmp_error"))
+PARTIAL_AT_OID = "partial data received.*OID[^0-9]*{oid}([^0-9]|$)"
+
+
+def collection_failure(walk: list[str]) -> list[dict]:
+    """The raw walk item's "Check for not supported value" steps, first match wins. Each turns Zabbix's error into a
+    fixed value: the failure marker, a class and, for a walk that stopped part-way, which of the walk's own OIDs it
+    stopped in. No capture group copies Zabbix's text, which names the device's address, so nothing the device or
+    Zabbix wrote reaches the receipt. Any other error leaves the bare marker (collection_failed)."""
+    def step(pattern: str | None, value: str) -> dict:
+        return {"type": "CHECK_NOT_SUPPORTED", "parameters": ["-1"] if pattern is None else ["0", pattern],
+                "error_handler": "CUSTOM_VALUE", "error_handler_params": value}
+    # Longest first, so an OID inside another of the walk's subtrees is named rather than its parent.
+    oids = sorted(dict.fromkeys(walk), key=lambda oid: (-len(oid.split(".")), oid))
+    return ([step(PARTIAL_AT_OID.format(oid=re.escape(oid)), f"{FAILED} walk_partial {oid}") for oid in oids]
+            + [step(pattern, f"{FAILED} {failure}") for pattern, failure in WALK_FAILURES]
+            + [step(None, FAILED)])
 
 
 def read_text(path: Path) -> str:

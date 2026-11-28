@@ -33,7 +33,7 @@ GROUP = GROUPS["we"]
 LEGACY_EXPORTS = ("wifi_explorer_snmp.yaml",)
 # The switch generator's manifest; its components also supply the LLDP that per-AP templates embed.
 SWITCH_MANIFEST = SOURCE / "datasets.json"
-FAILED = "__NE_COLLECTION_FAILED__"
+FAILED = _common.FAILED
 SCHEMA = "wifi-1.0"
 NAMESPACE = _common.NAMESPACES["we"]
 # The same storage policy as the switch templates (generate_snmp.py): snapshots, attempt receipts and collection
@@ -104,8 +104,7 @@ def raw_item(entry: dict, scope: str | None) -> dict:
             "delay": entry["interval_macro"], "history": "0", "value_type": "TEXT", "trends": "0",
             "description": "Input for the canonical normaliser only; not stored. A timeout or SNMP error becomes "
                            "a failed attempt instead of making the dataset silently disappear.",
-            "preprocessing": [{"type": "CHECK_NOT_SUPPORTED", "parameters": ["-1"],
-                               "error_handler": "CUSTOM_VALUE", "error_handler_params": FAILED}],
+            "preprocessing": _common.collection_failure(entry["walk"]),
             "tags": tags(entry["dataset"])}
 
 

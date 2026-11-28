@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -121,6 +122,10 @@ def test_generic_template_carries_the_host_dashboard():
     assert kinds == {"neportpanel", "netopology", "neinterfacedetail", "nedataquality", "nefindings"}
     assert dashboards[0]["auto_start"] == "NO"  # pages are tabs, not a slideshow
     assert not list((ROOT / "templates/native").glob("*/network_explorer_dashboard.yaml"))
+    # The Interface detail widget beside the Port panel shows the selected port, so the panel draws no copy of it.
+    ports = {w["type"]: w for w in dashboards[0]["pages"][0]["widgets"]}
+    assert {"type": "INTEGER", "name": "details", "value": "0"} in ports["neportpanel"]["fields"]
+    assert {"type": "STRING", "name": "itemid._reference", "value": "NEPRT._itemid"} in ports["neinterfacedetail"]["fields"]
 
 
 def test_uuids_are_unique_v4_and_keys_unique_per_template():
@@ -186,10 +191,51 @@ def test_raw_walks_are_not_stored_and_turn_errors_into_failed_attempts():
         item = next(i for i in all_items() if i["key"] == entry["raw_key"])
         assert item["type"] == "SNMP_AGENT" and item["history"] == "0"
         assert item["snmp_oid"] == "walk[" + ",".join(entry["walk"]) + "]"
-        step = item["preprocessing"][0]
-        assert step == {"type": "CHECK_NOT_SUPPORTED", "parameters": ["-1"],
-                        "error_handler": "CUSTOM_VALUE", "error_handler_params": GEN.FAILED}
-        assert len(item["preprocessing"]) == 1
+        steps = item["preprocessing"]
+        assert all(s["type"] == "CHECK_NOT_SUPPORTED" and s["error_handler"] == "CUSTOM_VALUE" for s in steps)
+        assert steps[-1] == {"type": "CHECK_NOT_SUPPORTED", "parameters": ["-1"],
+                             "error_handler": "CUSTOM_VALUE", "error_handler_params": GEN.FAILED}
+        for step in steps:
+            # A fixed value: the marker, a known class and only the walk's own OIDs, never a capture of Zabbix's text.
+            value = step["error_handler_params"].split(" ")
+            assert value[0] == GEN.FAILED and "\\" not in step["error_handler_params"], step
+            assert value[1:] in ([], ["walk_oid_loop"], ["snmp_error"], ["walk_partial"]) \
+                or (value[1] == "walk_partial" and value[2:] in [[oid] for oid in entry["walk"]]), step
+        assert {s["error_handler_params"].split(" ")[2] for s in steps
+                if len(s["error_handler_params"].split(" ")) == 3} == set(entry["walk"]), entry["raw_key"]
+
+
+def not_supported(steps: list[dict], error: str) -> str:
+    """The value Zabbix stores for an unsupported item: the first step whose scope matches the error wins."""
+    for step in steps:
+        scope = step["parameters"]
+        if scope == ["-1"] or (scope[0] == "0" and re.search(scope[1], error)) \
+                or (scope[0] == "1" and not re.search(scope[1], error)):
+            return step["error_handler_params"]
+    raise AssertionError("no step handles " + error)
+
+
+@pytest.mark.parametrize("error,expected", [
+    # The texts of src/libs/zbxpoller/checks_snmp.c, with documentation addresses.
+    ("only partial data received, cannot retrieve OID: '1.0.8802.1.1.2.1.4.1.1.9.0.12.3' from [[192.0.2.1]:161]: "
+     "timed out", "walk_partial 1.0.8802.1.1.2.1.4.1.1"),
+    ("only partial data received, cannot retrieve OID: '.1.0.8802.1.1.2.1.4.1.1' from [[192.0.2.1]:161]: timed out",
+     "walk_partial 1.0.8802.1.1.2.1.4.1.1"),
+    ("only partial data received, cannot retrieve OID: 1.0.8802.1.1.2.1.5.4623.1.3.1.1",
+     "walk_partial 1.0.8802.1.1.2.1.5.4623.1.3.1.1"),
+    # ifDescr is not ifAlias's parent, and ifName is not ifName's sibling column 1.3.6.1.2.1.31.1.1.1.18.
+    ("only partial data received, cannot retrieve OID '1.3.6.1.2.1.31.1.1.1.18.5' from [[192.0.2.1]:161]: timed out",
+     "walk_partial 1.3.6.1.2.1.31.1.1.1.18"),
+    ("only partial data received, cannot retrieve OID '1.3.6.1.2.1.4.20.1.1' from [[192.0.2.1]:161]: timed out",
+     "walk_partial"),
+    ('Timeout while retrieving data from "192.0.2.1:161".', "walk_partial"),
+    ("OID loop detected or too many OIDs.", "walk_oid_loop"),
+    ("SNMP error: Too long", "snmp_error"),
+    ("No values received.", ""),
+])
+def test_walk_errors_become_fixed_failure_values(error, expected):
+    item = next(i for i in all_items() if i["key"] == "ne.raw.lldp")
+    assert not_supported(item["preprocessing"], error) == " ".join(filter(None, [GEN.FAILED, expected]))
 
 
 def test_javascript_steps_never_rely_on_custom_on_fail():

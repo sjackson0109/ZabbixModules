@@ -5,6 +5,7 @@ $form = new CWidgetFormView($data);
 $form->addField(new CWidgetFieldMultiSelectOverrideHostView($data['fields']['override_hostid']));
 $form->addField(new CWidgetFieldSelectView($data['fields']['layout']));
 $form->addField(new CWidgetFieldSelectView($data['fields']['layer']));
+$form->addField(new CWidgetFieldCheckBoxView($data['fields']['details']));
 foreach (array_keys(WidgetForm::COLOURS) as $state) {
     $form->addField(new CWidgetFieldColorView($data['fields']['colour_'.$state]));
 }

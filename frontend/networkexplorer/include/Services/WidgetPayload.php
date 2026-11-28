@@ -59,6 +59,8 @@ final class WidgetPayload {
             'layout'=>self::LAYOUTS[(int) ($fields['layout'] ?? 0)] ?? self::LAYOUTS[0],
             'layer'=>self::LAYERS[(int) ($fields['layer'] ?? 0)] ?? self::LAYERS[0],
             'mode'=>self::MODES[(int) ($fields['mode'] ?? 0)] ?? self::MODES[0],
+            // The port panel's own interface drawer; only an explicit 0 turns it off.
+            'details'=>(int) ($fields['details'] ?? 1) !== 0,
             'colours'=>$colours
         ];
     }

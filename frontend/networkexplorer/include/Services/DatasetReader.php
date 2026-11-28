@@ -144,8 +144,11 @@ final class DatasetReader {
                 $records = $byHost[$hostid] ?? [];
                 $keys = array_keys(array_filter(self::KEYS, fn($value) => $value === $dataset));
                 $attemptKeys = array_keys(array_filter(self::ATTEMPTS, fn($value) => $value === $dataset));
+                $own = array_intersect_key($records, array_flip(array_merge($keys, $attemptKeys)));
+                // An optional dataset whose items are all disabled (Port Capability ships that way) is not collected,
+                // so it has no outcome to report. A core dataset turned off still is one.
                 if (!in_array($dataset, self::CORE, true)
-                        && !array_intersect_key($records, array_flip(array_merge($keys, $attemptKeys)))) {
+                        && !array_filter($own, static fn(array $record): bool => !$record['disabled'])) {
                     continue;
                 }
                 $parts = [];

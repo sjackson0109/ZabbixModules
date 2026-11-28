@@ -32,7 +32,8 @@ final class StpService {
      * Adds the instance-0 (CST/CIST) state of both ends to each edge and returns findings.
      * @param array $bridges [hostid] => bridge rows
      * @param array $ports   [hostid][uid] => port rows
-     * @param array $domains [hostid] => matching domain
+     * @param array $domains [hostid] => matching domain, only for hosts whose STP observation is current: a stale one
+     *                       does not say which root a switch sees now, so it is not compared
      */
     public static function link(array &$edges, array $bridges, array $ports, array $domains): array {
         $findings = [];

@@ -37,12 +37,19 @@ final class DatasetQuality {
             $status = 'failed';
             $errors[] = $failure;
         }
+        $stoppedAt = null;
         foreach (($latest['errors'] ?? []) as $error) {
             // Raw device/collector exception strings may contain hidden peer data.
             // Only stable bounded error identifiers are returned to the browser.
             $code = is_array($error) ? ($error['code'] ?? null) : $error;
             if (is_string($code) && preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $code)) {
                 $errors[] = $code;
+            }
+            // A walk that stopped part-way names the template's own walk OID (NE.failure in lib.js), never device
+            // text: only digits and dots are taken from the message.
+            if ($code === 'walk_partial' && $stoppedAt === null && is_array($error) && is_string($error['message'] ?? null)
+                    && preg_match('/ at OID ([0-9]+(?:\.[0-9]+){1,63}),/', $error['message'], $match)) {
+                $stoppedAt = $match[1];
             }
         }
         $warnings = [];
@@ -60,7 +67,8 @@ final class DatasetQuality {
             'age_seconds'=>$epoch !== false ? max(0, $now - $epoch) : null,
             'complete'=>$envelope['complete'] ?? false, 'retained'=> $envelope !== null
                 && $latest !== null && $latest['status'] !== 'ok',
-            'errors'=>array_values(array_unique($errors)), 'warnings'=>array_values(array_unique($warnings))];
+            'errors'=>array_values(array_unique($errors)), 'stopped_at'=>$stoppedAt,
+            'warnings'=>array_values(array_unique($warnings))];
     }
 
     private function __construct() {

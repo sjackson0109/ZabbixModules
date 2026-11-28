@@ -1112,10 +1112,12 @@
     tabs.setAttribute('role', 'tablist');
     tabs.setAttribute('aria-label', 'Stack members');
     root.appendChild(tabs);
+    // Beside an Interface detail widget (the host dashboard) the panel only selects and broadcasts: the drawer
+    // would repeat the same record. On its own the panel shows the selected port itself.
     const panel = el('div', undefined, 'ne-port-panel'),
-      drawer = el('section', undefined, 'ne-drawer');
-    drawer.setAttribute('aria-label', 'Selected interface details');
-    drawer.setAttribute('aria-live', 'polite');
+      drawer = payload.scope?.details === false ? null : el('section', undefined, 'ne-drawer');
+    drawer?.setAttribute('aria-label', 'Selected interface details');
+    drawer?.setAttribute('aria-live', 'polite');
     const selection = fragmentContext(global.location?.hash);
     let selected =
       selection?.hostid === hostid
@@ -1130,7 +1132,7 @@
       state.last_broadcast = `${port.hostid}:${port.uid}`;
       for (const node of panel.querySelectorAll('[aria-pressed]'))
         node.setAttribute('aria-pressed', node.dataset.uid === id(port.uid) ? 'true' : 'false');
-      showDetail(drawer, payload, port, broadcast);
+      if (drawer) showDetail(drawer, payload, port, broadcast);
       broadcast(port.hostid, port.itemid);
     }
     function tileView(port) {
@@ -1259,10 +1261,11 @@
     }
     for (const control of [layout, layer, vlanPick, instancePick]) control.addEventListener('change', draw);
     draw();
-    root.append(panel, drawer);
+    if (selected && selection?.origin && !drawer) notice(root, `Navigated from ${selection.origin}.`);
+    root.append(...[panel, drawer].filter(Boolean));
     if (selected) {
-      showDetail(drawer, payload, selected, broadcast);
-      if (selection?.origin) notice(drawer, `Navigated from ${selection.origin}.`);
+      if (drawer) showDetail(drawer, payload, selected, broadcast);
+      if (selection?.origin && drawer) notice(drawer, `Navigated from ${selection.origin}.`);
       if (state.last_broadcast !== `${selected.hostid}:${selected.uid}`) {
         broadcast(selected.hostid, selected.itemid);
         state.last_broadcast = `${selected.hostid}:${selected.uid}`;

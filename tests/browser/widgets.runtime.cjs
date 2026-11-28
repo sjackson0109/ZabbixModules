@@ -181,6 +181,29 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('.ne-port').nth(1).innerText()).includes('Unrelated'));
     await page.getByRole('combobox', { name: 'Layer' }).selectOption('stp');
     assert.ok((await page.locator('.ne-port').nth(0).innerText()).includes('blocking'));
+    // Beside an Interface detail widget (details off) the panel selects and broadcasts but draws no drawer; a peer
+    // link's origin still shows, in the panel itself.
+    await page.evaluate(() => {
+      window.testBroadcasts.length = 0;
+      window.location.hash =
+        '#ne=' + encodeURIComponent(JSON.stringify({ hostid: '101', uid: 'port:3', origin: 'Peer Gi1/0/1' }));
+      const p = window.testPayload;
+      window.NEWidgetRuntime.render(
+        document.querySelector('#widget'),
+        { ...p, scope: { ...p.scope, details: false } },
+        'ports',
+        (h, i) => window.testBroadcasts.push([h, i])
+      );
+    });
+    assert.equal(await page.locator('#widget .ne-drawer').count(), 0);
+    assert.equal(await page.locator('.ne-port[aria-pressed="true"]').count(), 1);
+    assert.ok((await page.locator('#widget').innerText()).includes('Navigated from Peer Gi1/0/1.'));
+    assert.deepEqual(await page.evaluate(() => window.testBroadcasts), [['101', '1002']]);
+    await page.locator('.ne-port').nth(4).click();
+    assert.equal(await page.locator('#widget .ne-drawer').count(), 0);
+    assert.equal(await page.locator('.ne-port').nth(4).getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(await page.evaluate(() => window.testBroadcasts.at(-1)), ['101', '1004']);
+    await page.evaluate(() => (window.location.hash = ''));
     await page.evaluate(() =>
       window.NEWidgetRuntime.render(document.querySelector('#widget'), window.testPayload, 'topology', (h, i) =>
         window.testBroadcasts.push([h, i])

@@ -243,6 +243,25 @@ def test_failed_collection_is_a_valid_failed_envelope(validator, tmp_path, value
     assert envelope["errors"][0]["code"] == "collection_failed"
 
 
+@pytest.mark.parametrize("value,code,oid", [
+    ("__NE_COLLECTION_FAILED__ walk_partial 1.0.8802.1.1.2.1.4.1.1", "walk_partial", "1.0.8802.1.1.2.1.4.1.1"),
+    ("__NE_COLLECTION_FAILED__ walk_partial", "walk_partial", None),
+    # Only an OID is named; any other text after the class is dropped.
+    ("__NE_COLLECTION_FAILED__ walk_partial 1.3.6.1.x peer-name", "walk_partial", None),
+    ("__NE_COLLECTION_FAILED__ walk_oid_loop", "walk_oid_loop", None),
+    ("__NE_COLLECTION_FAILED__ snmp_error", "snmp_error", None),
+    ("__NE_COLLECTION_FAILED__ some_new_class", "collection_failed", None),
+])
+def test_walk_failure_classes_become_error_codes(validator, tmp_path, value, code, oid):
+    path = tmp_path / "failed.walk"
+    path.write_text(value)
+    envelope = run("ne.raw.lldp", path)
+    validator.validate(envelope)
+    assert (envelope["status"], envelope["data"], [e["code"] for e in envelope["errors"]]) == ("failed", [], [code])
+    message = envelope["errors"][0]["message"]
+    assert ("at OID " + oid in message) if oid else ("at OID" not in message and "peer-name" not in message)
+
+
 def test_walk_without_uptime_is_failed_not_unsupported(validator, tmp_path):
     path = walk_file(tmp_path, "ne.raw.vlan", CORE,
                      lambda text: "\n".join(l for l in text.splitlines() if not l.startswith(".1.3.6.1.2.1.1.3.")))

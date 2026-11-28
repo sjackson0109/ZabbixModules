@@ -99,6 +99,20 @@ $selfGraph = (new TopologyService())->build($hosts, $selfDatasets);
 $selfEdges = array_filter($selfGraph['edges'], static fn(array $edge): bool => $edge['status'] === 'self_link');
 $assert(count($selfEdges) === 1, 'Self-links must be retained and marked explicitly.');
 
+// An unmonitored phone, access point or station is expected; an unmonitored switch or router is a finding.
+$peer = static fn(string $mac, ?array $enabled): array => array_replace($observation('a1', $mac, 'Gi1'),
+    $enabled === null ? [] : ['capabilities' => ['enabled' => $enabled]]);
+$endpointDatasets = $datasets;
+$endpointDatasets['1']['lldp'] = $dataset([$peer('02:00:00:00:a1:00', ['bridge', 'telephone']),
+    $peer('02:00:00:00:a2:00', ['wlan_access_point']), $peer('02:00:00:00:a3:00', ['station']),
+    $peer('02:00:00:00:a4:00', []), $peer('02:00:00:00:a5:00', ['bridge', 'router']),
+    $peer('02:00:00:00:a6:00', null)]);
+$endpointGraph = (new TopologyService())->build($hosts, $endpointDatasets);
+$unresolvedFindings = array_filter($endpointGraph['findings'], static fn(array $f): bool => $f['rule'] === 'unresolved_lldp');
+$assert(count(array_filter($endpointGraph['edges'], static fn(array $edge): bool => $edge['status'] === 'unresolved')) === 6
+    && count($unresolvedFindings) === 2,
+    'Unresolved endpoints stay in the graph; only possible infrastructure, or a peer without capabilities, is a finding.');
+
 $portConflict = array_replace($toB, ['remote_if_index' => 22]);
 $assert($resolver->resolve($portConflict, '1')['interface_uid'] === null, 'Conflicting explicit port mapping must remain unknown.');
 
