@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [2.3.3] - 2026-11-28
+
 ### Fixed
 - Port Capability, which the vendor templates ship disabled, was reported on every switch as a `Failed` dataset with `item_disabled`, plus a warning finding. An optional dataset whose items are all disabled is now not collected, so it has no outcome and no finding. A core dataset (device, interfaces, LLDP, LAG) that is turned off is still reported.
 - A switch whose `ifNumber` disagrees with its interface table raised "Interfaces collection skipped some rows" (`interface_count_mismatch`), though no row was skipped: every row the table holds is walked. It remains a diagnostic on the Data Quality widget, but it no longer raises a finding.
