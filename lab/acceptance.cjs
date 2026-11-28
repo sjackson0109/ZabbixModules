@@ -103,13 +103,17 @@ const step = name => {
       assert.equal(await amber.count(), 1);
       step('Host dashboard: sw-core-01 Gi1/0/23 is amber (below expected speed)');
       await amber.click();
-      const drawer = panel.locator('.ne-drawer');
+      // The panel draws no drawer on the host dashboard: the Interface detail widget beside it shows the port.
+      assert.equal(await panel.locator('.ne-drawer').count(), 0);
+      const drawer = page.locator('.dashboard-widget-neinterfacedetail .ne-drawer', { hasText: 'Gi1/0/23' });
+      await drawer.waitFor({ timeout: 60000 });
       assert.ok((await drawer.innerText()).includes('negotiable') || (await drawer.innerText()).includes('policy'));
       await drawer.getByRole('link', { name: 'sw-access-17' }).click();
       const remote = page.locator('.dashboard-widget-neportpanel');
       await remote.locator('.ne-port[aria-pressed="true"]').waitFor({ timeout: 60000 });
       assert.ok((await remote.locator('.ne-port[aria-pressed="true"]').innerText()).includes('Gi1/0/48'));
-      assert.ok((await remote.locator('.ne-drawer').innerText()).includes('Navigated from Gi1/0/23'));
+      assert.ok((await remote.innerText()).includes('Navigated from Gi1/0/23'));
+      await page.locator('.dashboard-widget-neinterfacedetail .ne-drawer', { hasText: 'Gi1/0/48' }).waitFor({ timeout: 60000 });
       step('Host dashboard: peer navigation highlights sw-access-17 Gi1/0/48');
       await page.goto(`${url}/zabbix.php?action=host.dashboard.view&hostid=${hosts['sw-stack-01']}`);
       const stack = page.locator('.dashboard-widget-neportpanel');

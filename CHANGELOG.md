@@ -4,6 +4,17 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Fixed
+- Port Capability, which the vendor templates ship disabled, was reported on every switch as a `Failed` dataset with `item_disabled`, plus a warning finding. An optional dataset whose items are all disabled is now not collected, so it has no outcome and no finding. A core dataset (device, interfaces, LLDP, LAG) that is turned off is still reported.
+- A switch whose `ifNumber` disagrees with its interface table raised "Interfaces collection skipped some rows" (`interface_count_mismatch`), though no row was skipped: every row the table holds is walked. It remains a diagnostic on the Data Quality widget, but it no longer raises a finding.
+- "Spanning-tree root differs from its neighbours" compared a switch's stale STP observation, saying it "sees" a root it may no longer see. Only a current observation is compared now.
+
+### Changed
+- A collection finding names its error codes, such as "Outcome: failed (collection_failed); observation: current.", so an exported findings file shows why each dataset failed.
+- A failed SNMP walk now says how it failed, not only `collection_failed`. The raw walk items match Zabbix's error to a fixed value, and copy no text, because Zabbix's text names the device's address. A walk that stopped part-way is `walk_partial`, and its finding names which of the walk's own OIDs it stopped in: "Outcome: failed (walk_partial at OID 1.0.8802.1.1.2.1.4.1.1)". The other codes are `walk_oid_loop` and `snmp_error`; any other error stays `collection_failed`. On a test server with Cisco Small Business switches, the LLDP, LAG, STP, VLAN and device walks failed on about half the switches, and the receipts could not say why. Zabbix discards the whole walk when one of its OIDs still times out after its retries (ZBX-27224). Deployment guide, section 6, has what to check.
+- Unresolved LLDP neighbours that are endpoints no longer raise a finding each. Endpoints are phones, access points, stations, and neighbours that enable no forwarding capability. They stay in the topology and in the unresolved count. A neighbour that may be a switch, router or relay, or whose capabilities were not collected, still raises one. On that test server's counts, about a dozen of 179 such findings remain.
+- The host dashboard's Port panel no longer repeats the selected port's record below its grid. The Interface detail widget beside the panel already shows it. The Port panel has a new option, *Show interface details*. It is on by default, so a panel on a dashboard without an Interface detail widget keeps its own record. The template's host dashboard turns it off. Modules and templates can be upgraded in either order: until the modules are upgraded, the panel ignores the option.
+
 ## [2.3.2] - 2026-11-25
 
 These changes were prepared as 2.3.1, which was not released.

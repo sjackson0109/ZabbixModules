@@ -480,13 +480,45 @@ NE.utf8Length = function (text) {
     return n;
 };
 
+// The failure classes the raw walk's "Check for not supported value" steps name (collection_failure() in
+// templates/_common.py), by error code.
+NE.FAILURES = {
+    walk_partial: 'The SNMP agent stopped answering part-way through the walk, so Zabbix discarded all of it.',
+    walk_oid_loop: 'The SNMP agent returned a repeated or looping OID, so Zabbix stopped the walk.',
+    snmp_error: 'The SNMP agent answered the walk with an error.'
+};
+NE.OID = /^[0-9]+(\.[0-9]+){1,63}$/;
+
+// The failed attempt a raw walk value stands for, or null for a walk. The value is the template's own text, never
+// Zabbix's or the device's: the marker, a class, and for walk_partial the walk OID it stopped in. Anything else
+// after the marker is ignored.
+NE.failure = function (value) {
+    if (value === '' || value === null || value === undefined) {
+        return {code: 'collection_failed', message: 'The SNMP walk returned no data.'};
+    }
+    var text = String(value);
+    if (text.indexOf(NE.FAILED) !== 0) {
+        return null;
+    }
+    var parts = text.split(' ');
+    var message = parts[0] === NE.FAILED && NE.FAILURES.hasOwnProperty(parts[1]) ? NE.FAILURES[parts[1]] : null;
+    if (!message) {
+        return {code: 'collection_failed', message: 'The SNMP walk failed or the item is not supported.'};
+    }
+    if (parts[1] === 'walk_partial' && NE.OID.test(parts[2] || '')) {
+        message = message.replace(' walk,', ' walk, at OID ' + parts[2] + ',');
+    }
+    return {code: parts[1], message: message};
+};
+
 // Runs a dataset normaliser and sets status/completeness consistently.
 //   normalise(walk, env) returns rows, or throws {unsupported: reason}.
 //   Any error recorded on env makes the result partial.
 NE.run = function (dataset, adapter, value, normalise) {
     var env = NE.envelope(dataset, adapter);
-    if (value === NE.FAILED || value === '' || value === null || value === undefined) {
-        NE.error(env, 'collection_failed', 'The SNMP walk returned no data or the item is not supported.');
+    var failure = NE.failure(value);
+    if (failure) {
+        NE.error(env, failure.code, failure.message);
         return env;
     }
     var walk, rows;

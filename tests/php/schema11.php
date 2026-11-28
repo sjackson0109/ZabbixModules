@@ -114,7 +114,26 @@ use Modules\NetworkExplorer\Services\VlanService;
         $gateway->add($id,'ne.device.snapshot',[$envelope('device',[['chassis_ids'=>[['subtype'=>7,'value'=>'chassis-'.$id]],
             'management_addresses'=>['192.0.2.'.$id]]])]);
     }
-    $gateway->add('1','ne.interfaces.state',[$envelope('interfaces',[$port('if-a1','Gi1',100000000),$port('if-a2','Gi2',1000000000,'half')])]);
+    // An ifNumber that disagrees with the interface table skips no row.
+    $gateway->add('1','ne.interfaces.state',[$envelope('interfaces',[$port('if-a1','Gi1',100000000),$port('if-a2','Gi2',1000000000,'half')])
+        + ['warnings'=>[['code'=>'interface_count_mismatch','message'=>'ifNumber does not match.']]]]);
+    // Port Capability as the vendor templates ship it: every item disabled.
+    $gateway->add('2','ne.port_capability.snapshot',[$envelope('port_capability',[])]);
+    $gateway->itemRows[count($gateway->itemRows) - 1]['status'] = 1;
+    $gateway->add('2','ne.port_capability.attempt',[$envelope('port_capability',[])]);
+    $gateway->itemRows[count($gateway->itemRows) - 1]['status'] = 1;
+    // The newest device walk failed; the last device observation is retained and still current.
+    $gateway->add('2','ne.device.attempt',[array_replace($envelope('device',[],'2026-10-06T12:00:30Z'),
+        ['status'=>'failed','complete'=>false,'observed_at'=>null,
+        'errors'=>[['code'=>'collection_failed','message'=>'The SNMP walk returned no data.']]])]);
+    // An LLDP walk that stopped part-way names the walk OID it stopped in; no other error passes an OID on.
+    $gateway->add('2','ne.lldp.attempt',[array_replace($envelope('lldp',[],'2026-10-06T12:00:30Z'),
+        ['status'=>'failed','complete'=>false,'observed_at'=>null,'errors'=>[['code'=>'walk_partial','message'=>
+        'The SNMP agent stopped answering part-way through the walk, at OID 1.0.8802.1.1.2.1.4.1.1, so Zabbix '
+        .'discarded all of it.']]])]);
+    $gateway->add('1','ne.lag.attempt',[array_replace($envelope('lag',[],'2026-10-06T12:00:30Z'),
+        ['status'=>'failed','complete'=>false,'observed_at'=>null,
+        'errors'=>[['code'=>'snmp_error','message'=>'peer-x at OID 1.3.6.1.2.1.2, said no.']]])]);
     // One skipped row (a duplicate name) leaves host 2's interfaces a complete, current observation.
     $gateway->add('2','ne.interfaces.state',[$envelope('interfaces',[$port('if-b1','Gi1',100000000)])
         + ['warnings'=>[['code'=>'identity_ambiguous','message'=>'An interface name is duplicated.']]]]);
@@ -147,6 +166,24 @@ use Modules\NetworkExplorer\Services\VlanService;
     $assert($skipped['status'] === 'ok' && $skipped['freshness'] === 'current'
         && $skipped['warnings'] === ['identity_ambiguous'] && ($rules['collection_rows_skipped_interfaces'] ?? 0) === 1
         && !isset($rules['collection_interfaces']), 'Skipped rows are reported without failing the dataset.');
+    $mismatch = array_values(array_filter($network['quality'], static fn($q) => $q['hostid'] === '1'
+        && $q['dataset'] === 'interfaces'))[0];
+    $assert($mismatch['warnings'] === ['interface_count_mismatch'],
+        'An ifNumber mismatch stays a Data Quality diagnostic but is not a skipped-rows finding.');
+    $assert(!array_filter($network['quality'], static fn($q) => $q['dataset'] === 'port_capability' && $q['hostid'] === '2')
+        && !isset($rules['collection_port_capability']),
+        'An optional dataset whose items are all disabled is not collected, so it has no outcome or finding.');
+    $device = array_values(array_filter($network['findings'], static fn($f) => $f['rule'] === 'collection_device'));
+    $assert(count($device) === 1 && $device[0]['severity'] === 'warning'
+        && $device[0]['reason'] === 'Outcome: failed (collection_failed); observation: current.',
+        'A collection finding names its error codes.');
+    $reason = static fn(string $rule, string $hostid) => array_values(array_filter($network['findings'],
+        static fn($f) => $f['rule'] === $rule && $f['hostid'] === $hostid))[0]['reason'] ?? null;
+    $assert($reason('collection_lldp', '2')
+            === 'Outcome: failed (walk_partial at OID 1.0.8802.1.1.2.1.4.1.1); observation: current.'
+        && $reason('collection_lag', '1') === 'Outcome: failed (snmp_error); observation: unknown.'
+        && !str_contains(json_encode($network), 'peer-x'),
+        'Only a part-way walk names its walk OID; error messages never reach the browser.');
 
     $a1 = $ports['if-a1'];
     $assert($a1['expected_speed_bps'] == 1000000000 && $a1['expected_speed_source'] === 'negotiable'
@@ -171,6 +208,20 @@ use Modules\NetworkExplorer\Services\VlanService;
     $assert($edge['stp']['source']['state'] === 'forwarding' && !$edge['stp']['blocked'], 'Links carry STP state of both ends.');
     $assert(($rules['stp_root_disagreement'] ?? 0) === 1, 'A switch that sees a different root is flagged.');
     $assert(($rules['stp_topology_change'] ?? 0) === 1, 'A recent topology change is reported.');
+    $rootsSeen = static function (string $time) use ($host, $envelope, $port, $stpBridge, $now): int {
+        $pair = new FixtureGateway();
+        $pair->hostRows = [$host('1', 1), $host('2', 1), $host('3', 1)];
+        foreach (['1','2','3'] as $id) {
+            $pair->add($id,'ne.interfaces.state',[$envelope('interfaces',[$port('if-'.$id,'Gi1',1000000000)])]);
+        }
+        $pair->add('1','ne.stp.snapshot',[$envelope('stp',[$stpBridge('8000000000000001','8000000000000001')])]);
+        $pair->add('2','ne.stp.snapshot',[$envelope('stp',[$stpBridge('8000000000000002','8000000000000001')])]);
+        $pair->add('3','ne.stp.snapshot',[$envelope('stp',[$stpBridge('8000000000000003','1000000000000003')], $time)]);
+        $rules = array_count_values(array_column((new NetworkService($pair, $now))->build()['findings'], 'rule'));
+        return $rules['stp_root_disagreement'] ?? 0;
+    };
+    $assert($rootsSeen('2026-10-06T12:00:00Z') === 1 && $rootsSeen('2026-10-06T10:00:00Z') === 0,
+        'Only a current STP observation is compared for the root a switch sees now.');
 
     $assert(($rules['snmp_unreachable'] ?? 0) === 1 && !isset($rules['collection_interfaces']),
         'An unreachable agent is one finding, not one per dataset.');

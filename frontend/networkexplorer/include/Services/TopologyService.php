@@ -103,10 +103,12 @@ final class TopologyService {
                 }
                 if ($resolution['status'] !== 'resolved') {
                     $edge['candidate_count'] = $resolution['candidate_count'];
-                    $this->finding($findings, $resolution['status'] . '_lldp', $edgeid, $hostid,
-                        $resolution['status'] === 'ambiguous'
-                            ? 'Peer identity is ambiguous within the permitted routing domain.'
-                            : 'Peer identity could not be resolved within the permitted routing domain.');
+                    if ($resolution['status'] === 'ambiguous' || self::mayForward($row)) {
+                        $this->finding($findings, $resolution['status'] . '_lldp', $edgeid, $hostid,
+                            $resolution['status'] === 'ambiguous'
+                                ? 'Peer identity is ambiguous within the permitted routing domain.'
+                                : 'Peer identity could not be resolved within the permitted routing domain.');
+                    }
                 }
                 elseif ($remote === null) {
                     $this->finding($findings, 'unmapped_remote_port', $edgeid, $hostid,
@@ -246,6 +248,24 @@ final class TopologyService {
             return 'stale';
         }
         return $a === 'unknown' || $b === 'unknown' ? 'unknown' : 'current';
+    }
+
+    /** LLDP capabilities of a device that forwards other devices' traffic: a switch, router or relay. */
+    private const FORWARDING = ['bridge', 'router', 'repeater', 'tpmr', 'c_vlan', 's_vlan', 'docsis'];
+    /** Capabilities of an endpoint. A phone's bridge serves only the PC behind it. */
+    private const ENDPOINT = ['telephone', 'wlan_access_point', 'station'];
+
+    /**
+     * Whether an unresolved neighbour may be network infrastructure missing from monitoring, which is worth a finding.
+     * Phones, access points and stations are endpoints, and a neighbour that enables no forwarding capability is not
+     * infrastructure; their edges stay in the graph and the unresolved count. A row without capability data is kept.
+     */
+    private static function mayForward(array $row): bool {
+        $enabled = $row['capabilities']['enabled'] ?? null;
+        if (!is_array($enabled)) {
+            return true;
+        }
+        return !array_intersect($enabled, self::ENDPOINT) && array_intersect($enabled, self::FORWARDING);
     }
 
     private const FINDING_TITLES = [
